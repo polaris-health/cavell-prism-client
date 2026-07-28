@@ -16,10 +16,11 @@ uv add cavell-prism-client
 The SDK reads from and writes to your local FHIR server. If you do not already have one running, this repository includes a `docker-compose.yml` that starts [HAPI FHIR](https://hapifhir.io/) with Postgres:
 
 ```bash
-docker compose up -d
+scripts/start_fhir.sh            # docker compose up + wait until ready
+scripts/start_fhir.sh --fresh    # wipe the database first, start empty
 ```
 
-This starts HAPI on `http://localhost:8090` and exposes the FHIR API at `/fhir`:
+This starts HAPI on `http://localhost:8090` and exposes the FHIR API at `/fhir`. To see what's on the server, `uv run python scripts/fhir_summary.py` prints a count per resource type.
 
 ```python
 client = CavellClient(
