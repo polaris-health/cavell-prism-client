@@ -80,5 +80,5 @@ dev = [
     "pytest>=9.1.1",
     "pytest-timeout>=2.3",
     "ruff>=0.11",
-    "ty>=0.0.1",
+    "ty>=0.0.64",
 ]
