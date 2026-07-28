@@ -1,0 +1,46 @@
+site_name: Cavell Prism Client
+site_description: Python client for Cavell FHIR extraction API
+site_url: https://polaris-health.github.io/cavell-prism-client
+repo_url: https://github.com/polaris-health/cavell-prism-client
+repo_name: polaris-health/cavell-prism-client
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.instant
+    - navigation.sections
+
+plugins:
+  - search
+  - social
+  - mkdocs-jupyter:
+      ignore_h1_titles: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - tables
+
+nav:
+  - Home: index.md
+  - Client: extract.md
+  - Pipeline: ingestion.md
+  - Demo: notebooks/extraction_demo.ipynb
+  - Hospitalization Demo: notebooks/hospitalization_extraction_demo.ipynb

@@ -1,0 +1,76 @@
+# Nightly pre-release from develop: skipped when develop hasn't moved since
+# the last successful nightly. Stamps <version>.dev<UTC timestamp> into the
+# workspace copy only (never committed) and publishes to PyPI via trusted
+# publishing (OIDC, environment 'pypi-nightly').
+#
+# Versioning convention: __version__ on develop is always the NEXT stable
+# version, so nightlies sort below the eventual release. Bump it right after
+# every stable release.
+name: Publish Nightly
+
+on:
+  schedule:
+    - cron: '17 5 * * *'  # runs on the default branch (develop)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      publish: ${{ steps.compare.outputs.publish }}
+    steps:
+      - id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/publish-nightly.yml/runs?status=success&branch=develop&per_page=1" --jq '.workflow_runs[0].head_sha // empty')
+          if [ "$LAST" = "$GITHUB_SHA" ]; then
+            echo "develop unchanged since the last nightly - skipping"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Stamp dev version (workspace only)
+        run: |
+          BASE="$(uvx hatch version)"
+          case "$BASE" in
+            *dev*) echo "::error::develop already carries a dev version ($BASE)"; exit 1;;
+          esac
+          uvx hatch version "${BASE}.dev$(date -u +%Y%m%d%H%M)"
+      - run: uv build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi-nightly
+      url: https://pypi.org/p/cavell-prism-client
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1

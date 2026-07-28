@@ -1,0 +1,44 @@
+"""Shared test helpers."""
+
+API_URL = "https://qa.prism.cavell.app/api"
+
+
+def mock_fhir_auth(httpx_mock):
+    """Add FHIR auth token mock."""
+    httpx_mock.add_response(
+        method="POST",
+        url="http://localhost:8080/auth/token",
+        json={"access_token": "fhir-token"},
+    )
+
+
+def mock_api_preflight(httpx_mock):
+    """Mock the authenticated GET /resources pre-flight used by extract()."""
+    httpx_mock.add_response(
+        method="GET",
+        url=f"{API_URL}/resources",
+        json={"resources": []},
+        repeat=True,
+    )
+
+
+def mock_watermark(httpx_mock, patient_fhir_id, date=None, repeat=True):
+    """Mock the newest-document-date query for a patient.
+
+    date=None → no processed documents (empty bundle).
+    """
+    entry = (
+        []
+        if date is None
+        else [{"resource": {"resourceType": "DocumentReference", "date": date}}]
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            f"http://localhost:8080/fhir/DocumentReference?patient={patient_fhir_id}"
+            f"&identifier=urn%3Acavell%3Adocument%7C&_sort=-date&_count=1"
+            f"&_elements=date"
+        ),
+        json={"resourceType": "Bundle", "entry": entry},
+        repeat=repeat,
+    )

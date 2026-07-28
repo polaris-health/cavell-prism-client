@@ -1,0 +1,25 @@
+# Local HAPI FHIR server for development and the demo notebooks.
+# Credentials are local-dev only. Need more instances? Copy the pair and
+# bump the host port (8091, 8092, ...).
+services:
+  fhir:
+    image: hapiproject/hapi:v8.6.5-1
+    ports:
+      - "8090:8080"
+    environment:
+      - JAVA_TOOL_OPTIONS=-Dhapi.fhir.reuse_cached_search_results_millis=-1 -Dspring.datasource.url=jdbc:postgresql://postgres:5432/hapi -Dspring.datasource.username=admin -Dspring.datasource.password=admin -Dspring.datasource.driver-class-name=org.postgresql.Driver -Dspring.jpa.properties.hibernate.dialect=ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
+      - hapi.fhir.allow_cascading_deletes=true
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: hapi
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

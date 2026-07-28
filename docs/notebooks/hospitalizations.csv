@@ -1,0 +1,1019 @@
+note_id,patient_id,patient_name,birth_date,gender,note_date,visit_id,department,practitioner_id,practitioner_name,note_text
+note-0001,MRN-20001,Robert Hayes,1952-04-12,male,2024-03-14,V-001,Emergency Medicine,DOC-201,Eric Sullivan,"ADMISSION NOTE — Emergency Department
+
+72-year-old man admitted with a 5-day history of productive cough with green
+sputum, fever up to 38.9°C and progressive breathlessness. O/E: RR 24, SpO2 90%
+on room air, temp 38.7°C, BP 128/76, HR 102. Coarse crackles at the right lung
+base. PMH: hypertension, hyperlipidaemia. Working diagnosis: community-acquired
+pneumonia, CURB-65 = 2 (age, urea). Admitted to Ward 14 (Respiratory). Started on
+empirical IV amoxicillin-clavulanate and oral clarithromycin. Chest X-ray, blood
+cultures and bloods requested."
+note-0002,MRN-20001,Robert Hayes,1952-04-12,male,2024-03-14,V-001,Laboratory,DOC-201,Eric Sullivan,"LABORATORY RESULTS — Admission bloods
+
+WBC 16.4 x10^9/L (neutrophils 13.8), CRP 212 mg/L, Hb 13.1 g/dL, platelets 288.
+Urea 8.9 mmol/L, creatinine 96 µmol/L, eGFR 71, Na 134, K 4.2. LFTs normal.
+Marked neutrophilia and CRP rise consistent with bacterial infection."
+note-0003,MRN-20001,Robert Hayes,1952-04-12,male,2024-03-15,V-001,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — Chest X-ray (PA)
+
+Clinical details: cough, fever, query pneumonia.
+Findings: Dense consolidation in the right lower zone with air bronchograms. No
+pleural effusion. Heart size normal. No pneumothorax.
+Impression: Right lower lobe consolidation consistent with pneumonia."
+note-0004,MRN-20001,Robert Hayes,1952-04-12,male,2024-03-16,V-001,Microbiology,DOC-201,Eric Sullivan,"MICROBIOLOGY — Sputum culture and blood cultures
+
+Sputum Gram stain: mixed oropharyngeal flora, no predominant organism.
+Sputum culture: no significant growth after 48 hours; no pathogen isolated.
+Blood cultures x2: no growth at 5 days.
+Conclusion: No causative organism identified."
+note-0005,MRN-20001,Robert Hayes,1952-04-12,male,2024-03-16,V-001,Pulmonology,DOC-201,Eric Sullivan,"PROGRESS NOTE — Day 3, Ward 14
+
+Afebrile for 24 hours, SpO2 95% on room air, CRP falling to 88. Switched from IV
+to oral co-amoxiclav. Eating and drinking, mobilising independently. Plan:
+complete a 5-day oral course and discharge tomorrow if stable."
+note-0006,MRN-20001,Robert Hayes,1952-04-12,male,2024-03-18,V-001,Pulmonology,DOC-201,Eric Sullivan,"DISCHARGE LETTER
+
+Patient: Robert Hayes (72M)
+Admitted: 14/03/2024   Discharged: 18/03/2024   Ward 14 (Respiratory), 4 bed-days.
+
+Reason for admission: Community-acquired pneumonia.
+
+Hospital course: Presented with a 5-day history of productive cough, fever and
+dyspnoea. On admission he was febrile (38.7°C), tachypnoeic with SpO2 90% on air
+and right basal crackles; CURB-65 score 2. Chest X-ray confirmed right lower lobe
+consolidation and inflammatory markers were markedly raised (WBC 16.4, CRP 212).
+He was treated for community-acquired pneumonia with intravenous
+amoxicillin-clavulanate and oral clarithromycin, switched to oral co-amoxiclav on
+day 3 after clinical improvement. Sputum and blood cultures showed no growth and no
+causative organism was identified. He defervesced within 48 hours and oxygen
+saturations normalised on room air.
+
+Discharge diagnosis: Community-acquired pneumonia, organism unidentified.
+
+Discharge medications: Co-amoxiclav 625 mg three times daily to complete a 5-day
+course; usual ramipril and atorvastatin continued.
+
+Follow-up: Repeat chest X-ray in 6 weeks to confirm radiological resolution; GP
+review if symptoms recur."
+note-0007,MRN-20002,Margaret Doyle,1939-11-03,female,2024-04-02,V-002,Emergency Medicine,DOC-202,Hannah Berg,"ADMISSION NOTE — Emergency Department
+
+85-year-old woman brought in after a mechanical fall at home onto her right side,
+unable to weight-bear with right hip pain. O/E: right leg shortened and externally
+rotated, painful on any movement, neurovascularly intact distally. PMH:
+osteoporosis, hypertension, hypothyroidism. Pelvic X-ray requested. Analgesia
+given, IV fluids started, fascia iliaca block performed. Orthogeriatric review and
+pre-operative work-up initiated."
+note-0008,MRN-20002,Margaret Doyle,1939-11-03,female,2024-04-02,V-002,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — X-ray pelvis and right hip
+
+Findings: Displaced intracapsular fracture of the right femoral neck (Garden III).
+Generalised osteopenia. No other fracture. Left hip and pubic rami intact.
+Impression: Displaced right femoral neck fracture."
+note-0009,MRN-20002,Margaret Doyle,1939-11-03,female,2024-04-03,V-002,Laboratory,DOC-202,Hannah Berg,"LABORATORY RESULTS — Pre-operative bloods
+
+Hb 11.2 g/dL, WBC 8.1, platelets 240. Na 138, K 4.0, urea 6.2, creatinine 88,
+eGFR 58. INR 1.0. Group and save sent. ECG: sinus rhythm. Assessed ASA III, fit
+for surgery after anaesthetic review."
+note-0010,MRN-20002,Margaret Doyle,1939-11-03,female,2024-04-03,V-002,Orthopaedics,DOC-202,Hannah Berg,"OPERATIVE NOTE
+
+Procedure: Right cemented hemiarthroplasty (Thompson) for displaced intracapsular
+femoral neck fracture.
+Anaesthetic: spinal.
+Findings: Displaced subcapital fracture; acetabulum intact.
+Procedure: Standard lateral approach. Femoral head excised and measured. Cemented
+hemiarthroplasty implanted; stable trial reduction with equal leg lengths.
+Haemostasis secured, closed in layers. Estimated blood loss 250 mL. No
+complications.
+Post-op plan: weight-bear as tolerated; thromboprophylaxis with enoxaparin."
+note-0011,MRN-20002,Margaret Doyle,1939-11-03,female,2024-04-04,V-002,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — X-ray right hip (post-operative)
+
+Findings: Cemented hemiarthroplasty in satisfactory position with a good cement
+mantle. No peri-prosthetic fracture or dislocation.
+Impression: Satisfactory post-operative appearances."
+note-0012,MRN-20002,Margaret Doyle,1939-11-03,female,2024-04-09,V-002,Orthopaedics,DOC-202,Hannah Berg,"DISCHARGE LETTER
+
+Patient: Margaret Doyle (85F)
+Admitted: 02/04/2024   Discharged: 09/04/2024   Orthopaedics, 7 bed-days.
+
+Reason for admission: Displaced right femoral neck fracture following a fall.
+
+Hospital course: Sustained a displaced intracapsular fracture of the right femoral
+neck after a mechanical fall from standing height. X-ray confirmed a Garden III
+femoral neck fracture on a background of osteoporosis. She underwent a right
+cemented hemiarthroplasty on 03/04/2024 under spinal anaesthesia without
+intra-operative complication, and post-operative radiographs showed a
+well-positioned prosthesis. Recovery was managed jointly with the orthogeriatric
+team; she mobilised with physiotherapy and a frame, weight-bearing as tolerated,
+and received thromboprophylaxis. A bone-health review confirmed established
+osteoporosis and she was started on a bisphosphonate with calcium and vitamin D.
+
+Discharge diagnoses: Displaced right femoral neck fracture (fall from standing
+height); osteoporosis; hypertension; hypothyroidism.
+Procedure: Right cemented hemiarthroplasty (03/04/2024).
+
+Discharge medications: Alendronic acid 70 mg weekly, colecalciferol/calcium daily,
+enoxaparin for 28 days, regular amlodipine and levothyroxine, paracetamol PRN.
+
+Follow-up: Orthopaedic clinic at 6 weeks with X-ray; community physiotherapy;
+falls-prevention review."
+note-0013,MRN-20003,Geoffrey Almeida,1948-06-21,male,2024-05-06,V-003,Cardiology,DOC-203,Marcus Feld,"ADMISSION NOTE — Medical Admissions Unit
+
+76-year-old man with known ischaemic heart disease admitted with a 1-week history
+of worsening exertional dyspnoea, orthopnoea, paroxysmal nocturnal dyspnoea and
+bilateral leg swelling. O/E: BP 156/92, HR 104 irregularly irregular, RR 22, SpO2
+92% on air, raised JVP, bibasal crackles and pitting oedema to the knees. PMH:
+type 2 diabetes mellitus, chronic kidney disease stage 3, hypertension, prior
+NSTEMI. Impression: acute decompensated heart failure with new atrial
+fibrillation. Started on IV furosemide, fluid restriction, daily weights and
+telemetry."
+note-0014,MRN-20003,Geoffrey Almeida,1948-06-21,male,2024-05-06,V-003,Laboratory,DOC-203,Marcus Feld,"LABORATORY RESULTS — Admission bloods
+
+NT-proBNP 6,820 pg/mL (markedly elevated). Creatinine 168 µmol/L, eGFR 36
+(baseline 40), urea 14.2, K 4.8, Na 139. Hb 11.8. HbA1c 8.6% (70 mmol/mol).
+Troponin T 28 ng/L (not dynamic). LFTs mildly deranged. Consistent with
+decompensated heart failure on a background of CKD stage 3 and poorly controlled
+type 2 diabetes."
+note-0015,MRN-20003,Geoffrey Almeida,1948-06-21,male,2024-05-06,V-003,Cardiology,DOC-203,Marcus Feld,"INVESTIGATION REPORT — 12-lead ECG
+
+Atrial fibrillation, ventricular rate 104 bpm. Left axis deviation. Old Q waves in
+the inferior leads consistent with prior infarction. No acute ST-segment elevation."
+note-0016,MRN-20003,Geoffrey Almeida,1948-06-21,male,2024-05-07,V-003,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — Chest X-ray
+
+Findings: Cardiomegaly. Upper-lobe venous diversion, interstitial oedema and small
+bilateral pleural effusions.
+Impression: Pulmonary venous congestion consistent with cardiac failure."
+note-0017,MRN-20003,Geoffrey Almeida,1948-06-21,male,2024-05-08,V-003,Cardiology,DOC-203,Marcus Feld,"INVESTIGATION REPORT — Transthoracic echocardiogram
+
+Severely impaired left ventricular systolic function, LVEF 30%, with a regional
+wall-motion abnormality in the inferior wall. Moderate functional mitral
+regurgitation. Dilated left atrium. Estimated PASP 44 mmHg. Findings consistent
+with ischaemic cardiomyopathy and heart failure with reduced ejection fraction."
+note-0018,MRN-20003,Geoffrey Almeida,1948-06-21,male,2024-05-09,V-003,Nephrology,DOC-214,Fatima Yusuf,"CONSULTATION — Nephrology
+
+Reviewed regarding chronic kidney disease stage 3 with mild acute worsening during
+diuresis (creatinine 168, baseline ~150) — a pre-renal component on aggressive
+diuresis. Advised cautious diuresis, avoid nephrotoxins, hold metformin while
+creatinine elevated and monitor potassium. CKD is likely diabetic and hypertensive
+in aetiology. Resume ACE inhibitor at low dose once euvolaemic with monitoring."
+note-0019,MRN-20003,Geoffrey Almeida,1948-06-21,male,2024-05-12,V-003,Cardiology,DOC-203,Marcus Feld,"DISCHARGE LETTER
+
+Patient: Geoffrey Almeida (76M)
+Admitted: 06/05/2024   Discharged: 12/05/2024   Cardiology, 6 bed-days.
+
+Reason for admission: Acute decompensated heart failure.
+
+Hospital course: Admitted with a one-week deterioration in exertional dyspnoea,
+orthopnoea and peripheral oedema. Examination and investigations confirmed acute
+decompensated heart failure (NT-proBNP 6,820; chest X-ray showing pulmonary
+congestion and effusions). Echocardiography demonstrated heart failure with reduced
+ejection fraction (LVEF 30%) on a background of ischaemic cardiomyopathy. He was
+found to be in new atrial fibrillation with a rapid ventricular response. He was
+decongested with intravenous furosemide with good diuresis and symptomatic
+improvement. Rate control was achieved with bisoprolol and he was anticoagulated
+with apixaban for atrial fibrillation (CHA2DS2-VASc 5). His type 2 diabetes was
+poorly controlled (HbA1c 8.6%); metformin was temporarily held due to a transient
+rise in creatinine and the nephrology team advised on his chronic kidney disease
+stage 3. Renal function stabilised with cautious diuresis.
+
+Discharge diagnoses: Acute decompensated heart failure (HFrEF, LVEF 30%); new
+atrial fibrillation; type 2 diabetes mellitus (poorly controlled); chronic kidney
+disease stage 3; ischaemic heart disease (prior NSTEMI); hypertension.
+
+Discharge medications: Furosemide 40 mg daily, bisoprolol 2.5 mg daily, ramipril
+2.5 mg daily, apixaban 5 mg twice daily, atorvastatin 40 mg; insulin regimen review
+by the diabetes team (metformin to restart when creatinine <150).
+
+Follow-up: Heart-failure nurse-led clinic in 2 weeks; cardiology in 6 weeks; repeat
+U&E in 1 week at the GP; diabetes review."
+note-0020,MRN-20004,Daniel Okonkwo,1961-09-15,male,2024-06-10,V-004,General Surgery,DOC-204,Priya Anand,"ADMISSION NOTE — Elective surgical admission
+
+63-year-old man admitted for elective laparoscopic sigmoid colectomy for recurrent
+diverticulitis (three episodes in the past year; the last CT showed sigmoid
+diverticular disease with a contained micro-perforation that settled). Asymptomatic
+today. PMH: hypertension, obesity (BMI 33). Consented for laparoscopic sigmoid
+colectomy with primary anastomosis. Bowel preparation given. VTE risk assessed;
+mechanical and pharmacological prophylaxis planned post-operatively."
+note-0021,MRN-20004,Daniel Okonkwo,1961-09-15,male,2024-06-11,V-004,General Surgery,DOC-204,Priya Anand,"OPERATIVE NOTE
+
+Procedure: Laparoscopic sigmoid colectomy with primary colorectal anastomosis.
+Findings: Thickened sigmoid colon with extensive diverticular disease and pericolic
+adhesions; no malignancy, no perforation.
+Procedure: Four-port laparoscopy. Sigmoid mobilised, inferior mesenteric vessels
+divided, sigmoid resected and a stapled end-to-end colorectal anastomosis
+fashioned; air-leak test negative. Specimen retrieved. Haemostasis secured. EBL
+150 mL.
+Post-op plan: enhanced recovery, early mobilisation, enoxaparin prophylaxis."
+note-0022,MRN-20004,Daniel Okonkwo,1961-09-15,male,2024-06-13,V-004,Pathology,DOC-303,Victor Hale,"PATHOLOGY REPORT — Sigmoid colectomy specimen
+
+Macroscopy: 18 cm segment of sigmoid colon with numerous diverticula and muscular
+hypertrophy.
+Microscopy: Diverticular disease with chronic peridiverticulitis and fibrosis. No
+dysplasia. No malignancy. Resection margins clear.
+Conclusion: Diverticular disease of the sigmoid colon; no malignancy identified."
+note-0023,MRN-20004,Daniel Okonkwo,1961-09-15,male,2024-06-16,V-004,Laboratory,DOC-204,Priya Anand,"LABORATORY RESULTS — Post-operative day 5
+
+WBC 11.2, CRP 64 (falling), Hb 10.8, platelets 410. U&E normal. D-dimer elevated.
+The patient reports increasing left calf pain and swelling today."
+note-0024,MRN-20004,Daniel Okonkwo,1961-09-15,male,2024-06-17,V-004,Radiology,DOC-302,Tara Nilsen,"RADIOLOGY REPORT — Lower-limb venous Doppler ultrasound (left)
+
+Clinical details: post-operative left calf swelling and pain, day 6.
+Findings: Non-compressible, echogenic thrombus within the left popliteal and
+posterior tibial veins. No extension above the popliteal vein.
+Impression: Acute left popliteal deep vein thrombosis."
+note-0025,MRN-20004,Daniel Okonkwo,1961-09-15,male,2024-06-20,V-004,General Surgery,DOC-204,Priya Anand,"DISCHARGE LETTER
+
+Patient: Daniel Okonkwo (63M)
+Admitted: 10/06/2024   Discharged: 20/06/2024   General Surgery, 10 bed-days.
+
+Reason for admission: Elective laparoscopic sigmoid colectomy for recurrent
+diverticular disease.
+
+Hospital course: Admitted electively and underwent an uncomplicated laparoscopic
+sigmoid colectomy with primary anastomosis on 11/06/2024 for recurrent
+diverticulitis; histology confirmed diverticular disease with no malignancy. He
+progressed well on the enhanced-recovery pathway initially. On post-operative day 6
+he developed left calf pain and swelling; venous Doppler ultrasound confirmed an
+acute left popliteal deep vein thrombosis that developed during the admission. He
+was commenced on therapeutic anticoagulation with apixaban. The remainder of his
+recovery was uneventful, with return of bowel function and a healing wound.
+
+Discharge diagnoses: Diverticular disease of the sigmoid colon (reason for surgery,
+present on admission); deep vein thrombosis of the left popliteal vein
+(post-operative, hospital-acquired, not present on admission); hypertension;
+obesity.
+Procedure: Laparoscopic sigmoid colectomy with primary anastomosis (11/06/2024).
+
+Discharge medications: Apixaban 10 mg twice daily for 7 days then 5 mg twice daily
+(minimum 3 months), regular amlodipine, paracetamol PRN.
+
+Follow-up: Colorectal clinic at 6 weeks; anticoagulation review at 3 months; GP
+wound check."
+note-0026,MRN-20005,Aisha Rahman,1974-02-28,female,2024-07-01,V-005,Internal Medicine,DOC-205,Owen Clarke,"ADMISSION NOTE — Acute Medical Unit
+
+50-year-old woman admitted with a 2-day history of rigors, fever and malaise. O/E:
+temp 39.4°C, HR 118, BP 98/56, RR 24, SpO2 96%. She looks unwell with mild
+generalised abdominal tenderness and no localising signs. Meets sepsis criteria
+(NEWS 7, qSOFA 1). The Sepsis Six bundle was initiated: blood cultures, IV
+broad-spectrum antibiotics (piperacillin-tazobactam), IV fluids and lactate. Source
+unclear; a full septic screen was sent."
+note-0027,MRN-20005,Aisha Rahman,1974-02-28,female,2024-07-01,V-005,Laboratory,DOC-205,Owen Clarke,"LABORATORY RESULTS — Admission / septic screen
+
+Lactate 3.2 mmol/L, WBC 18.9 (neutrophilia), CRP 246, platelets 132, creatinine
+121 (acute kidney injury), bilirubin mildly raised, procalcitonin elevated.
+Urinalysis: trace leucocytes, no nitrites. Chest X-ray clear."
+note-0028,MRN-20005,Aisha Rahman,1974-02-28,female,2024-07-03,V-005,Microbiology,DOC-205,Owen Clarke,"MICROBIOLOGY — Blood and urine cultures
+
+Blood cultures x2 sets: no growth at 48 hours and negative at 5 days.
+Urine culture: no significant growth.
+No organism isolated. Note: antibiotics had been started before some samples were
+taken."
+note-0029,MRN-20005,Aisha Rahman,1974-02-28,female,2024-07-02,V-005,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — CT abdomen and pelvis with contrast
+
+Clinical details: sepsis, source unknown.
+Findings: No collection, abscess or bowel pathology. Liver, biliary tree, pancreas
+and kidneys unremarkable. No free fluid. Equivocal mild sigmoid wall thickening,
+non-specific.
+Impression: No definite source of sepsis identified."
+note-0030,MRN-20005,Aisha Rahman,1974-02-28,female,2024-07-04,V-005,Internal Medicine,DOC-205,Owen Clarke,"PROGRESS NOTE — Day 4
+
+Defervesced by day 2 of IV antibiotics, haemodynamically stable, lactate
+normalised, acute kidney injury resolved with fluids, inflammatory markers
+improving (CRP 96). No source identified despite a full septic screen. Antibiotics
+de-escalated to oral co-amoxiclav to complete a 7-day course. Treated as sepsis of
+presumed but unconfirmed source."
+note-0031,MRN-20005,Aisha Rahman,1974-02-28,female,2024-07-06,V-005,Internal Medicine,DOC-205,Owen Clarke,"DISCHARGE LETTER
+
+Patient: Aisha Rahman (50F)
+Admitted: 01/07/2024   Discharged: 06/07/2024   Internal Medicine, 5 bed-days.
+
+Reason for admission: Sepsis of unknown source.
+
+Hospital course: Presented acutely unwell with fever, rigors and hypotension
+meeting sepsis criteria (lactate 3.2, NEWS 7) with an associated acute kidney
+injury. She was managed with the Sepsis Six bundle, intravenous fluids and
+empirical broad-spectrum antibiotics (piperacillin-tazobactam). She responded
+promptly, defervescing within 48 hours with normalisation of lactate and resolution
+of the acute kidney injury. A full septic screen including blood and urine cultures
+and CT of the abdomen and pelvis did not identify a causative organism or source;
+cultures remained negative (antibiotics had been commenced before some samples were
+taken). She was treated for sepsis of presumed bacterial origin and de-escalated to
+oral co-amoxiclav to complete a 7-day course.
+
+Discharge diagnoses: Sepsis, source and organism unidentified (clinically treated);
+acute kidney injury (resolved).
+
+Discharge medications: Co-amoxiclav 625 mg three times daily to complete 7 days.
+
+Follow-up: GP review in 1 week with repeat U&E and inflammatory markers; return if
+fever recurs."
+note-0032,MRN-20006,Henry Lindqvist,1957-07-09,male,2024-08-05,V-006,General Surgery,DOC-206,Laura Kim,"ADMISSION NOTE — Surgical admission
+
+67-year-old man admitted for elective right hemicolectomy following diagnosis of a
+caecal adenocarcinoma on colonoscopy (biopsy: invasive adenocarcinoma). He had
+presented with iron-deficiency anaemia and altered bowel habit. Staging CT has been
+completed. PMH: ex-smoker, hypertension. Consented for laparoscopic right
+hemicolectomy. Pre-operative optimisation and anaesthetic review completed."
+note-0033,MRN-20006,Henry Lindqvist,1957-07-09,male,2024-08-05,V-006,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — CT chest, abdomen and pelvis (staging)
+
+Findings: Circumferential mass at the caecum with pericolic fat stranding and a few
+small adjacent mesenteric nodes (largest 8 mm). Liver: no focal lesion. Lungs: no
+metastasis. No ascites.
+Impression: Caecal tumour, radiologically T3 N1 M0; no distant metastasis."
+note-0034,MRN-20006,Henry Lindqvist,1957-07-09,male,2024-08-06,V-006,Laboratory,DOC-206,Laura Kim,"LABORATORY RESULTS — Pre-operative
+
+Hb 10.4 g/dL, MCV 76 (microcytic), ferritin low — iron-deficiency anaemia. WBC
+7.2, platelets 360. U&E and LFTs normal. CEA 6.8 µg/L (mildly elevated). Group and
+save sent."
+note-0035,MRN-20006,Henry Lindqvist,1957-07-09,male,2024-08-07,V-006,General Surgery,DOC-206,Laura Kim,"OPERATIVE NOTE
+
+Procedure: Laparoscopic right hemicolectomy with primary ileocolic anastomosis.
+Findings: Tumour at the caecum, mobile, no peritoneal deposits, liver smooth.
+Procedure: Laparoscopic mobilisation of the right colon, high ligation of the
+ileocolic pedicle with lymphadenectomy, extracorporeal stapled ileocolic
+anastomosis. Specimen retrieved intact. EBL 100 mL.
+Post-op plan: enhanced recovery, VTE prophylaxis."
+note-0036,MRN-20006,Henry Lindqvist,1957-07-09,male,2024-08-10,V-006,Pathology,DOC-304,Mei Tanaka,"PATHOLOGY REPORT — Right hemicolectomy specimen
+
+Macroscopy: 12 cm of colon with a 45 mm ulcerating caecal tumour.
+Microscopy: Moderately differentiated adenocarcinoma invading through the
+muscularis propria into pericolic fat (pT3). Lymphovascular invasion present. 2 of
+18 regional lymph nodes positive (pN1b). Margins clear (R0).
+Staging: Adenocarcinoma of the caecum, pT3 pN1b, moderately differentiated; AJCC
+stage IIIB. MMR/MSI testing requested."
+note-0037,MRN-20006,Henry Lindqvist,1957-07-09,male,2024-08-12,V-006,General Surgery,DOC-206,Laura Kim,"MULTIDISCIPLINARY TEAM NOTE — Colorectal MDT
+
+Caecal adenocarcinoma, pT3 pN1b R0 (stage IIIB), with good post-operative recovery.
+Decision: refer to medical oncology for consideration of adjuvant chemotherapy
+(CAPOX); surveillance colonoscopy at 1 year; CEA monitoring. MMR result pending."
+note-0038,MRN-20006,Henry Lindqvist,1957-07-09,male,2024-08-13,V-006,General Surgery,DOC-206,Laura Kim,"DISCHARGE LETTER
+
+Patient: Henry Lindqvist (67M)
+Admitted: 05/08/2024   Discharged: 13/08/2024   General Surgery, 8 bed-days.
+
+Reason for admission: Elective resection of caecal adenocarcinoma.
+
+Hospital course: Admitted electively for surgical management of a biopsy-proven
+caecal adenocarcinoma, diagnosed after investigation of iron-deficiency anaemia and
+altered bowel habit. Staging CT showed a localised caecal tumour without distant
+metastasis. He underwent a laparoscopic right hemicolectomy with primary ileocolic
+anastomosis on 07/08/2024 without complication. Histopathology confirmed a
+moderately differentiated adenocarcinoma of the caecum, pT3 pN1b, with 2 of 18
+lymph nodes involved and clear margins (stage IIIB). He recovered well on the
+enhanced-recovery pathway with return of bowel function. The case was discussed at
+the colorectal MDT and he has been referred to medical oncology for adjuvant
+chemotherapy.
+
+Discharge diagnoses: Adenocarcinoma of the caecum (pT3 pN1b, stage IIIB);
+iron-deficiency anaemia secondary to colonic malignancy; hypertension.
+Procedure: Laparoscopic right hemicolectomy (07/08/2024).
+
+Discharge medications: Oral iron supplementation, regular antihypertensive,
+analgesia PRN.
+
+Follow-up: Medical oncology for adjuvant chemotherapy; surgical clinic at 6 weeks;
+surveillance colonoscopy at 1 year; CEA monitoring."
+note-0039,MRN-20007,Sofia Marchetti,1992-03-30,female,2024-09-12,V-007,Obstetrics/Gynaecology,DOC-207,Nadia Hassan,"ADMISSION NOTE — Labour Ward
+
+32-year-old woman, G2P1, admitted at 39+4 weeks in spontaneous labour. Previous
+normal vaginal delivery. Singleton, cephalic, reassuring antenatal course. On
+examination 4 cm dilated with regular contractions. Plan: aim for vaginal delivery
+with continuous CTG monitoring due to meconium-stained liquor noted on rupture of
+membranes."
+note-0040,MRN-20007,Sofia Marchetti,1992-03-30,female,2024-09-12,V-007,Laboratory,DOC-207,Nadia Hassan,"LABORATORY RESULTS — Admission bloods
+
+Hb 11.6 g/dL, platelets 226, WBC 11.0. Blood group O Rh-positive, antibody screen
+negative. Routine antenatal serology negative. Group and save valid."
+note-0041,MRN-20007,Sofia Marchetti,1992-03-30,female,2024-09-13,V-007,Obstetrics/Gynaecology,DOC-207,Nadia Hassan,"INTRAPARTUM NOTE — CTG and decision for delivery
+
+Labour progressed to 7 cm. CTG showed recurrent late decelerations with reduced
+variability over 40 minutes, non-reassuring, in the context of meconium-stained
+liquor. Fetal blood sampling not feasible. Decision made for a category 2 emergency
+caesarean section for pathological CTG / fetal distress. Consent obtained."
+note-0042,MRN-20007,Sofia Marchetti,1992-03-30,female,2024-09-13,V-007,Obstetrics/Gynaecology,DOC-207,Nadia Hassan,"OPERATIVE NOTE — Emergency lower-segment caesarean section
+
+Indication: pathological CTG (fetal distress) in labour with meconium-stained
+liquor.
+Anaesthetic: spinal.
+Procedure: Pfannenstiel incision, lower-segment transverse uterine incision. Live
+female infant delivered in good condition, birth weight 3,410 g, Apgars 8 and 9;
+cord gases satisfactory. Placenta delivered complete. Uterus closed in two layers,
+haemostasis secured. EBL 600 mL. No complications."
+note-0043,MRN-20007,Sofia Marchetti,1992-03-30,female,2024-09-14,V-007,Obstetrics/Gynaecology,DOC-207,Nadia Hassan,"POSTNATAL NOTE — Day 1
+
+Mother recovering well after caesarean section; observations stable, uterus
+contracted, lochia normal, wound clean and dry, mobilising. Breastfeeding
+established. Baby well on the postnatal ward. VTE prophylaxis with enoxaparin and
+TED stockings given."
+note-0044,MRN-20007,Sofia Marchetti,1992-03-30,female,2024-09-16,V-007,Obstetrics/Gynaecology,DOC-207,Nadia Hassan,"DISCHARGE LETTER
+
+Patient: Sofia Marchetti (32F)
+Admitted: 12/09/2024   Discharged: 16/09/2024   Obstetrics, 4 bed-days.
+
+Reason for admission: Spontaneous labour at term; emergency caesarean section.
+
+Hospital course: Admitted in spontaneous labour at 39+4 weeks (G2P1, previous
+vaginal delivery). Labour was complicated by meconium-stained liquor and a
+pathological CTG showing recurrent late decelerations indicating fetal distress. A
+category 2 emergency lower-segment caesarean section was performed on 13/09/2024
+under spinal anaesthesia, delivering a live female infant in good condition (3,410
+g, Apgars 8 and 9). The procedure was uncomplicated with an estimated blood loss of
+600 mL. Postnatal recovery was uneventful; mother and baby were both well,
+breastfeeding was established and thromboprophylaxis was given.
+
+Discharge diagnoses: Term singleton pregnancy delivered by emergency caesarean
+section for fetal distress; meconium-stained liquor. Outcome: single live birth.
+Procedure: Emergency lower-segment caesarean section (13/09/2024).
+
+Discharge medications: Oral analgesia (paracetamol, ibuprofen), enoxaparin for 10
+days, oral iron.
+
+Follow-up: Community midwife and health visitor; GP postnatal check at 6 weeks;
+routine wound-care advice given."
+note-0045,MRN-20008,Lucas Fernandez,2001-12-05,male,2024-10-03,V-008,Emergency Medicine,DOC-208,James Whitford,"ADMISSION NOTE — Emergency Department
+
+23-year-old man with a 24-hour history of central abdominal pain migrating to the
+right iliac fossa, anorexia and one episode of vomiting. O/E: temp 37.8°C,
+tenderness and guarding at McBurney's point, positive Rovsing's sign. Alvarado
+score 8. Working diagnosis: acute appendicitis. Kept nil by mouth, IV fluids and
+analgesia given, surgical review requested."
+note-0046,MRN-20008,Lucas Fernandez,2001-12-05,male,2024-10-03,V-008,Laboratory,DOC-208,James Whitford,"LABORATORY RESULTS — Admission bloods
+
+WBC 15.2 (neutrophilia), CRP 78; U&E and LFTs normal. Urinalysis unremarkable."
+note-0047,MRN-20008,Lucas Fernandez,2001-12-05,male,2024-10-03,V-008,Radiology,DOC-302,Tara Nilsen,"RADIOLOGY REPORT — CT abdomen and pelvis
+
+Findings: Dilated, fluid-filled appendix measuring 11 mm with wall thickening,
+peri-appendiceal fat stranding and a small amount of free fluid. No abscess. No
+perforation.
+Impression: Acute appendicitis."
+note-0048,MRN-20008,Lucas Fernandez,2001-12-05,male,2024-10-04,V-008,General Surgery,DOC-208,James Whitford,"OPERATIVE NOTE
+
+Procedure: Laparoscopic appendectomy.
+Findings: Acutely inflamed, oedematous appendix, not perforated. Small amount of
+free fluid. No mass.
+Procedure: Three-port laparoscopy, mesoappendix divided, appendix base ligated with
+endoloops and divided, appendix retrieved in a bag, lavage, haemostasis. EBL
+minimal.
+Post-op plan: regular diet, simple analgesia."
+note-0049,MRN-20008,Lucas Fernandez,2001-12-05,male,2024-10-05,V-008,Pathology,DOC-303,Victor Hale,"PATHOLOGY REPORT — Appendix
+
+Macroscopy: 70 mm appendix with a congested serosa.
+Microscopy: Transmural acute inflammation with neutrophil infiltration of the
+muscularis and serositis. No perforation. No neoplasm.
+Conclusion: Acute appendicitis."
+note-0050,MRN-20008,Lucas Fernandez,2001-12-05,male,2024-10-06,V-008,General Surgery,DOC-208,James Whitford,"DISCHARGE LETTER
+
+Patient: Lucas Fernandez (23M)
+Admitted: 03/10/2024   Discharged: 06/10/2024   General Surgery, 3 bed-days.
+
+Reason for admission: Acute appendicitis.
+
+Hospital course: Presented with a typical history of migratory right iliac fossa
+pain with localised peritonism and a raised white-cell count (Alvarado 8). CT
+confirmed acute appendicitis without perforation. He underwent an uncomplicated
+laparoscopic appendectomy on 04/10/2024; the appendix was acutely inflamed but not
+perforated, and histology confirmed acute appendicitis with no malignancy. He
+recovered quickly, tolerated diet and mobilised, with well-controlled pain.
+
+Discharge diagnosis: Acute appendicitis.
+Procedure: Laparoscopic appendectomy (04/10/2024).
+
+Discharge medications: Paracetamol and ibuprofen as required.
+
+Follow-up: No routine follow-up required; GP or return if wound concerns. Histology
+result communicated."
+note-0051,MRN-20009,Patricia Nowak,1959-08-17,female,2024-11-08,V-009,Emergency Medicine,DOC-209,Sandra Lopez,"ADMISSION NOTE — Emergency Department / Cath-lab activation
+
+65-year-old woman with a 1-hour history of severe central crushing chest pain
+radiating to the left arm, with sweating and nausea. O/E: distressed, BP 138/84, HR
+92. ECG showed inferior ST elevation. The primary PCI pathway was activated; she
+was given aspirin 300 mg and ticagrelor 180 mg and transferred directly to the
+catheterisation laboratory. PMH: hypertension, hyperlipidaemia, current smoker."
+note-0052,MRN-20009,Patricia Nowak,1959-08-17,female,2024-11-08,V-009,Cardiology,DOC-209,Sandra Lopez,"INVESTIGATION REPORT — 12-lead ECG
+
+Sinus rhythm. ST-segment elevation of 2–3 mm in leads II, III and aVF with
+reciprocal ST depression in aVL. Inferior ST-elevation myocardial infarction."
+note-0053,MRN-20009,Patricia Nowak,1959-08-17,female,2024-11-08,V-009,Laboratory,DOC-209,Sandra Lopez,"LABORATORY RESULTS — Cardiac biomarkers and bloods
+
+High-sensitivity troponin T 480 ng/L on admission, peaking at 5,200 ng/L at 6
+hours. Creatinine 84, eGFR 70. HbA1c 5.8%. LDL cholesterol 3.6 mmol/L. Findings
+consistent with acute myocardial infarction."
+note-0054,MRN-20009,Patricia Nowak,1959-08-17,female,2024-11-08,V-009,Cardiology,DOC-209,Sandra Lopez,"PROCEDURE REPORT — Coronary angiography and primary PCI
+
+Access: right radial. Findings: acute total occlusion of the mid right coronary
+artery (RCA); left system with minor disease.
+Intervention: The RCA lesion was crossed, pre-dilated and a drug-eluting stent
+(3.0 x 24 mm) was deployed to the mid RCA, restoring TIMI 3 flow. No complications.
+Conclusion: Successful primary PCI to the culprit mid-RCA lesion for inferior STEMI."
+note-0055,MRN-20009,Patricia Nowak,1959-08-17,female,2024-11-10,V-009,Cardiology,DOC-209,Sandra Lopez,"INVESTIGATION REPORT — Transthoracic echocardiogram
+
+Mild left ventricular systolic impairment, LVEF 48%, with inferior wall hypokinesia
+consistent with recent infarction. No significant valvular disease. No mural
+thrombus.
+Impression: Mildly impaired LV function post inferior MI."
+note-0056,MRN-20009,Patricia Nowak,1959-08-17,female,2024-11-13,V-009,Cardiology,DOC-209,Sandra Lopez,"DISCHARGE LETTER
+
+Patient: Patricia Nowak (65F)
+Admitted: 08/11/2024   Discharged: 13/11/2024   Cardiology, 5 bed-days.
+
+Reason for admission: Acute inferior ST-elevation myocardial infarction.
+
+Hospital course: Presented with typical ischaemic chest pain and an ECG showing
+inferior ST elevation. She was treated via the primary PCI pathway with dual
+antiplatelet loading and transferred immediately to the catheterisation laboratory,
+where coronary angiography revealed an acute total occlusion of the mid right
+coronary artery. She underwent successful primary percutaneous coronary
+intervention with deployment of a drug-eluting stent and restoration of TIMI 3
+flow. Troponin peaked at 5,200 ng/L. Echocardiography showed mild left ventricular
+impairment (LVEF 48%) with inferior hypokinesia. Her recovery was uncomplicated
+with no arrhythmia or heart failure. She was started on secondary-prevention
+therapy and counselled on smoking cessation and cardiac rehabilitation.
+
+Discharge diagnoses: Acute inferior ST-elevation myocardial infarction;
+single-vessel coronary artery disease (RCA); hypertension; hyperlipidaemia.
+Procedure: Primary percutaneous coronary intervention with drug-eluting stent to the
+right coronary artery (08/11/2024).
+
+Discharge medications: Aspirin 75 mg daily, ticagrelor 90 mg twice daily (12
+months), atorvastatin 80 mg, bisoprolol 2.5 mg, ramipril 2.5 mg.
+
+Follow-up: Cardiac rehabilitation; cardiology clinic in 6 weeks; smoking-cessation
+support; GP for risk-factor management."
+note-0057,MRN-20010,Walter Brennan,1950-01-26,male,2024-12-02,V-010,Pulmonology,DOC-210,Peter Vance,"ADMISSION NOTE — Acute Medical Unit
+
+74-year-old man with severe COPD (FEV1 38% predicted, on long-term oxygen therapy)
+admitted with a 3-day history of increased breathlessness, wheeze and purulent
+sputum following a coryzal illness. O/E: tachypnoeic, using accessory muscles,
+widespread wheeze, SpO2 84% on 2 L, drowsy. ABG taken. Started on controlled oxygen
+via Venturi mask, nebulised salbutamol/ipratropium, oral prednisolone and IV
+antibiotics. Considered for non-invasive ventilation."
+note-0058,MRN-20010,Walter Brennan,1950-01-26,male,2024-12-02,V-010,Laboratory,DOC-210,Peter Vance,"LABORATORY RESULTS — Arterial blood gas (on 28% O2)
+
+pH 7.28, pCO2 8.9 kPa, pO2 7.4 kPa, HCO3 31 mmol/L, lactate 1.4. Findings:
+acute-on-chronic hypercapnic (type 2) respiratory failure with respiratory
+acidosis. The patient was commenced on non-invasive ventilation (BiPAP)."
+note-0059,MRN-20010,Walter Brennan,1950-01-26,male,2024-12-02,V-010,Laboratory,DOC-210,Peter Vance,"LABORATORY RESULTS — Admission bloods
+
+WBC 13.4 (neutrophilia), CRP 96, Hb 15.8 g/dL (chronic), eosinophils low. U&E
+normal. Consistent with an infective exacerbation of COPD."
+note-0060,MRN-20010,Walter Brennan,1950-01-26,male,2024-12-02,V-010,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — Chest X-ray
+
+Findings: Hyperinflated lung fields with flattened diaphragms consistent with
+emphysema. No focal consolidation, effusion or pneumothorax.
+Impression: Hyperinflation; no pneumonia."
+note-0061,MRN-20010,Walter Brennan,1950-01-26,male,2024-12-07,V-010,Pulmonology,DOC-210,Peter Vance,"DISCHARGE LETTER
+
+Patient: Walter Brennan (74M)
+Admitted: 02/12/2024   Discharged: 07/12/2024   Respiratory, 5 bed-days.
+
+Reason for admission: Infective exacerbation of COPD with acute type 2 respiratory
+failure.
+
+Hospital course: Admitted with an infective exacerbation of severe COPD. On arrival
+he was in acute-on-chronic hypercapnic respiratory failure (pH 7.28, pCO2 8.9 kPa)
+and was treated with controlled oxygen and non-invasive ventilation (BiPAP), to
+which he responded well with normalisation of his blood gases over 48 hours. He
+received nebulised bronchodilators, oral corticosteroids and intravenous
+antibiotics for the infective exacerbation; chest X-ray showed no consolidation. He
+was weaned off NIV and returned to his baseline oxygen requirement by discharge.
+
+Discharge diagnoses: Infective exacerbation of chronic obstructive pulmonary
+disease; acute type 2 (hypercapnic) respiratory failure; long-term oxygen therapy
+dependence.
+
+Discharge medications: Completing an oral prednisolone course, oral amoxicillin,
+regular inhaled triple therapy, home oxygen continued.
+
+Follow-up: Respiratory clinic in 6 weeks; community respiratory team; pulmonary
+rehabilitation; influenza and COVID vaccination advised."
+note-0062,MRN-20011,Eleanor Whitfield,1946-05-14,female,2025-01-15,V-011,Neurology,DOC-211,Ingrid Solberg,"ADMISSION NOTE — Hyperacute Stroke Unit
+
+78-year-old woman brought in by ambulance with sudden-onset right-sided weakness
+and expressive dysphasia, last seen well 90 minutes ago. O/E: NIHSS 11 — right
+facial droop, right arm and leg weakness, expressive aphasia. BP 168/90, glucose
+6.8. Stroke pathway activated with urgent CT head and CT angiography. No
+contraindication to thrombolysis. PMH: atrial fibrillation (not anticoagulated),
+hypertension."
+note-0063,MRN-20011,Eleanor Whitfield,1946-05-14,female,2025-01-15,V-011,Radiology,DOC-302,Tara Nilsen,"RADIOLOGY REPORT — CT head (non-contrast)
+
+Findings: No haemorrhage. Early ischaemic change with loss of grey-white
+differentiation in the left middle cerebral artery territory (ASPECTS 8). No
+established large infarct.
+Impression: Hyperacute left MCA territory ischaemia; no haemorrhage — suitable for
+thrombolysis."
+note-0064,MRN-20011,Eleanor Whitfield,1946-05-14,female,2025-01-15,V-011,Radiology,DOC-302,Tara Nilsen,"RADIOLOGY REPORT — CT angiography head and neck
+
+Findings: Occlusion of a left middle cerebral artery M2 branch. Patent extracranial
+carotids. No proximal large-vessel occlusion amenable to thrombectomy.
+Impression: Left MCA M2 branch occlusion."
+note-0065,MRN-20011,Eleanor Whitfield,1946-05-14,female,2025-01-17,V-011,Radiology,DOC-302,Tara Nilsen,"RADIOLOGY REPORT — MRI brain (diffusion-weighted)
+
+Findings: Established acute infarct in the left middle cerebral artery territory
+involving the insula and frontal operculum. No haemorrhagic transformation.
+Impression: Confirmed acute left MCA territory infarction."
+note-0066,MRN-20011,Eleanor Whitfield,1946-05-14,female,2025-01-15,V-011,Laboratory,DOC-211,Ingrid Solberg,"LABORATORY RESULTS — Admission bloods
+
+Glucose 6.8, INR 1.0, platelets 230, creatinine 78. Lipid panel: LDL 3.2. HbA1c
+5.9%. No coagulopathy — eligible for thrombolysis."
+note-0067,MRN-20011,Eleanor Whitfield,1946-05-14,female,2025-01-23,V-011,Neurology,DOC-211,Ingrid Solberg,"DISCHARGE LETTER
+
+Patient: Eleanor Whitfield (78F)
+Admitted: 15/01/2025   Discharged: 23/01/2025   Stroke Unit, 8 bed-days.
+
+Reason for admission: Acute ischaemic stroke.
+
+Hospital course: Presented within 90 minutes of sudden right-sided weakness and
+expressive aphasia (NIHSS 11). CT excluded haemorrhage and showed early left MCA
+territory ischaemia; CT angiography demonstrated a left MCA M2 branch occlusion not
+amenable to mechanical thrombectomy. She received intravenous thrombolysis with
+alteplase within the treatment window, with partial early neurological improvement.
+MRI confirmed an established left MCA territory infarct without haemorrhagic
+transformation. She was found to be in atrial fibrillation, previously not
+anticoagulated, considered the likely cardioembolic source; after the appropriate
+interval she was anticoagulated with apixaban. She was managed on the stroke unit
+with multidisciplinary rehabilitation, swallow assessment and early mobilisation,
+making good functional progress (residual mild right arm weakness and mild
+dysphasia at discharge).
+
+Discharge diagnoses: Acute ischaemic stroke, left middle cerebral artery territory
+(cardioembolic); atrial fibrillation; hypertension.
+Treatment: Intravenous thrombolysis (alteplase) on 15/01/2025.
+
+Discharge medications: Apixaban 5 mg twice daily, atorvastatin 80 mg, amlodipine
+5 mg.
+
+Follow-up: Stroke clinic at 6 weeks; community stroke rehabilitation and speech
+therapy; DVLA driving advice given."
+note-0068,MRN-20012,Grace Mbeki,1968-10-02,female,2025-02-04,V-012,Internal Medicine,DOC-212,Rajiv Menon,"ADMISSION NOTE — Acute Medical Unit
+
+56-year-old woman admitted with a 2-day history of fever, rigors, left loin pain
+and dysuria. O/E: temp 39.1°C, HR 116, BP 100/60, left renal-angle tenderness.
+Meets sepsis criteria (NEWS 6). Working diagnosis: acute pyelonephritis with sepsis
+(urosepsis). Sepsis Six initiated: blood and urine cultures, IV fluids, IV
+co-amoxiclav and gentamicin. PMH: type 2 diabetes, recurrent urinary tract
+infections."
+note-0069,MRN-20012,Grace Mbeki,1968-10-02,female,2025-02-06,V-012,Microbiology,DOC-212,Rajiv Menon,"MICROBIOLOGY — Blood cultures
+
+Both sets positive for Escherichia coli, isolated at 18 hours. Sensitive to
+co-amoxiclav, gentamicin and ciprofloxacin. ESBL not detected.
+Conclusion: E. coli bacteraemia."
+note-0070,MRN-20012,Grace Mbeki,1968-10-02,female,2025-02-06,V-012,Microbiology,DOC-212,Rajiv Menon,"MICROBIOLOGY — Urine culture
+
+>10^5 CFU/mL Escherichia coli with pyuria (WBC +++). Same sensitivity profile as
+the blood isolate.
+Conclusion: E. coli urinary tract infection — the source of bacteraemia."
+note-0071,MRN-20012,Grace Mbeki,1968-10-02,female,2025-02-04,V-012,Laboratory,DOC-212,Rajiv Menon,"LABORATORY RESULTS — Admission / septic screen
+
+WBC 19.6 (neutrophilia), CRP 268, lactate 2.6, creatinine 134 (acute kidney
+injury, baseline 80), glucose 14.2, HbA1c 8.1%. Consistent with sepsis and acute
+kidney injury on a background of diabetes."
+note-0072,MRN-20012,Grace Mbeki,1968-10-02,female,2025-02-05,V-012,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — Renal tract ultrasound
+
+Findings: Normal-sized kidneys. No hydronephrosis, obstructing calculus,
+perinephric collection or abscess. Bladder unremarkable.
+Impression: No obstruction or abscess; uncomplicated pyelonephritis."
+note-0073,MRN-20012,Grace Mbeki,1968-10-02,female,2025-02-10,V-012,Internal Medicine,DOC-212,Rajiv Menon,"DISCHARGE LETTER
+
+Patient: Grace Mbeki (56F)
+Admitted: 04/02/2025   Discharged: 10/02/2025   Internal Medicine, 6 bed-days.
+
+Reason for admission: Urosepsis due to acute pyelonephritis.
+
+Hospital course: Presented with fever, rigors, left loin pain and dysuria, meeting
+sepsis criteria with an associated acute kidney injury. She was managed with the
+Sepsis Six bundle, intravenous fluids and empirical antibiotics. Both blood
+cultures and the urine culture grew Escherichia coli (fully sensitive, no ESBL),
+confirming Gram-negative urosepsis arising from an E. coli urinary tract infection
+/ acute pyelonephritis. Renal ultrasound excluded obstruction or abscess. She
+responded well: antibiotics were rationalised to co-amoxiclav, the acute kidney
+injury resolved with fluids, and her diabetes (HbA1c 8.1%) was reviewed by the
+diabetes team. She completed intravenous therapy and was stepped down to oral
+antibiotics.
+
+Discharge diagnoses: Sepsis due to Escherichia coli (E. coli bacteraemia); acute
+pyelonephritis / urinary tract infection due to E. coli; acute kidney injury
+(resolved); type 2 diabetes mellitus.
+
+Discharge medications: Oral co-amoxiclav to complete a 10-day total course; usual
+metformin restarted; review of diabetic control.
+
+Follow-up: GP review with repeat U&E in 1 week; urology referral for recurrent
+urinary tract infections; diabetes review."
+note-0074,MRN-20013,Thomas Sandberg,1955-03-19,male,2025-02-20,V-013,Vascular Surgery,DOC-213,Albert Crowe,"ADMISSION NOTE — Vascular Surgery
+
+70-year-old man with long-standing type 2 diabetes and peripheral neuropathy
+admitted with a non-healing ulcer over the right great toe, now with surrounding
+erythema, malodour and exposed bone on probing. Febrile 38.2°C. O/E: deep
+neuropathic ulcer of the right hallux, probe-to-bone positive, cellulitis of the
+forefoot, palpable foot pulses. Working diagnosis: infected diabetic foot ulcer
+with osteomyelitis. IV antibiotics started; foot X-ray and cultures sent; vascular
+and diabetes review arranged."
+note-0075,MRN-20013,Thomas Sandberg,1955-03-19,male,2025-02-22,V-013,Microbiology,DOC-213,Albert Crowe,"MICROBIOLOGY — Deep wound / bone swab
+
+Growth of Staphylococcus aureus (MSSA) and mixed anaerobes, sensitive to
+flucloxacillin and co-amoxiclav.
+Conclusion: Polymicrobial infection of the diabetic foot, MSSA predominant."
+note-0076,MRN-20013,Thomas Sandberg,1955-03-19,male,2025-02-21,V-013,Radiology,DOC-302,Tara Nilsen,"RADIOLOGY REPORT — X-ray right foot
+
+Findings: Cortical destruction and bony fragmentation of the distal phalanx of the
+great toe with periosteal reaction, consistent with osteomyelitis. Soft-tissue
+swelling. No gas.
+Impression: Osteomyelitis of the right great toe."
+note-0077,MRN-20013,Thomas Sandberg,1955-03-19,male,2025-02-20,V-013,Laboratory,DOC-213,Albert Crowe,"LABORATORY RESULTS — Admission bloods
+
+WBC 14.8 (neutrophilia), CRP 188, ESR 84, glucose 16.4, HbA1c 9.4% (poorly
+controlled diabetes), creatinine 102, eGFR 64. Consistent with infection on a
+background of poorly controlled diabetes."
+note-0078,MRN-20013,Thomas Sandberg,1955-03-19,male,2025-02-24,V-013,Vascular Surgery,DOC-213,Albert Crowe,"OPERATIVE NOTE
+
+Procedure: Amputation of the right great toe (ray amputation of the first toe).
+Findings: Necrotic infected great toe with osteomyelitis of the distal phalanx;
+viable proximal tissue with good bleeding margins.
+Procedure: Amputation of the great toe through the metatarsophalangeal level with
+debridement of infected bone and soft tissue; wound left partially open for delayed
+closure. Bone sent for histology and culture. EBL minimal.
+Post-op plan: continue IV antibiotics, offloading, vascular monitoring."
+note-0079,MRN-20013,Thomas Sandberg,1955-03-19,male,2025-02-27,V-013,Pathology,DOC-304,Mei Tanaka,"PATHOLOGY REPORT — Amputated great toe / bone
+
+Microscopy: Acute and chronic osteomyelitis of the phalangeal bone with necrotic
+bone fragments and acute inflammation of overlying soft tissue. No malignancy.
+Conclusion: Osteomyelitis confirmed histologically."
+note-0080,MRN-20013,Thomas Sandberg,1955-03-19,male,2025-03-02,V-013,Vascular Surgery,DOC-213,Albert Crowe,"DISCHARGE LETTER
+
+Patient: Thomas Sandberg (70M)
+Admitted: 20/02/2025   Discharged: 02/03/2025   Vascular Surgery, 10 bed-days.
+
+Reason for admission: Infected diabetic foot ulcer with osteomyelitis.
+
+Hospital course: Admitted with an infected neuropathic diabetic foot ulcer of the
+right great toe with probe-to-bone positive findings; X-ray and subsequent
+histology confirmed osteomyelitis of the distal phalanx, and deep cultures grew
+MSSA with anaerobes. He was treated with intravenous antibiotics and underwent
+amputation of the right great toe on 24/02/2025 with debridement of infected bone.
+His diabetes was poorly controlled (HbA1c 9.4%) and was optimised by the diabetes
+team with an adjusted insulin regimen. The wound progressed well with the
+tissue-viability and vascular teams; foot pulses were preserved, indicating
+adequate perfusion.
+
+Discharge diagnoses: Type 2 diabetes mellitus with foot ulcer and osteomyelitis
+(right great toe); diabetic peripheral neuropathy; poorly controlled type 2
+diabetes; MSSA infection.
+Procedure: Amputation of the right great toe (24/02/2025).
+
+Discharge medications: Oral flucloxacillin to complete a prolonged course as
+directed by microbiology, adjusted insulin regimen, regular statin and ACE
+inhibitor.
+
+Follow-up: Vascular surgery and diabetic-foot clinic; tissue viability for ongoing
+wound care; podiatry; diabetes review."
+note-0081,MRN-20003,Geoffrey Almeida,1948-06-21,male,2025-03-18,V-014,Nephrology,DOC-214,Fatima Yusuf,"ADMISSION NOTE — Acute Medical Unit
+
+76-year-old man with known heart failure (HFrEF), CKD stage 3 and type 2 diabetes
+(previous admission in May 2024 with decompensated heart failure) readmitted with
+malaise, reduced oral intake and reduced urine output over 4 days. His ramipril and
+spironolactone doses had recently been increased. O/E: euvolaemic to mildly dry, BP
+138/80, HR 64. Bloods show acute kidney injury and hyperkalaemia; ECG performed.
+The offending medications (ACE inhibitor, spironolactone) were withheld and
+hyperkalaemia treated."
+note-0082,MRN-20003,Geoffrey Almeida,1948-06-21,male,2025-03-18,V-014,Laboratory,DOC-214,Fatima Yusuf,"LABORATORY RESULTS — Admission bloods
+
+Potassium 6.4 mmol/L (admission), creatinine 268 µmol/L (baseline ~150), eGFR 20,
+urea 28, bicarbonate 18. Acute kidney injury (AKI stage 2) on CKD with
+hyperkalaemia, precipitated by RAAS-inhibitor up-titration and poor intake. Day 2
+potassium 4.9 after treatment; creatinine improving to 210."
+note-0083,MRN-20003,Geoffrey Almeida,1948-06-21,male,2025-03-18,V-014,Nephrology,DOC-214,Fatima Yusuf,"INVESTIGATION REPORT — 12-lead ECG
+
+Sinus rhythm, rate 64. Peaked T waves in the precordial leads consistent with
+hyperkalaemia. No QRS widening. A repeat ECG after treatment showed resolution of
+the peaked T waves."
+note-0084,MRN-20003,Geoffrey Almeida,1948-06-21,male,2025-03-20,V-014,Cardiology,DOC-203,Marcus Feld,"CONSULTATION — Cardiology
+
+Reviewed regarding heart-failure medication in the context of acute kidney injury
+and hyperkalaemia. Advised holding the ACE inhibitor and mineralocorticoid
+antagonist until renal function and potassium normalise, continuing the
+beta-blocker and loop diuretic at a reduced dose, and reintroducing prognostic
+therapy cautiously as an outpatient with close monitoring. Heart failure is
+currently compensated."
+note-0085,MRN-20003,Geoffrey Almeida,1948-06-21,male,2025-03-23,V-014,Nephrology,DOC-214,Fatima Yusuf,"DISCHARGE LETTER
+
+Patient: Geoffrey Almeida (76M)
+Admitted: 18/03/2025   Discharged: 23/03/2025   Nephrology, 5 bed-days.
+
+Reason for admission: Acute kidney injury with hyperkalaemia.
+
+Hospital course: Readmitted (previous admission May 2024 with decompensated heart
+failure) with an acute kidney injury on chronic kidney disease stage 3 and
+hyperkalaemia (potassium 6.4), precipitated by recent up-titration of his ACE
+inhibitor and spironolactone together with reduced oral intake. ECG showed peaked T
+waves which resolved with medical treatment of hyperkalaemia. The offending
+RAAS-inhibitor medications were withheld, and renal function and potassium improved
+with conservative management and judicious fluids; he did not require dialysis. His
+heart failure remained compensated throughout, and the cardiology team advised on
+safe reintroduction of prognostic medication as an outpatient. The earlier heart
+failure decompensation had fully resolved and was not active during this admission.
+
+Discharge diagnoses: Acute kidney injury (stage 2) on chronic kidney disease stage
+3; hyperkalaemia; type 2 diabetes mellitus. (Chronic heart failure — stable and
+compensated, not decompensated during this admission.)
+
+Discharge medications: ACE inhibitor and spironolactone suspended pending
+outpatient review, furosemide reduced to 20 mg daily, bisoprolol continued,
+apixaban continued; low-potassium dietary advice given.
+
+Follow-up: Nephrology in 2 weeks with repeat U&E; heart-failure clinic to
+reintroduce therapy; GP to monitor potassium."
+note-0086,MRN-20015,Beatrice Lefevre,1978-06-08,female,2025-04-07,V-015,Emergency Medicine,DOC-215,Claire Dubois,"ADMISSION NOTE — Emergency Department
+
+46-year-old woman with a 2-day history of constant severe right upper quadrant pain
+radiating to the right shoulder, with fever and vomiting. O/E: temp 38.3°C, tender
+right upper quadrant with a positive Murphy's sign. Working diagnosis: acute
+cholecystitis. Kept nil by mouth, IV fluids, IV co-amoxiclav and analgesia given;
+bloods and ultrasound requested; surgical review."
+note-0087,MRN-20015,Beatrice Lefevre,1978-06-08,female,2025-04-07,V-015,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — Abdominal ultrasound (RUQ)
+
+Findings: Multiple gallstones with a thickened gallbladder wall (5 mm),
+pericholecystic fluid and a sonographic Murphy's sign. Common bile duct not dilated
+(4 mm); no intrahepatic duct dilatation.
+Impression: Acute calculous cholecystitis; no evidence of bile-duct obstruction."
+note-0088,MRN-20015,Beatrice Lefevre,1978-06-08,female,2025-04-07,V-015,Laboratory,DOC-215,Claire Dubois,"LABORATORY RESULTS — Admission bloods
+
+WBC 14.1 (neutrophilia), CRP 132. Bilirubin 16 µmol/L (normal), ALP 110, ALT 38 —
+liver function largely preserved with no obstructive picture. Amylase normal.
+Consistent with acute cholecystitis without choledocholithiasis."
+note-0089,MRN-20015,Beatrice Lefevre,1978-06-08,female,2025-04-08,V-015,General Surgery,DOC-215,Claire Dubois,"OPERATIVE NOTE
+
+Procedure: Laparoscopic cholecystectomy ('hot' gallbladder).
+Findings: Acutely inflamed, distended gallbladder with adhesions to omentum and
+multiple stones; critical view of safety achieved.
+Procedure: Four-port laparoscopy, adhesiolysis, cystic duct and artery clipped and
+divided, gallbladder dissected off the liver bed and retrieved in a bag.
+Intra-operative cholangiogram normal. Haemostasis secured. EBL 50 mL.
+Post-op plan: regular diet, simple analgesia."
+note-0090,MRN-20015,Beatrice Lefevre,1978-06-08,female,2025-04-10,V-015,Pathology,DOC-303,Victor Hale,"PATHOLOGY REPORT — Gallbladder
+
+Macroscopy: Thick-walled gallbladder containing multiple mixed stones.
+Microscopy: Acute on chronic cholecystitis with mural oedema and Rokitansky-Aschoff
+sinuses. No dysplasia or malignancy.
+Conclusion: Acute on chronic calculous cholecystitis."
+note-0091,MRN-20015,Beatrice Lefevre,1978-06-08,female,2025-04-11,V-015,General Surgery,DOC-215,Claire Dubois,"DISCHARGE LETTER
+
+Patient: Beatrice Lefevre (46F)
+Admitted: 07/04/2025   Discharged: 11/04/2025   General Surgery, 4 bed-days.
+
+Reason for admission: Acute calculous cholecystitis.
+
+Hospital course: Presented with right upper quadrant pain, fever and a positive
+Murphy's sign. Ultrasound confirmed acute calculous cholecystitis with gallstones
+and a thickened gallbladder wall, without bile-duct dilatation, and liver function
+tests were preserved. She was treated with intravenous antibiotics and underwent a
+laparoscopic cholecystectomy on 08/04/2025 ('hot' gallbladder) with a normal
+intra-operative cholangiogram. Histology confirmed acute on chronic calculous
+cholecystitis with no malignancy. She recovered quickly, tolerated diet and was
+discharged home well.
+
+Discharge diagnosis: Acute calculous cholecystitis with cholelithiasis.
+Procedure: Laparoscopic cholecystectomy (08/04/2025).
+
+Discharge medications: Paracetamol and ibuprofen as required; no antibiotics
+required at discharge.
+
+Follow-up: Surgical clinic if needed; GP for wound check; benign histology — no
+further action."
+note-0092,MRN-20016,Frank Geerts,1951-09-30,male,2025-05-05,V-016,Orthopaedics,DOC-202,Hannah Berg,"ADMISSION NOTE — Elective orthopaedic admission
+
+73-year-old man admitted for an elective right total hip replacement for severe
+primary osteoarthritis of the right hip, with disabling pain and reduced mobility
+despite maximal conservative treatment. PMH: chronic obstructive pulmonary disease
+(moderate, on inhaled therapy), hypertension. His COPD is stable at baseline on
+admission — no breathlessness above his norm, no sputum change, no recent
+exacerbation; chest clear, SpO2 95% on room air. Pre-operative assessment and
+anaesthetic review completed; consented for right total hip replacement."
+note-0093,MRN-20016,Frank Geerts,1951-09-30,male,2025-05-06,V-016,Orthopaedics,DOC-202,Hannah Berg,"OPERATIVE NOTE
+
+Procedure: Right total hip replacement (uncemented).
+Anaesthetic: spinal.
+Findings: Severe osteoarthritis of the right hip with loss of joint space and
+osteophytes.
+Procedure: Posterior approach, acetabular and femoral preparation, uncemented
+acetabular cup and femoral stem implanted with a ceramic head; stable trial, equal
+leg lengths. Haemostasis secured, closed in layers. Estimated blood loss 350 mL. No
+complications.
+Post-op plan: weight-bear as tolerated, physiotherapy, enoxaparin
+thromboprophylaxis."
+note-0094,MRN-20016,Frank Geerts,1951-09-30,male,2025-05-07,V-016,Laboratory,DOC-202,Hannah Berg,"LABORATORY RESULTS — Post-operative day 1
+
+Hb 10.6 g/dL (pre-op 13.2; expected post-operative drop), WBC 9.4, platelets 232,
+CRP 78 (post-surgical). U&E normal. No transfusion required. Recovering as expected
+on the orthopaedic ward."
+note-0095,MRN-20016,Frank Geerts,1951-09-30,male,2025-05-09,V-016,Pulmonology,DOC-210,Peter Vance,"CONSULTATION — Respiratory (post-operative day 3)
+
+Asked to review new respiratory deterioration. Since this morning the patient has
+developed increased breathlessness above baseline, wheeze, purulent green sputum
+and a low-grade fever (37.9°C), with a new oxygen requirement (SpO2 89% on air, 94%
+on 2 L). His COPD had been stable on admission with no exacerbation. Impression:
+infective exacerbation of COPD developing in hospital. Started on nebulised
+bronchodilators, oral prednisolone and oral antibiotics. This is a new in-hospital
+event, not present on admission."
+note-0096,MRN-20016,Frank Geerts,1951-09-30,male,2025-05-09,V-016,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — Chest X-ray
+
+Clinical details: post-operative day 4, new breathlessness and purulent sputum.
+Findings: Hyperinflated lung fields consistent with known COPD. No focal
+consolidation, effusion or pneumothorax.
+Impression: Hyperinflation; no pneumonia."
+note-0097,MRN-20016,Frank Geerts,1951-09-30,male,2025-05-13,V-016,Orthopaedics,DOC-202,Hannah Berg,"DISCHARGE LETTER
+
+Patient: Frank Geerts (73M)
+Admitted: 05/05/2025   Discharged: 13/05/2025   Orthopaedics, 8 bed-days.
+
+Reason for admission: Elective right total hip replacement for severe
+osteoarthritis.
+
+Hospital course: Admitted electively for a right total hip replacement for
+end-stage osteoarthritis of the right hip. His chronic obstructive pulmonary
+disease was stable at baseline on admission, with no exacerbation. He underwent an
+uncomplicated uncemented right total hip replacement on 06/05/2025 under spinal
+anaesthesia and progressed well initially with physiotherapy and thromboprophylaxis.
+On post-operative day 4 he developed a new infective exacerbation of COPD —
+increased breathlessness, wheeze, purulent sputum and a transient oxygen
+requirement — which had not been present on admission. This was treated by the
+respiratory team with nebulised bronchodilators, oral corticosteroids and
+antibiotics; a chest X-ray showed hyperinflation without consolidation. He responded
+well, weaned off supplemental oxygen and returned to his respiratory baseline before
+discharge. He was discharged home, mobilising safely with physiotherapy.
+
+Discharge diagnoses: Osteoarthritis of the right hip (reason for admission);
+infective exacerbation of chronic obstructive pulmonary disease — developed on
+post-operative day 4, not present on admission; chronic obstructive pulmonary
+disease (baseline); hypertension.
+Procedure: Right total hip replacement (06/05/2025).
+
+Discharge medications: Completing an oral prednisolone course and oral antibiotics,
+regular inhaled COPD therapy, enoxaparin for 28 days, regular antihypertensive,
+analgesia.
+
+Follow-up: Orthopaedic clinic at 6 weeks with X-ray; community physiotherapy;
+GP/respiratory review of COPD; bone-health advice."
+note-0098,MRN-20017,Hugo Vermeulen,1949-08-22,male,2025-06-03,V-017,Emergency Medicine,DOC-201,Eric Sullivan,"ADMISSION NOTE — Emergency Department
+
+75-year-old man with known COPD (FEV1 ~45% predicted) admitted with a 4-day
+history of worsening breathlessness, wheeze and increased sputum, together with
+fever and right-sided pleuritic chest pain. O/E: febrile 38.6°C, RR 26, SpO2 88%
+on air, widespread expiratory wheeze with bronchial breathing and crackles at the
+right base. Assessment: an acute exacerbation of COPD AND a concurrent
+community-acquired pneumonia — two distinct problems. Started on nebulised
+bronchodilators and oral prednisolone for the exacerbation, plus IV antibiotics for
+the pneumonia. Chest X-ray, bloods and cultures requested."
+note-0099,MRN-20017,Hugo Vermeulen,1949-08-22,male,2025-06-03,V-017,Radiology,DOC-301,Simon Wexler,"RADIOLOGY REPORT — Chest X-ray (PA)
+
+Findings: Dense consolidation in the right lower lobe with air bronchograms.
+Hyperinflated lung fields with flattened diaphragms consistent with underlying
+emphysema. No pleural effusion or pneumothorax.
+Impression: Right lower lobe pneumonia on a background of COPD/emphysema."
+note-0100,MRN-20017,Hugo Vermeulen,1949-08-22,male,2025-06-03,V-017,Laboratory,DOC-201,Eric Sullivan,"LABORATORY RESULTS — Admission bloods
+
+WBC 17.8 x10^9/L (neutrophils 15.2), CRP 268 mg/L, Hb 14.6 g/dL, urea 9.1,
+creatinine 92, eGFR 78. Markedly raised inflammatory markers consistent with
+bacterial pneumonia."
+note-0101,MRN-20017,Hugo Vermeulen,1949-08-22,male,2025-06-05,V-017,Microbiology,DOC-201,Eric Sullivan,"MICROBIOLOGY — Sputum and blood cultures
+
+Sputum culture: Streptococcus pneumoniae isolated, fully sensitive (amoxicillin).
+Blood cultures x2: no growth.
+Conclusion: pneumococcal pneumonia (Streptococcus pneumoniae). No bacteraemia."
+note-0102,MRN-20017,Hugo Vermeulen,1949-08-22,male,2025-06-06,V-017,Pulmonology,DOC-201,Eric Sullivan,"PROGRESS NOTE — Day 3, Respiratory ward
+
+Afebrile, SpO2 93% on 1 L, CRP falling to 120. Wheeze improving with
+bronchodilators; completing the oral prednisolone course for the COPD exacerbation
+and switched from IV to oral amoxicillin for the pneumococcal pneumonia. Both the
+exacerbation and the pneumonia are responding."
+note-0103,MRN-20017,Hugo Vermeulen,1949-08-22,male,2025-06-09,V-017,Pulmonology,DOC-201,Eric Sullivan,"DISCHARGE LETTER
+
+Patient: Hugo Vermeulen (75M)
+Admitted: 03/06/2025   Discharged: 09/06/2025   Respiratory, 6 bed-days.
+
+Reason for admission: Acute exacerbation of COPD with community-acquired pneumonia.
+
+Hospital course: Admitted with a 4-day deterioration in breathlessness, wheeze and
+sputum together with fever and right-sided pleuritic pain. Two distinct problems
+were identified and treated. First, an acute exacerbation of his chronic
+obstructive pulmonary disease — the airflow obstruction acutely worsened, managed
+with nebulised bronchodilators and a course of systemic corticosteroids. Second,
+and separately, a community-acquired pneumonia of the right lower lobe, confirmed
+on chest X-ray (right lower lobe consolidation) and microbiologically as
+Streptococcus pneumoniae on sputum culture, treated with antibiotics. Inflammatory
+markers were markedly raised (WBC 17.8, CRP 268). He responded well to both
+treatments, defervesced and returned toward his respiratory baseline.
+
+Discharge diagnoses: Acute exacerbation of chronic obstructive pulmonary disease;
+community-acquired pneumonia of the right lower lobe due to Streptococcus
+pneumoniae; chronic obstructive pulmonary disease (baseline).
+
+Discharge medications: Completing oral amoxicillin for the pneumonia and an oral
+prednisolone course for the exacerbation; regular inhaled COPD therapy.
+
+Follow-up: Repeat chest X-ray in 6 weeks to confirm resolution; respiratory clinic;
+pulmonary rehabilitation; pneumococcal and influenza vaccination review."
+note-0104,MRN-20010,Walter Brennan,1950-01-26,male,2024-12-04,V-010,Microbiology,DOC-210,Peter Vance,"MICROBIOLOGY — Sputum culture
+
+Sputum Gram stain: numerous neutrophils with Gram-negative coccobacilli.
+Sputum culture: Haemophilus influenzae isolated, beta-lactamase negative and
+sensitive to amoxicillin.
+Blood cultures x2: no growth at 5 days.
+Conclusion: Haemophilus influenzae — the causative organism of this infective
+exacerbation of COPD. No radiological or microbiological evidence of pneumonia."

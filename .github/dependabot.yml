@@ -1,0 +1,15 @@
+# Weekly dependency bumps, targeting develop (the default branch).
+# Note: secret-gated jobs silently skip on Dependabot PRs (separate secrets
+# store) - validate anything security-sensitive locally before merging.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: develop
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: develop

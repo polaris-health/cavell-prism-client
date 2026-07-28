@@ -1,0 +1,179 @@
+# Client
+
+## Setup
+
+```python
+from cavell_client import CavellClient, IngestionPipeline
+
+client = CavellClient(
+    api_url="https://prd.prism.cavell.app/api",
+    api_key="your-llm-gateway-key",
+    fhir_base_url="http://localhost:8090",
+    fhir_client_id="...",       # optional; provide together with fhir_client_secret
+    fhir_client_secret="...",   # optional; omit both for unauthenticated FHIR servers
+    fhir_api_path="/fhir",      # use the path exposed by your FHIR server
+)
+```
+
+Use the client as a context manager so both underlying HTTP clients are closed cleanly:
+
+```python
+with CavellClient(...) as client:
+    pipeline = IngestionPipeline(client, default_organization="ORG-1")
+    ...
+```
+
+## Methods
+
+### List tiers
+
+```python
+tiers = client.list_tiers()
+for t in tiers:
+    print(f"{t['name']} (default={t['default']})")
+```
+
+Returns a `list[dict]` with the keys `name` and `default`.
+
+### Get patient resources
+
+```python
+# All resources for a patient
+resources = client.get_patient_resources("pat-123")
+
+# Filter by type
+conditions = client.get_patient_resources("pat-123", "Condition")
+```
+
+### Delete patient resources
+
+Cascade-deletes the patient and any resources that reference that patient. This depends on server-side cascading delete support. The repository's local HAPI configuration enables it with `allow_cascading_deletes=true`.
+
+```python
+client.delete_patient_resources("pat-123")
+```
+
+### Count resources
+
+```python
+n = client.count_resources("Patient")
+```
+
+### Find patient ID
+
+```python
+fhir_id = client.find_patient_id("MRN-12345")
+```
+
+### List processed document IDs
+
+```python
+processed = client.list_processed_document_ids()
+# or scoped to one patient (preferred on shared servers):
+processed = client.list_processed_document_ids(patient_id=fhir_id)
+```
+
+Returns a `set[str]` of `DocumentReference.identifier` values used by the pipeline for resume-safe extraction. Without `patient_id` the whole server is scanned.
+
+### Mark a resource validated
+
+The extraction API stamps every resource it emits with an `unvalidated` meta
+tag (system `<deployment-url>/fhir/CodeSystem/validation-status`). The
+consumer contract for "a clinician has reviewed this resource" is removing
+that tag:
+
+```python
+client.mark_validated("Condition", condition_id)   # True if a tag was removed
+```
+
+Any later extraction that updates the resource re-adds the tag.
+
+### List unvalidated resources
+
+```python
+pending = client.list_unvalidated_resources(patient_fhir_id, "Condition")
+```
+
+Returns the patient's resources still carrying the `unvalidated` tag —
+the review queue for clinical validation.
+
+### Direct extraction API
+
+The pipeline is the supported path, but `CavellAPI` can be used directly for
+one-off extraction without FHIR persistence:
+
+```python
+from cavell_client.api import CavellAPI
+
+api = CavellAPI("https://prd.prism.cavell.app/api", api_key="...")
+bundle, count, usage = api.extract(
+    text=note_text,
+    meta="Document date: 2024-01-15",
+    tier="high",
+    allowed_resources=["Condition", "MedicationRequest"],  # restrict output types
+)
+```
+
+`allowed_resources` restricts extraction to the listed FHIR resource types.
+It is not available through the pipeline, which assumes full extraction for
+its context and deduplication behavior.
+
+## Response Types
+
+### ExtractResult
+
+Returned on successful pipeline outcomes.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `bundle` | `dict` | FHIR transaction bundle |
+| `resources` | `list[dict]` | Extracted FHIR resources (shorthand for bundle entries) |
+| `count` | `int` | Number of extracted resources |
+| `patient_id` | `str` | Resolved patient ID |
+| `usage` | `UsageStats` or `None` | Token usage and cost |
+| `persistence` | `PersistResult` or `None` | Persistence result |
+
+### PersistResult
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `str` | `"success"`, `"partial_failure"`, or `"failed"` |
+| `created` | `int` | Resources created |
+| `updated` | `int` | Resources updated |
+| `errors` | `list[dict]` | Error details for failed resources |
+
+### UsageStats
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input_tokens` | `int` | Input tokens consumed |
+| `output_tokens` | `int` | Output tokens generated |
+| `total_tokens` | `int` | Total tokens |
+| `requests` | `int` | Number of API requests |
+| `estimated_cost` | `float` | Estimated cost in USD |
+
+## Timeouts
+
+| Client | Default | Notes |
+|--------|---------|-------|
+| Cavell API | 800s | Extraction involves many LLM calls; the API caps each call at ~300s |
+| FHIR server | 30s | Per-request timeout for all FHIR operations |
+
+## Exceptions
+
+| Exception | When |
+|-----------|------|
+| `CavellAPIError` | Cavell API returns an error |
+| `CavellAuthError` | The API returns 401 — the LLM Gateway key is missing or rejected (subclass of `CavellAPIError`, non-retryable) |
+| `CavellGatewayUnavailableError` | The API returns 503 — the LLM Gateway is unreachable from the server (subclass of `CavellAPIError`) |
+| `FHIRAuthError` | FHIR OAuth2 authentication fails |
+| `CavellError` | Base class for library-specific exceptions |
+
+```python
+from cavell_client import CavellAPIError
+
+try:
+    ...
+except CavellAPIError as e:
+    print(f"API error ({e.status_code}): {e.message}")
+```
