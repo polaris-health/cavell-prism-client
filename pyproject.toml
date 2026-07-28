@@ -76,7 +76,7 @@ addopts = "--timeout=60"
 [dependency-groups]
 dev = [
     "mkdocs-jupyter>=0.25",
-    "mkdocs-material[imaging]>=9.7.1",
+    "mkdocs-material[imaging]>=9.7.7",
     "pytest>=9.1.1",
     "pytest-timeout>=2.3",
     "ruff>=0.11",
