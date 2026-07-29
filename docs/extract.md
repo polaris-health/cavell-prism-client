@@ -9,9 +9,9 @@ client = CavellClient(
     api_url="https://prd.prism.cavell.app/api",
     api_key="your-llm-gateway-key",
     fhir_base_url="http://localhost:8090",
-    fhir_client_id="...",       # optional; provide together with fhir_client_secret
-    fhir_client_secret="...",   # optional; omit both for unauthenticated FHIR servers
-    fhir_api_path="/fhir",      # use the path exposed by your FHIR server
+    fhir_client_id="...",  # optional; provide together with fhir_client_secret
+    fhir_client_secret="...",  # optional; omit both for unauthenticated FHIR servers
+    fhir_api_path="/fhir",  # use the path exposed by your FHIR server
 )
 ```
 
@@ -83,7 +83,7 @@ consumer contract for "a clinician has reviewed this resource" is removing
 that tag:
 
 ```python
-client.mark_validated("Condition", condition_id)   # True if a tag was removed
+client.mark_validated("Condition", condition_id)  # True if a tag was removed
 ```
 
 Any later extraction that updates the resource re-adds the tag.

@@ -40,10 +40,9 @@ with CavellClient(
     api_url="https://prd.prism.cavell.app/api",
     api_key="your-llm-gateway-key",
     fhir_base_url="http://localhost:8090",
-    fhir_client_id="...",       # optional; provide together with fhir_client_secret
-    fhir_client_secret="...",   # optional; omit both for unauthenticated FHIR servers
+    fhir_client_id="...",  # optional; provide together with fhir_client_secret
+    fhir_client_secret="...",  # optional; omit both for unauthenticated FHIR servers
 ) as client:
-
     # Verify connectivity before doing any real work
     status = client.check_connection()
     if not status["fhir"]["ok"]:
@@ -53,7 +52,10 @@ with CavellClient(
 
     # Create pipeline with optional tier selection and concurrency
     pipeline = IngestionPipeline(
-        client, tier="low", max_concurrency=10, default_organization="CGH-001",
+        client,
+        tier="low",
+        max_concurrency=10,
+        default_organization="CGH-001",
     )
 
     # Seed organizations, practitioners, and patients
@@ -94,27 +96,29 @@ with CavellClient(
 
     # Extract documents (skip_processed=True by default, so reruns are safe
     # when documents have stable document_id values)
-    outcomes = pipeline.extract([
-        Document(
-            text="Patient presents with type 2 diabetes...",
-            patient_identifier="MRN-12345",
-            date="2024-01-15",
-            practitioner_identifier="DOC-001",
-            document_id="note-001",
-        ),
-        Document(
-            text="Follow-up: diabetes well controlled on metformin...",
-            patient_identifier="MRN-12345",
-            date="2024-04-15",
-            document_id="note-002",
-        ),
-        Document(
-            text="Patient reports chest pain...",
-            patient_identifier="MRN-67890",
-            date="2024-02-01",
-            organization_identifier="SMH-002",  # overrides default
-        ),
-    ])
+    outcomes = pipeline.extract(
+        [
+            Document(
+                text="Patient presents with type 2 diabetes...",
+                patient_identifier="MRN-12345",
+                date="2024-01-15",
+                practitioner_identifier="DOC-001",
+                document_id="note-001",
+            ),
+            Document(
+                text="Follow-up: diabetes well controlled on metformin...",
+                patient_identifier="MRN-12345",
+                date="2024-04-15",
+                document_id="note-002",
+            ),
+            Document(
+                text="Patient reports chest pain...",
+                patient_identifier="MRN-67890",
+                date="2024-02-01",
+                organization_identifier="SMH-002",  # overrides default
+            ),
+        ]
+    )
 
     for outcome in outcomes:
         if outcome.success:
@@ -428,8 +432,8 @@ pipeline = IngestionPipeline(
 ```python
 for outcome in pipeline.extract(
     documents,
-    skip_processed=True,   # default: query FHIR and skip already-processed docs
-    batch_size=500,        # optional: cap documents per call
+    skip_processed=True,  # default: query FHIR and skip already-processed docs
+    batch_size=500,  # optional: cap documents per call
 ):
     ...
 ```

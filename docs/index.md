@@ -37,7 +37,13 @@ If your FHIR server uses OAuth2 client credentials, provide both `fhir_client_id
 Use the [pipeline](ingestion.md) to seed reference data and process documents in the correct order:
 
 ```python
-from cavell_client import CavellClient, IngestionPipeline, Organization, Patient, Document
+from cavell_client import (
+    CavellClient,
+    IngestionPipeline,
+    Organization,
+    Patient,
+    Document,
+)
 
 with CavellClient(
     api_url="https://prd.prism.cavell.app/api",
@@ -55,9 +61,15 @@ with CavellClient(
         patients=[Patient(identifier="MRN-12345", managing_organization="CGH-001")],
     )
 
-    for outcome in pipeline.extract([
-        Document(text="Patient presents with...", patient_identifier="MRN-12345", date="2024-01-15"),
-    ]):
+    for outcome in pipeline.extract(
+        [
+            Document(
+                text="Patient presents with...",
+                patient_identifier="MRN-12345",
+                date="2024-01-15",
+            ),
+        ]
+    ):
         print(f"Extracted {outcome.extract_result.count} resources")
 
     print(f"Total: {pipeline.documents_processed} docs, ${pipeline.total_cost:.3f}")
