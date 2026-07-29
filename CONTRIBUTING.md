@@ -11,7 +11,7 @@ uv sync                # installs the package + dev dependencies
 uv run pytest          # 250+ hermetic tests, sub-second
 uv run ruff check && uv run ruff format --check
 uv run ty check
-pre-commit install     # ruff, ty, commitlint on every commit
+uv run pre-commit install   # ruff, ty, detect-secrets, commitlint on every commit
 ```
 
 The test suite is fully hermetic (no network) and guarded by
