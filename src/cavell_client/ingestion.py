@@ -7,7 +7,7 @@ import logging
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any
 
@@ -298,7 +298,7 @@ class Document:
     def from_rows(
         cls,
         rows: list[dict[str, str]],
-        columns: "dict[str, str | dict[str, str]]",
+        columns: "Mapping[str, str | dict[str, str]]",
         **defaults: str,
     ) -> "list[Document]":
         """Build a list of Documents from CSV/dict rows.
