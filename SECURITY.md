@@ -13,7 +13,7 @@ Please do **not** open a public issue for security problems.
 
 Report vulnerabilities privately via
 [GitHub Security Advisories](https://github.com/polaris-health/cavell-prism-client/security/advisories/new)
-or email <support@cavell.ai> <!-- TODO(owner): replace with a dedicated security contact -->.
+or email <info@cavell.ai>
 
 We aim to acknowledge reports within 5 business days.
 

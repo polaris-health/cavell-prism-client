@@ -587,6 +587,23 @@ class TestContextFetching:
             url="http://localhost:8080/fhir/Observation?subject=123&_count=50&_sort=-date",
             json={"entry": [{"resource": {"resourceType": "Observation", "id": "o1"}}]},
         )
+        # CarePlan search (active plans only)
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/CarePlan?subject=123&_count=500&status=active",
+            json={
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "CarePlan",
+                            "id": "cp1",
+                            "status": "active",
+                            "meta": {"versionId": "2"},
+                        }
+                    }
+                ]
+            },
+        )
         # Active ResearchStudy search (not patient-scoped)
         httpx_mock.add_response(
             method="GET",
@@ -597,12 +614,13 @@ class TestContextFetching:
         )
 
         context = fhir.fetch_patient_context("123")
-        assert len(context) == 4
+        assert len(context) == 5
         resource_types = {r["resourceType"] for r in context}
         assert resource_types == {
             "Condition",
             "MedicationRequest",
             "Observation",
+            "CarePlan",
             "ResearchStudy",
         }
         # meta and narrative are stripped from every context resource
@@ -1225,6 +1243,12 @@ class TestFetchContextEdgeCases:
         httpx_mock.add_response(
             method="GET",
             url="http://localhost:8080/fhir/Observation?subject=pat-1&_count=50&_sort=-date",
+            json={"entry": []},
+        )
+        # CarePlan succeeds (empty)
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/CarePlan?subject=pat-1&_count=500&status=active",
             json={"entry": []},
         )
         # Active ResearchStudy succeeds

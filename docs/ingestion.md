@@ -366,6 +366,8 @@ The pipeline treats these the same as extraction failures: it skips remaining do
 
 Before each document, the SDK fetches existing clinical resources from the FHIR server and passes them as context to the extraction API. The API uses this context to POST a new resource or PUT an update to an existing one.
 
+The context covers Conditions, AllergyIntolerances, Procedures, MedicationRequests, the 50 most recent Observations, ResearchSubjects, and **active CarePlans** — so care plans that continue across notes are updated and versioned instead of duplicated (a plan that ends is marked completed/revoked and drops out of the context).
+
 Chronological ordering matters:
 
 1. Doc 1 mentions "type 2 diabetes" → API creates a new Condition resource
