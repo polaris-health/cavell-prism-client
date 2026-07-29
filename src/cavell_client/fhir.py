@@ -28,6 +28,7 @@ CONTEXT_RESOURCE_TYPES: tuple[str, ...] = (
     "MedicationRequest",
     "Observation",
     "ResearchSubject",
+    "CarePlan",
 )
 
 # FHIR search parameter that scopes a resource to a patient. Most resources use
@@ -601,6 +602,14 @@ class FHIRClient:
                         resource_type,
                         params={"_sort": "-date"},
                         max_results=MAX_CONTEXT_OBSERVATIONS,
+                    )
+                elif resource_type == "CarePlan":
+                    # Only active plans can be meaningfully updated; ended
+                    # plans would grow the context forever for no benefit.
+                    results = self.search_patient_resources(
+                        patient_id,
+                        resource_type,
+                        params={"status": "active"},
                     )
                 else:
                     results = self.search_patient_resources(patient_id, resource_type)
