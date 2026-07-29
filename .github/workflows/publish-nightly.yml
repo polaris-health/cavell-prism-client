@@ -47,12 +47,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Stamp dev version (workspace only)
+        # Written directly into the version file: `hatch version` refuses the
+        # stamp because PEP 440 orders X.Y.Z.devN *below* X.Y.Z — which is
+        # exactly right for a pre-release of the upcoming X.Y.Z.
         run: |
           BASE="$(uvx hatch version)"
           case "$BASE" in
             *dev*) echo "::error::develop already carries a dev version ($BASE)"; exit 1;;
           esac
-          uvx hatch version "${BASE}.dev$(date -u +%Y%m%d%H%M)"
+          DEV="${BASE}.dev$(date -u +%Y%m%d%H%M)"
+          sed -i "s/^__version__ = .*/__version__ = \"$DEV\"/" src/cavell_client/__init__.py
+          [ "$(uvx hatch version)" = "$DEV" ] || { echo "::error::version stamp failed"; exit 1; }
+          echo "Stamped $DEV"
       - run: uv build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
