@@ -1,3 +1,3 @@
-# TODO(owner): replace with the responsible team slug, e.g. @polaris-health/sdk
-* @guidbem
-* @anthonyrathe
+# Approvals to main require a code owner (repo admins).
+# Note: for a given path the LAST matching line wins - owners must share one line.
+* @guidbem @anthonyrathe
