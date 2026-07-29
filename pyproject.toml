@@ -28,8 +28,8 @@ dependencies = [
 
 [project.optional-dependencies]
 notebook = [
-    "notebook>=7.0",
-    "tqdm>=4.0",
+    "notebook>=7.6.1",
+    "tqdm>=4.70.0",
     "ipywidgets>=8.0",
 ]
 
@@ -75,9 +75,9 @@ addopts = "--timeout=60"
 
 [dependency-groups]
 dev = [
-    "mkdocs-jupyter>=0.25",
-    "mkdocs-material[imaging]>=9.7.1",
-    "pytest>=8.0",
+    "mkdocs-jupyter>=0.26.3",
+    "mkdocs-material[imaging]>=9.7.7",
+    "pytest>=9.1.1",
     "pytest-timeout>=2.3",
     "ruff>=0.11",
     "ty>=0.0.1",

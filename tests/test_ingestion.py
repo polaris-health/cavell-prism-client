@@ -58,6 +58,15 @@ def mock_context_empty(httpx_mock, patient_fhir_id, repeat=False):
             json={"entry": []},
             repeat=repeat,
         )
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            f"http://localhost:8080/fhir/CarePlan?subject={patient_fhir_id}"
+            f"&_count=500&status=active"
+        ),
+        json={"entry": []},
+        repeat=repeat,
+    )
 
 
 def mock_extract_response(httpx_mock, count=1, estimated_cost=None):
@@ -2105,6 +2114,7 @@ class TestEndToEndWithPractitioners:
 
         assert len(outcomes) == 1
         assert outcomes[0].success
+        assert outcomes[0].extract_result is not None
         bundle = outcomes[0].extract_result.bundle
         # Only clinical resources remain (no Practitioner entries)
         resource_types = [e["resource"]["resourceType"] for e in bundle["entry"]]

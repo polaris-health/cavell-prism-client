@@ -52,14 +52,16 @@ with CavellClient(
     )
 
     # 2. Extract clinical notes (per patient, in date order) and persist
-    outcomes = pipeline.extract([
-        Document(
-            text="Patient diagnosed with type 2 diabetes...",
-            patient_identifier="MRN-1",
-            date="2024-01-15",
-            document_id="note-001",
-        ),
-    ])
+    outcomes = pipeline.extract(
+        [
+            Document(
+                text="Patient diagnosed with type 2 diabetes...",
+                patient_identifier="MRN-1",
+                date="2024-01-15",
+                document_id="note-001",
+            ),
+        ]
+    )
     for outcome in outcomes:
         print(outcome)
 ```
@@ -75,7 +77,7 @@ has reviewed a resource, remove the tag; any later update re-adds it:
 
 ```python
 client.list_unvalidated_resources(patient_fhir_id, "Condition")  # review queue
-client.mark_validated("Condition", condition_id)                 # $meta-delete
+client.mark_validated("Condition", condition_id)  # $meta-delete
 ```
 
 ## Documentation
