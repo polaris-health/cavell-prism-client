@@ -251,12 +251,19 @@ class FHIRClient:
             )
             return self._client
 
-    def _clear_auth(self) -> None:
-        """Clear cached token and client (forces re-auth on next request)."""
-        self._access_token = None
-        if self._client:
-            self._client.close()
-            self._client = None
+    def _clear_auth(self, close_client: bool = True) -> None:
+        """Clear cached token and client (forces re-auth on next request).
+
+        With ``close_client=False`` the old client object is only dereferenced,
+        not closed — used on the 401-refresh path, where other worker threads
+        may still have in-flight requests on it (closing would raise on them).
+        """
+        with self._client_lock:
+            self._access_token = None
+            if self._client:
+                if close_client:
+                    self._client.close()
+                self._client = None
 
     def close(self) -> None:
         """Close the HTTP client."""
@@ -287,7 +294,7 @@ class FHIRClient:
         # Retry once on 401 (token expired)
         if response.status_code == 401:
             logger.info("FHIR token expired, refreshing")
-            self._clear_auth()
+            self._clear_auth(close_client=False)
             client = self._get_client()
             response = client.request(method, path, **kwargs)
 
@@ -764,12 +771,19 @@ class FHIRClient:
             "entry": entries,
         }
 
-        client = self._get_client()
-        response = client.request("POST", "/", json=bundle)
+        # Route through _make_request so an expired OAuth token refreshes
+        # instead of surfacing as a deterministic persist failure.
+        try:
+            response = self._make_request("POST", "/", json=bundle)
+        except httpx.HTTPStatusError as e:
+            response = e.response
 
         # Transaction failure returns OperationOutcome
         if response.status_code >= 400:
-            outcome = response.json()
+            try:
+                outcome = response.json()
+            except Exception:
+                outcome = {}
             error_msg = self._extract_error_message(outcome, str(response.status_code))
             if logger.isEnabledFor(logging.DEBUG):
                 for i, entry in enumerate(entries):

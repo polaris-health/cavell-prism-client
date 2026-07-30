@@ -2921,9 +2921,9 @@ class TestRunAbort(_PipelineHarness):
 
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
+            url="https://qa.prism.cavell.app/api/key/info",
             status_code=401,
-            json={"detail": "Missing LLM Gateway key."},
+            json={"detail": "LLM Gateway rejected the provided key."},
         )
 
         from cavell_client.models import CavellAuthError
@@ -3308,3 +3308,94 @@ class TestOutcomeStr:
             transient=True,
         )
         assert "[transient]" in str(outcome)
+
+
+class TestDateNormalization:
+    """Dates are canonicalized, not just validated (chronology is lexical)."""
+
+    def test_compact_iso_date_normalized(self):
+        doc = Document(text="t", patient_identifier="MRN-1", date="20240115")
+        assert doc.date == "2024-01-15"
+
+    def test_week_date_normalized(self):
+        doc = Document(text="t", patient_identifier="MRN-1", date="2024-W03-1")
+        assert doc.date == "2024-01-15"
+
+
+class TestDeferredPassAbort(_PipelineHarness):
+    """A run-global failure during the deferred pass must raise too."""
+
+    def test_503_in_deferred_pass_raises(self, client, httpx_mock, monkeypatch):
+        monkeypatch.setattr("cavell_client.ingestion.time.sleep", lambda s: None)
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_context_empty(httpx_mock, "pat-1", repeat=True)
+        # Main pass: transient 500s exhaust in-place retries (no abort),
+        # marking the doc transient and triggering the deferred pass.
+        for _ in range(_DOC_MAX_ATTEMPTS):
+            httpx_mock.add_response(
+                method="POST",
+                url="https://qa.prism.cavell.app/api/extract/text",
+                status_code=500,
+                json={"detail": "boom"},
+            )
+        # Deferred pass: gateway goes down hard -> run-global.
+        httpx_mock.add_response(
+            method="POST",
+            url="https://qa.prism.cavell.app/api/extract/text",
+            status_code=503,
+            json={"detail": "LLM Gateway is unreachable; try again shortly."},
+            repeat=True,
+        )
+
+        from cavell_client.models import CavellGatewayUnavailableError
+
+        docs = [
+            Document(
+                text="Patient has diabetes mellitus",
+                patient_identifier="MRN-1",
+                date="2024-01-01",
+            )
+        ]
+        with pytest.raises(CavellGatewayUnavailableError):
+            pipeline.extract(docs)
+        assert pipeline.documents_failed == 1
+
+
+class TestPractitionerRefListCleanup:
+    """Unmatched practitioner refs inside lists must not leave [{}] behind."""
+
+    def test_list_items_pruned(self):
+        resource = {
+            "resourceType": "Observation",
+            "performer": [{"reference": "urn:uuid:prac-1"}],
+            "note": [{"text": "keep me"}],
+        }
+        IngestionPipeline._rewrite_practitioner_refs(
+            resource, {"urn:uuid:prac-1": None}
+        )
+        assert "performer" not in resource
+        assert resource["note"] == [{"text": "keep me"}]
+
+    def test_nested_actor_pruned(self):
+        resource = {
+            "resourceType": "Procedure",
+            "performer": [
+                {"actor": {"reference": "urn:uuid:prac-1"}},
+                {"actor": {"reference": "Practitioner/42"}},
+            ],
+        }
+        IngestionPipeline._rewrite_practitioner_refs(
+            resource, {"urn:uuid:prac-1": None}
+        )
+        assert resource["performer"] == [{"actor": {"reference": "Practitioner/42"}}]
+
+    def test_matched_refs_rewritten_in_lists(self):
+        resource = {
+            "resourceType": "Observation",
+            "performer": [{"reference": "urn:uuid:prac-1"}],
+        }
+        IngestionPipeline._rewrite_practitioner_refs(
+            resource, {"urn:uuid:prac-1": "Practitioner/7"}
+        )
+        assert resource["performer"] == [{"reference": "Practitioner/7"}]

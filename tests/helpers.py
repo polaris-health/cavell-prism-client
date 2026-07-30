@@ -13,11 +13,11 @@ def mock_fhir_auth(httpx_mock):
 
 
 def mock_api_preflight(httpx_mock):
-    """Mock the authenticated GET /resources pre-flight used by extract()."""
+    """Mock the key-validating GET /key/info pre-flight used by extract()."""
     httpx_mock.add_response(
         method="GET",
-        url=f"{API_URL}/resources",
-        json={"resources": []},
+        url=f"{API_URL}/key/info",
+        json={"valid": True},
         repeat=True,
     )
 

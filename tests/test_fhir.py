@@ -2159,3 +2159,70 @@ class TestDeleteMetaTags:
                 "code": "unvalidated",
             }
         ]
+
+
+class TestPostBundleTokenRefresh:
+    """post_bundle must refresh an expired OAuth token like every other call."""
+
+    def test_401_refreshes_token_and_retries(self, fhir, httpx_mock):
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token-1"},
+        )
+        # First POST: token expired
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/fhir/",
+            status_code=401,
+            json={"resourceType": "OperationOutcome"},
+        )
+        # Re-auth + retried POST succeed
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token-2"},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/fhir/",
+            json={
+                "resourceType": "Bundle",
+                "type": "transaction-response",
+                "entry": [{"response": {"status": "201 Created"}}],
+            },
+        )
+
+        result = fhir.post_bundle(
+            [
+                {
+                    "resource": {"resourceType": "Condition"},
+                    "request": {"method": "POST", "url": "Condition"},
+                }
+            ]
+        )
+        assert result.success
+        assert result.created == 1
+
+    def test_non_json_error_body_handled(self, fhir, httpx_mock):
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/fhir/",
+            status_code=502,
+            text="<html>Bad Gateway</html>",
+        )
+
+        result = fhir.post_bundle(
+            [
+                {
+                    "resource": {"resourceType": "Condition"},
+                    "request": {"method": "POST", "url": "Condition"},
+                }
+            ]
+        )
+        assert result.status == "failed"
