@@ -9,7 +9,12 @@ from urllib.parse import urlparse
 
 import httpx
 
-from cavell_client.models import FHIRAuthError, PatientNotFoundError, PersistResult
+from cavell_client.models import (
+    FHIRAuthError,
+    FHIRConnectionError,
+    PatientNotFoundError,
+    PersistResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +189,7 @@ class FHIRClient:
         """Initialize FHIR client.
 
         Args:
-            base_url: FHIR server base URL (e.g., "http://localhost:8080")
+            base_url: FHIR server base URL (e.g., "http://localhost:8090")
             client_id: OAuth2 client ID (None to skip auth)
             client_secret: OAuth2 client secret (None to skip auth)
             api_path: API path prefix (e.g., "/fhir" for Aidbox, "" for HAPI)
@@ -272,9 +277,24 @@ class FHIRClient:
     def check_connection(self) -> None:
         """Ping the FHIR server's metadata endpoint.
 
-        Raises on any failure (connection refused, auth error, bad URL).
+        Raises:
+            FHIRAuthError: the OAuth2 handshake failed
+            FHIRConnectionError: the server is unreachable, the URL is wrong,
+                or /metadata came back with an error status. Raw httpx errors
+                are wrapped so callers can distinguish a FHIR misconfiguration
+                from a Cavell API one.
         """
-        self._make_request("GET", "/metadata")
+        try:
+            self._make_request("GET", "/metadata")
+        except FHIRAuthError:
+            raise
+        except httpx.HTTPStatusError as e:
+            raise FHIRConnectionError(
+                f"{self.base_url}{self.api_path}/metadata returned "
+                f"{e.response.status_code}"
+            ) from None
+        except httpx.HTTPError as e:
+            raise FHIRConnectionError(f"{self.base_url} ({e})") from None
 
     def _make_request(self, method: str, path: str, **kwargs) -> httpx.Response:
         """Make authenticated request to FHIR server.

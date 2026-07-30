@@ -485,6 +485,36 @@ class TestCheckConnection:
         with pytest.raises(CavellAuthError):
             api.check_connection()
 
+    def test_html_catch_all_200_raises(self, api, httpx_mock):
+        """A 200 that isn't the /key/info body must not read as "key valid".
+
+        A base_url pointing at a host that serves a SPA/error page for unknown
+        paths answers 200 text/html for every route, which would silently turn
+        an invalid key into a valid one.
+        """
+        httpx_mock.add_response(
+            method="GET",
+            url="https://qa.prism.cavell.app/api/key/info",
+            text="<!doctype html><html><body><div id=root></div></body></html>",
+            headers={"Content-Type": "text/html; charset=utf-8"},
+        )
+
+        with pytest.raises(CavellAPIError) as exc_info:
+            api.check_connection()
+
+        assert "did not return the expected" in str(exc_info.value)
+
+    def test_json_without_valid_true_raises(self, api, httpx_mock):
+        """A 200 JSON body lacking valid=true is not a successful pre-flight."""
+        httpx_mock.add_response(
+            method="GET",
+            url="https://qa.prism.cavell.app/api/key/info",
+            json={"valid": False},
+        )
+
+        with pytest.raises(CavellAPIError):
+            api.check_connection()
+
     def test_extract_non_json_error(self, api, httpx_mock):
         """502 with plain text body → CavellAPIError uses response.text."""
         httpx_mock.add_response(

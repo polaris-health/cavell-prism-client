@@ -13,7 +13,7 @@ class CavellClient:
         with CavellClient(
             api_url="https://prd.prism.cavell.app/api",
             api_key="<your LLM Gateway key>",
-            fhir_base_url="http://localhost:8080",
+            fhir_base_url="http://localhost:8090",
         ) as client:
             pipeline = IngestionPipeline(client, default_organization="ORG-1")
             pipeline.seed(...)
@@ -38,10 +38,24 @@ class CavellClient:
                 (e.g., "https://prd.prism.cavell.app/api")
             api_key: LLM Gateway key, sent as a bearer token on every
                 Cavell API request
-            fhir_base_url: Local FHIR server URL (e.g., "http://localhost:8080")
+            fhir_base_url: Local FHIR server URL (e.g., "http://localhost:8090")
             fhir_client_id: FHIR OAuth2 client ID (None to skip auth)
             fhir_client_secret: FHIR OAuth2 client secret (None to skip auth)
             fhir_api_path: FHIR API path prefix (default: "/fhir")
+
+        Validates both halves of the configuration before returning, so a
+        wrong URL, key, or credential fails here rather than deep inside
+        seed()/extract(). The Cavell API is checked first with one free
+        GET /key/info (no tokens spent), then the FHIR server with
+        GET /metadata. The exception type tells you which half is wrong.
+
+        Raises:
+            CavellAuthError: the gateway rejected the key
+            CavellGatewayUnavailableError: the LLM Gateway is unreachable
+            CavellAPIError: the API URL does not serve GET /key/info
+            FHIRAuthError: the FHIR OAuth2 handshake failed
+            FHIRConnectionError: the FHIR server is unreachable or the URL
+                is wrong
         """
         _reject_removed_auth_kwargs(removed_kwargs)
         if not fhir_base_url:
@@ -53,6 +67,17 @@ class CavellClient:
             client_secret=fhir_client_secret,
             api_path=fhir_api_path,
         )
+        # Fail fast on a bad key/URL, Cavell API first (a rejected key is the
+        # likeliest misconfiguration) then FHIR, each raising its own error
+        # type. Close what we just opened first: a raising __init__ means no
+        # one gets a reference to self, so __exit__/close() will never run and
+        # the sockets would leak.
+        try:
+            self._api.check_connection()
+            self._fhir.check_connection()
+        except BaseException:
+            self.close()
+            raise
 
     def check_connection(self) -> dict:
         """Verify connectivity to both the FHIR server and Cavell API.
