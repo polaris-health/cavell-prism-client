@@ -16,8 +16,8 @@ table.
 |------|------------|
 | `extraction_demo.ipynb` | End-to-end CSV → FHIR extraction with the ingestion pipeline |
 | `hospitalization_extraction_demo.ipynb` | Hospital stays grouped per visit under FHIR Encounters |
-| `notes.csv` | 1,758 synthetic clinical notes across ~50 patients |
-| `hospitalizations.csv` | 103 synthetic documents across 17 hospital stays |
+| `notes.csv` | 1,758 synthetic clinical notes across 104 patients |
+| `hospitalizations.csv` | 104 synthetic documents across 17 hospital stays (16 patients) |
 
 ## Running
 

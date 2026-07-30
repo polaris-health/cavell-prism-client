@@ -87,8 +87,8 @@ Setup guides, the pipeline walkthrough, and demo notebooks (synthetic data):
 
 ## Contributing & security
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and the release
-process, and [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
+See [CONTRIBUTING.md](https://github.com/polaris-health/cavell-prism-client/blob/main/CONTRIBUTING.md) for development setup and the release
+process, and [SECURITY.md](https://github.com/polaris-health/cavell-prism-client/blob/main/SECURITY.md) for how to report vulnerabilities.
 
 ## License
 
