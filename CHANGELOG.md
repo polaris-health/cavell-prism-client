@@ -36,17 +36,41 @@ First public release, targeting the Prism API. The package is published as
   `IngestionPipeline.extract()` with an exception instead of producing
   per-document failure outcomes. Re-running with `skip_processed=True`
   (the default) resumes safely.
+- **`extract(batch_size=...)` is now `extract(limit=...)`.** The old name
+  implied chunking it never did: it caps a single pass, and the documents
+  past the cap were left unprocessed. Passing `batch_size=` to `extract()`
+  raises `TypeError` with migration guidance rather than being silently
+  ignored — silently ignoring it would extract every document passed.
+  Use `extract_all()` to process a whole dataset in chunks. `limit` must
+  be `>= 1` if set.
 
 ### Added
 
 - `CavellAuthError` (401) and `CavellGatewayUnavailableError` (503), both
   subclassing `CavellAPIError`.
 - `Retry-After` is honored in the 429 retry loop (capped at 300s).
-- **Chronology guard**: documents older than the patient's newest
-  already-persisted document warn, are flagged
-  `IngestionOutcome.out_of_order`, and pass an update guard — updates to
-  resources whose current version came from a newer document are dropped
-  (creates always persist).
+- **Chronology check**: documents older than the patient's newest
+  already-persisted document are **refused**. `extract()` and `extract_all()`
+  raise `OutOfOrderDocumentError` before anything in the call is extracted,
+  so no tokens are spent and nothing is persisted — including the in-order
+  documents in the same call. `OutOfOrderDocumentError.violations` lists every
+  offender as an `OutOfOrderDocument` (`patient_identifier`, `document_id`,
+  `document_index`, `date`, `watermark`). Equal dates are not violations
+  (dates are day-resolution), already-processed documents are filtered out
+  before the check, and the check fails open per patient if the watermark
+  query errors.
+
+  Extraction is context-aware: each note is read against the patient's
+  *current* resources with no date filtering, so an older note would be
+  interpreted against a clinical picture from its own future. Refusing is the
+  conservative position while that is true.
+
+  This supersedes an earlier design in which the older document was extracted
+  anyway behind an **update guard** that dropped updates to resources sourced
+  from newer documents. That code is retained but disabled
+  (`_apply_update_guard` and the commented-out block in
+  `_process_single_document`, plus one skipped test) in case the policy is
+  revisited.
 - `mark_validated(resource_type, id)` removes the Prism `unvalidated` meta
   tag via FHIR `$meta-delete`; `list_unvalidated_resources(patient, type)`
   lists the clinician review queue.
@@ -62,6 +86,18 @@ First public release, targeting the Prism API. The package is published as
   `tqdm>=4.70.0`, and `ipywidgets>=8.0` (the demo notebooks need the
   ipywidgets 8 progress-bar API).
 - Python 3.14 is tested in CI and declared in the classifiers.
+- **`IngestionPipeline.extract_all(documents, batch_size=N)`** — processes a
+  whole dataset, which `extract()` never did. Sorts every document by
+  ascending date across the **entire** dataset before splitting it into
+  batches, so each patient's documents are extracted oldest-first even when
+  they span batches. Batching an unsorted list splits it by input order,
+  which lets a later batch carry documents older than what an earlier batch
+  persisted; those trip the chronology guard and lose their updates.
+  Batches are cut by index, so the walk always terminates and works with
+  `skip_processed=False` and with documents that have no `document_id`. All
+  documents are validated before the first batch spends, which is also the
+  only way `document_id` uniqueness is enforced across batch boundaries. An
+  optional `on_batch` callback reports progress as each batch finishes.
 
 ### Changed
 
@@ -93,6 +129,23 @@ client = CavellClient(
 
 Gateway keys are issued by the Cavell LLM Gateway, not Cavell accounts —
 contact your Cavell representative if you don't have one.
+
+Batched extraction moves to `extract_all()`:
+
+```python
+# before (0.1.x) — processed only the first 500 documents; the rest needed
+# further extract() calls, and batch membership followed input order
+for outcome in pipeline.extract(documents, batch_size=500):
+    ...
+
+# after (0.2.0) — processes every document, globally date-ordered
+for outcome in pipeline.extract_all(documents, batch_size=500):
+    ...
+
+# to cap a single pass instead (e.g. a sanity check before a full run)
+for outcome in pipeline.extract(documents, limit=10):
+    ...
+```
 
 ## [0.1.0]
 

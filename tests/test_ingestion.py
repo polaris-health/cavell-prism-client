@@ -16,12 +16,14 @@ from cavell_client.fhir import (
 from cavell_client.ingestion import (
     _DOC_MAX_ATTEMPTS,
     Document,
+    IngestionOutcome,
     IngestionPipeline,
     Organization,
     Patient,
     Practitioner,
     _Phase,
 )
+from cavell_client.models import OutOfOrderDocumentError
 from tests.helpers import mock_api_preflight, mock_fhir_auth, mock_watermark
 
 IDENTIFIER_SYSTEM_ENCODED = quote(IDENTIFIER_SYSTEM, safe="")
@@ -142,8 +144,12 @@ def mock_persist_response(httpx_mock, created=1):
     )
 
 
-def mock_patient_exists(httpx_mock, patient_fhir_ids):
-    """Mock GET /Patient/{id} returning 200 for each patient."""
+def mock_patient_exists(httpx_mock, patient_fhir_ids, repeat=False):
+    """Mock GET /Patient/{id} returning 200 for each patient.
+
+    Pass repeat=True when a test makes several extract() calls — each one
+    re-verifies every patient in its batch.
+    """
     if isinstance(patient_fhir_ids, str):
         patient_fhir_ids = [patient_fhir_ids]
     for pid in patient_fhir_ids:
@@ -151,6 +157,7 @@ def mock_patient_exists(httpx_mock, patient_fhir_ids):
             method="GET",
             url=f"http://localhost:8080/fhir/Patient/{pid}",
             json={"resourceType": "Patient", "id": pid},
+            repeat=repeat,
         )
 
 
@@ -1181,8 +1188,8 @@ class TestExtract:
         assert len(outcomes) == 2
         assert all(o.success for o in outcomes)
 
-    def test_batch_size_caps_documents(self, client, httpx_mock, monkeypatch):
-        """batch_size caps remaining docs after filtering."""
+    def test_limit_caps_documents(self, client, httpx_mock, monkeypatch):
+        """limit caps remaining docs after filtering."""
         pipeline = self._setup_pipeline(client, httpx_mock)
 
         monkeypatch.setattr(
@@ -1205,9 +1212,29 @@ class TestExtract:
             for i in range(3)
         ]
 
-        outcomes = list(pipeline.extract(docs, batch_size=1))
+        outcomes = list(pipeline.extract(docs, limit=1))
         assert len(outcomes) == 1
         assert outcomes[0].success
+
+    def test_batch_size_kwarg_raises_pointed_migration_error(self, client, httpx_mock):
+        """The renamed kwarg fails loudly — ignoring it would over-spend."""
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        with pytest.raises(TypeError, match="renamed 'batch_size' to 'limit'"):
+            pipeline.extract([], batch_size=1)
+
+    def test_unknown_kwarg_raises(self, client, httpx_mock):
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        with pytest.raises(TypeError, match="Unexpected keyword argument"):
+            pipeline.extract([], nonsense=1)
+
+    @pytest.mark.parametrize("bad", [0, -1])
+    def test_limit_below_one_raises(self, client, httpx_mock, bad):
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        with pytest.raises(ValueError, match="limit must be >= 1"):
+            pipeline.extract([], limit=bad)
 
     def test_no_document_id_warns(self, client, httpx_mock, monkeypatch, caplog):
         """Docs without document_id log a warning when skip_processed=True."""
@@ -3071,7 +3098,14 @@ class TestRunAbort(_PipelineHarness):
 
 
 class TestChronologyGuard(_PipelineHarness):
-    """Out-of-order detection and the update guard."""
+    """Chronology handling: in-order documents pass, watermark failures fail open.
+
+    The update-guard behaviour (extract an older document anyway, dropping
+    updates sourced from newer ones) is disabled — older documents are now
+    refused outright, see TestOutOfOrderRejection. The one test covering it is
+    skipped rather than deleted, because rejecting instead of guarding is
+    provisional.
+    """
 
     RELATED_URL = (
         "http://localhost:8080/fhir/DocumentReference?patient=pat-1"
@@ -3107,6 +3141,12 @@ class TestChronologyGuard(_PipelineHarness):
             "count": 4,
         }
 
+    @pytest.mark.skip(
+        reason="Update guard is disabled: older documents are refused before "
+        "extraction (see TestOutOfOrderRejection). Kept for the provisional "
+        "revert to guard-instead-of-reject — re-enable together with the "
+        "commented-out block in _process_single_document."
+    )
     def test_out_of_order_drops_updates_from_newer_documents(
         self, client, httpx_mock, caplog
     ):
@@ -3239,7 +3279,7 @@ class TestChronologyGuard(_PipelineHarness):
 
         assert outcomes[0].success
         assert outcomes[0].out_of_order is False
-        assert any("chronology check disabled" in r.message for r in caplog.records)
+        assert any("chronology check skipped" in r.message for r in caplog.records)
 
 
 class TestApplyUpdateGuard:
@@ -3425,3 +3465,456 @@ class TestPractitionerRefListCleanup:
             resource, {"urn:uuid:prac-1": "Practitioner/7"}
         )
         assert resource["performer"] == [{"reference": "Practitioner/7"}]
+
+
+def _note(patient, date, doc_id):
+    """A valid Document with text long enough to avoid the short-text warning."""
+    return Document(
+        text=f"Clinical note for {patient} recorded on {date}.",
+        patient_identifier=patient,
+        date=date,
+        document_id=doc_id,
+    )
+
+
+class TestExtractAll(_PipelineHarness):
+    """extract_all() walks the whole dataset in global date order."""
+
+    def _seed_for_batches(self, client, httpx_mock, num_patients=1):
+        """Seed, then allow the repeated patient-existence checks each batch makes."""
+        pipeline = self._seed(client, httpx_mock, num_patients=num_patients)
+        mock_patient_exists(
+            httpx_mock, [f"pat-{i + 1}" for i in range(num_patients)], repeat=True
+        )
+        return pipeline
+
+    @staticmethod
+    def _record(pipeline, monkeypatch):
+        """Replace real extraction with a recorder. Returns the docs seen."""
+        seen: list[Document] = []
+
+        def fake(
+            doc, doc_index, organization_identifier, watermark=None, on_fatal=None
+        ):
+            seen.append(doc)
+            return IngestionOutcome(
+                success=True,
+                patient_identifier=doc.patient_identifier,
+                document_index=doc_index,
+                document_id=doc.document_id,
+            )
+
+        monkeypatch.setattr(pipeline, "_process_single_document", fake)
+        return seen
+
+    def test_processes_every_document_when_batch_smaller_than_dataset(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """The regression that motivated this method: extract() would stop at one
+        batch, leaving the rest of the dataset unprocessed."""
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        seen = self._record(pipeline, monkeypatch)
+
+        docs = [_note("MRN-1", f"2024-01-{i + 1:02d}", f"doc-{i}") for i in range(7)]
+
+        outcomes = pipeline.extract_all(docs, batch_size=2)
+
+        assert len(outcomes) == 7
+        assert all(o.success for o in outcomes)
+        assert len(seen) == 7
+
+    def test_batch_membership_follows_global_date_order(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """Batches are cut on global date order, not on input order."""
+        pipeline = self._seed_for_batches(client, httpx_mock, num_patients=2)
+        self._record(pipeline, monkeypatch)
+
+        # Shuffled, interleaving two patients.
+        docs = [
+            _note("MRN-1", "2024-05-01", "a-may"),
+            _note("MRN-2", "2024-01-01", "b-jan"),
+            _note("MRN-1", "2024-03-01", "a-mar"),
+            _note("MRN-2", "2024-07-01", "b-jul"),
+        ]
+
+        batches: list[list[IngestionOutcome]] = []
+        pipeline.extract_all(docs, batch_size=2, on_batch=batches.append)
+
+        assert [sorted(o.document_id or "" for o in b) for b in batches] == [
+            ["a-mar", "b-jan"],
+            ["a-may", "b-jul"],
+        ]
+
+    def test_documents_reach_extraction_oldest_first_across_batches(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """One patient's notes stay chronological even when split across batches."""
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        seen = self._record(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-09-01", "sep"),
+            _note("MRN-1", "2024-02-01", "feb"),
+            _note("MRN-1", "2024-11-01", "nov"),
+            _note("MRN-1", "2024-05-01", "may"),
+        ]
+
+        pipeline.extract_all(docs, batch_size=2)
+
+        assert [d.document_id for d in seen] == ["feb", "may", "sep", "nov"]
+
+    def test_same_day_documents_keep_input_order(self, client, httpx_mock, monkeypatch):
+        """The global sort is stable, so same-day notes are not reshuffled."""
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        seen = self._record(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-03-01", "first"),
+            _note("MRN-1", "2024-03-01", "second"),
+            _note("MRN-1", "2024-03-01", "third"),
+        ]
+
+        pipeline.extract_all(docs, batch_size=2)
+
+        assert [d.document_id for d in seen] == ["first", "second", "third"]
+
+    def test_batch_size_none_processes_everything_in_one_call(
+        self, client, httpx_mock, monkeypatch
+    ):
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        self._record(pipeline, monkeypatch)
+
+        docs = [_note("MRN-1", f"2024-01-{i + 1:02d}", f"doc-{i}") for i in range(5)]
+
+        batches: list[list[IngestionOutcome]] = []
+        outcomes = pipeline.extract_all(docs, on_batch=batches.append)
+
+        assert len(outcomes) == 5
+        assert len(batches) == 1
+
+    def test_input_list_is_not_mutated(self, client, httpx_mock, monkeypatch):
+        """Sorting must not reorder the caller's list in place."""
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        self._record(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-09-01", "sep"),
+            _note("MRN-1", "2024-02-01", "feb"),
+        ]
+
+        pipeline.extract_all(docs, batch_size=1)
+
+        assert [d.document_id for d in docs] == ["sep", "feb"]
+
+    def test_validation_runs_before_any_batch_spends(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """A bad reference in the last batch raises before the first one runs."""
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        seen = self._record(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-01-01", "ok-1"),
+            _note("MRN-1", "2024-02-01", "ok-2"),
+            _note("MRN-UNSEEDED", "2024-03-01", "bad"),
+        ]
+
+        with pytest.raises(ValueError, match="unknown patient 'MRN-UNSEEDED'"):
+            pipeline.extract_all(docs, batch_size=1)
+
+        assert seen == []
+
+    def test_duplicate_document_ids_split_across_batches_are_rejected(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """Per-batch checks alone would miss this — extract() sees one batch."""
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        seen = self._record(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-01-01", "dupe"),
+            _note("MRN-1", "2024-02-01", "other"),
+            _note("MRN-1", "2024-03-01", "dupe"),
+        ]
+
+        with pytest.raises(ValueError, match="Duplicate document_id values"):
+            pipeline.extract_all(docs, batch_size=1)
+
+        assert seen == []
+
+    def test_same_document_id_across_patients_is_allowed(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """document_id uniqueness is scoped per patient, as in extract()."""
+        pipeline = self._seed_for_batches(client, httpx_mock, num_patients=2)
+        self._record(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-01-01", "note-1"),
+            _note("MRN-2", "2024-02-01", "note-1"),
+        ]
+
+        outcomes = pipeline.extract_all(docs, batch_size=1)
+
+        assert len(outcomes) == 2
+
+    def test_empty_list_returns_empty(self, client, httpx_mock):
+        pipeline = self._seed_for_batches(client, httpx_mock)
+
+        assert pipeline.extract_all([], batch_size=10) == []
+
+    @pytest.mark.parametrize("bad", [0, -1])
+    def test_batch_size_below_one_raises(self, client, httpx_mock, bad):
+        pipeline = self._seed_for_batches(client, httpx_mock)
+
+        with pytest.raises(ValueError, match="batch_size must be >= 1"):
+            pipeline.extract_all([_note("MRN-1", "2024-01-01", "d")], batch_size=bad)
+
+    def test_requires_seeded_patients(self, client, httpx_mock):
+        mock_fhir_auth(httpx_mock)
+        pipeline = IngestionPipeline(client, default_organization="CGH-001")
+
+        with pytest.raises(RuntimeError, match="requires phase 'patients_seeded'"):
+            pipeline.extract_all([_note("MRN-1", "2024-01-01", "d")])
+
+    def test_cumulative_stats_span_all_batches(self, client, httpx_mock, monkeypatch):
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        self._record(pipeline, monkeypatch)
+
+        docs = [_note("MRN-1", f"2024-01-{i + 1:02d}", f"doc-{i}") for i in range(6)]
+
+        pipeline.extract_all(docs, batch_size=2)
+
+        assert pipeline.documents_processed == 6
+        assert pipeline.documents_failed == 0
+
+    def test_full_pipeline_across_batches(self, client, httpx_mock):
+        """End-to-end through the real HTTP path, not the recorder stub."""
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        mock_context_empty(httpx_mock, "pat-1", repeat=True)
+        for _ in range(4):
+            mock_extract_response(httpx_mock, count=1)
+            mock_persist_response(httpx_mock, created=1)
+
+        docs = [
+            _note("MRN-1", "2024-07-01", "jul"),
+            _note("MRN-1", "2024-01-01", "jan"),
+            _note("MRN-1", "2024-10-01", "oct"),
+            _note("MRN-1", "2024-04-01", "apr"),
+        ]
+
+        outcomes = pipeline.extract_all(docs, batch_size=2)
+
+        assert len(outcomes) == 4
+        assert all(o.success for o in outcomes)
+        assert not any(o.out_of_order for o in outcomes)
+        assert pipeline.documents_processed == 4
+
+        # The API saw the notes oldest-first, spanning both batches.
+        extract_bodies = [
+            json.loads(r.content)
+            for r in httpx_mock.get_requests()
+            if str(r.url).endswith("/api/extract/text")
+        ]
+        assert [b["meta"].splitlines()[0] for b in extract_bodies] == [
+            "Document date: 2024-01-01",
+            "Document date: 2024-04-01",
+            "Document date: 2024-07-01",
+            "Document date: 2024-10-01",
+        ]
+
+
+class TestOutOfOrderRejection(_PipelineHarness):
+    """Documents older than the patient's newest persisted one are refused."""
+
+    @staticmethod
+    def _no_extraction(pipeline, monkeypatch):
+        """Make any extraction attempt a hard test failure."""
+
+        def boom(*a, **kw):
+            raise AssertionError("extraction must not run for a refused batch")
+
+        monkeypatch.setattr(pipeline, "_process_single_document", boom)
+
+    def test_older_document_raises_before_extracting(
+        self, client, httpx_mock, monkeypatch
+    ):
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        self._no_extraction(pipeline, monkeypatch)
+
+        docs = [_note("MRN-1", "2024-05-01", "older")]
+
+        with pytest.raises(OutOfOrderDocumentError) as exc:
+            pipeline.extract(docs)
+
+        (violation,) = exc.value.violations
+        assert violation.patient_identifier == "MRN-1"
+        assert violation.document_id == "older"
+        assert violation.date == "2024-05-01"
+        assert violation.watermark == "2024-06-01"
+        assert "older than" in str(exc.value)
+
+    def test_nothing_is_persisted(self, client, httpx_mock, monkeypatch):
+        """No extract call, no bundle POST — the refusal costs nothing."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        self._no_extraction(pipeline, monkeypatch)
+
+        with pytest.raises(OutOfOrderDocumentError):
+            pipeline.extract([_note("MRN-1", "2024-05-01", "older")])
+
+        assert not any(
+            str(r.url).endswith("/api/extract/text") for r in httpx_mock.get_requests()
+        )
+        assert pipeline.documents_processed == 0
+        assert pipeline.documents_failed == 0
+        assert pipeline.total_cost == 0.0
+
+    def test_one_older_document_refuses_the_whole_call(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """In-order documents in the same call are not extracted either."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        self._no_extraction(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-07-01", "newer"),
+            _note("MRN-1", "2024-05-01", "older"),
+        ]
+
+        with pytest.raises(OutOfOrderDocumentError) as exc:
+            pipeline.extract(docs)
+
+        assert [v.document_id for v in exc.value.violations] == ["older"]
+
+    def test_reports_every_violation(self, client, httpx_mock, monkeypatch):
+        pipeline = self._seed(client, httpx_mock, num_patients=2)
+        mock_patient_exists(httpx_mock, ["pat-1", "pat-2"], repeat=True)
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        mock_watermark(httpx_mock, "pat-2", date="2025-01-01T00:00:00Z")
+        self._no_extraction(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-05-01", "a-old"),
+            _note("MRN-2", "2024-12-01", "b-old"),
+            _note("MRN-1", "2024-04-01", "a-older"),
+        ]
+
+        with pytest.raises(OutOfOrderDocumentError) as exc:
+            pipeline.extract(docs)
+
+        assert {v.document_id for v in exc.value.violations} == {
+            "a-old",
+            "b-old",
+            "a-older",
+        }
+        assert "3 document(s) across 2 patient(s)" in str(exc.value)
+
+    def test_same_day_is_allowed(self, client, httpx_mock):
+        """Dates are day-resolution, so equal dates are not a violation."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        outcomes = pipeline.extract([_note("MRN-1", "2024-06-01", "same-day")])
+
+        assert outcomes[0].success
+        assert outcomes[0].out_of_order is False
+
+    def test_first_documents_for_a_patient_are_allowed(self, client, httpx_mock):
+        """No watermark (nothing persisted yet) means nothing to violate."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date=None)
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        outcomes = pipeline.extract([_note("MRN-1", "2020-01-01", "first")])
+
+        assert outcomes[0].success
+
+    def test_watermark_failure_still_fails_open(
+        self, client, httpx_mock, caplog, monkeypatch
+    ):
+        """An unreachable watermark must not refuse the document."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", status_code=500)
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        with caplog.at_level(logging.WARNING):
+            outcomes = pipeline.extract([_note("MRN-1", "2020-01-01", "unknowable")])
+
+        assert outcomes[0].success
+        assert any("chronology check skipped" in r.message for r in caplog.records)
+
+    def test_extract_all_refuses_before_the_first_batch(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """A violation late in the dataset stops batch 1 from spending."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1", repeat=True)
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        self._no_extraction(pipeline, monkeypatch)
+
+        # Sorted ascending, the offender lands in the final batch.
+        docs = [_note("MRN-1", f"2024-1{i}-01", f"ok-{i}") for i in range(1, 3)]
+        docs.append(_note("MRN-1", "2024-05-01", "older"))
+
+        with pytest.raises(OutOfOrderDocumentError) as exc:
+            pipeline.extract_all(docs, batch_size=1)
+
+        assert [v.document_id for v in exc.value.violations] == ["older"]
+        assert not any(
+            str(r.url).endswith("/api/extract/text") for r in httpx_mock.get_requests()
+        )
+
+    def test_skipped_documents_are_not_violations(self, client, httpx_mock):
+        """An already-processed older document is filtered out, not refused."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        httpx_mock.add_response(
+            method="GET",
+            url=(
+                "http://localhost:8080/fhir/DocumentReference?patient=pat-1"
+                "&identifier=urn%3Acavell%3Adocument%7C&_elements=identifier"
+                "&_count=1000"
+            ),
+            json={
+                "resourceType": "Bundle",
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "DocumentReference",
+                            "identifier": [
+                                {
+                                    "system": "urn:cavell:document",
+                                    "value": "already-done",
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+            repeat=True,
+            # _seed() registers a repeating empty resume response for this URL;
+            # without replace=True that one always wins.
+            replace=True,
+        )
+
+        outcomes = pipeline.extract([_note("MRN-1", "2024-05-01", "already-done")])
+
+        assert outcomes == []

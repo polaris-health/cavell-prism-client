@@ -5,7 +5,7 @@
 The ingestion pipeline loads data in two steps between a hospital's FHIR server and the Cavell extraction API:
 
 1. **Seed** — organizations, practitioners, and patients into FHIR (enforces correct reference ordering internally)
-2. **Extract** — clinical documents, processed per patient in chronological order
+2. **Extract** — clinical documents, processed per patient in chronological order. Use `extract_all()` for a whole dataset (globally date-sorted, batched) or `extract()` for a single pass; see [Extract Options](#extract-options).
 
 The pipeline resolves identifiers to IDs, so you work with business identifiers (patient IDs, facility codes, staff IDs) rather than FHIR server-assigned IDs.
 
@@ -172,6 +172,16 @@ documents = Document.from_rows(
 
 `Patient.from_rows()` and `Practitioner.from_rows()` deduplicate by identifier (first occurrence wins) and skip rows with empty identifiers. `Document.from_rows()` creates one document per row, validates that `document_id` values are unique, and warns on short text (`< 20` characters).
 
+`Document.from_rows()` preserves CSV row order and does **not** sort by date. To
+ingest the whole file, hand the list to
+[`extract_all()`](#extract_all-the-whole-dataset), which sorts globally by date
+before batching:
+
+```python
+pipeline.seed(organizations=[...], patients=patients, practitioners=practitioners)
+outcomes = pipeline.extract_all(documents, batch_size=500)
+```
+
 `Practitioner.from_rows()` supports a virtual `"name"` column that auto-splits `"Given Family"` into `given_name` and `family_name`. Use either `"name"` or the individual `"given_name"`/`"family_name"` keys, not both.
 
 All three validate upfront — unknown field names, missing CSV columns, and missing required keys raise `ValueError` before any objects are built.
@@ -232,7 +242,7 @@ Returned by `pipeline.extract()` for each document.
 | `extract_result` | `ExtractResult` or `None` | Result if successful |
 | `error` | `str` or `None` | Error message if failed |
 | `transient` | `bool` | The failure was transient (timeout, connection drop, server 5xx/429) — the deferred retry pass re-ran or will re-run it (see [Document extraction failures](#document-extraction-failures)) |
-| `out_of_order` | `bool` | The document was older than the patient's newest already-persisted document (see [Ordering and Dates](#ordering-and-dates)) |
+| `out_of_order` | `bool` | Always `False` — such documents are [refused before extraction](#out-of-order-documents-are-refused), so no outcome is produced for them. Retained for a possible return to the update-guard behaviour |
 
 Note on naming: `Document.meta` is the SDK's free-text supplementary context
 for the extraction model. It is unrelated to FHIR `Resource.meta`, the
@@ -252,29 +262,90 @@ Practitioner resources are always removed from the persisted bundle — only cli
 
 ## Ordering and Dates
 
-Every document requires a date. The SDK automatically sorts documents by date within each patient group, extracting them in chronological order. This ordering determines correct behavior -- see [How Updates Work](#how-updates-work).
+Every document requires a date, and documents reach the API in ascending date
+order per patient. This ordering determines correct behavior -- see [How
+Updates Work](#how-updates-work).
 
-### Out-of-order documents
+Sorting happens at two levels:
+
+- `extract_all()` sorts the **entire dataset** by ascending date before
+  batching, so batch boundaries are chronologically clean.
+- `extract()` sorts **within each patient** in the pass it was given. This is
+  the safety net for calling `extract()` directly, and a no-op on input
+  `extract_all()` has already ordered.
+
+Both sorts are stable, so same-day documents keep the order you passed them in.
+
+Neither sorts your input list in place, and neither sorts the *dataset* when
+you call `extract()` yourself — if you batch by hand with `extract(..., limit=N)`,
+ordering across those calls is yours to get right. Use `extract_all()` and it
+is handled.
+
+### Out-of-order documents are refused
 
 Sorting only orders the documents *within one run*. If a document is older
 than data already persisted for that patient (from an earlier run), you are
-going backwards in time, which context-aware extraction is not designed for.
-The pipeline detects this with a per-patient watermark — the date of the
-newest already-processed document — and for each older incoming document:
+going backwards in time — and the pipeline **refuses to extract it**.
 
-1. Logs a warning and sets `out_of_order=True` on its `IngestionOutcome`.
-2. Still processes it, but applies an **update guard** before persisting:
-   new resources (creates) all persist, while an *update* to an existing
-   resource is dropped when that resource's current version came from a
-   **newer** document. Data extracted from newer documents always wins.
+The check runs before anything in the call is extracted. It compares each
+document against its patient's watermark (the date of the newest
+already-processed document) and, if any document is older, raises
+`OutOfOrderDocumentError`. Nothing is extracted, no tokens are spent, and
+nothing is persisted — including the in-order documents in the same call.
+
+```python
+from cavell_client import OutOfOrderDocumentError
+
+try:
+    pipeline.extract_all(documents, batch_size=500)
+except OutOfOrderDocumentError as e:
+    for violation in e.violations:
+        print(violation)
+        # note-9001 (patient MRN-20002) dated 2023-09-12 is older than 2024-04-09
+```
+
+Each entry in `e.violations` is an `OutOfOrderDocument` with
+`patient_identifier`, `document_id`, `document_index`, `date`, and `watermark`.
+
+**Why refuse rather than merge?** Extraction is context-aware: each note is
+read against the resources its predecessors produced (see [Meta
+Assembly](#meta-assembly)). Context is always the patient's *current* state
+with no date filtering, so an older note would be interpreted against a
+clinical picture from its own future — and anything it created would carry
+that contamination. Refusing is the conservative position while that is true.
+
+**To ingest documents you have out of order**, either:
+
+- Drop them from the batch, if the newer data already supersedes them; or
+- Delete the patient's data with `client.delete_patient_resources(...)`,
+  re-seed, and re-extract the whole timeline in date order. `extract_all()`
+  handles the ordering.
 
 Caveats:
 
 - Dates are truncated to the day, so two same-day documents have no defined
-  order — same-day updates are allowed in either direction. Process same-day
-  documents in one run (the input order is preserved for equal dates).
+  order and are **not** a violation. Process same-day documents in one run
+  (the input order is preserved for equal dates).
 - Documents processed without a `document_id` are invisible to the watermark
-  and the guard (same as for resume filtering).
+  (same as for resume filtering), so they neither raise the watermark nor get
+  checked against it.
+- The check **fails open per patient**: if the watermark query errors, that
+  patient is left unchecked with a warning rather than failing the run. A
+  transient FHIR error should not block ingestion.
+- Documents already processed are filtered out by `skip_processed` *before*
+  the check, so re-running a completed batch never trips it.
+
+Step 10 of `docs/notebooks/hospitalization_extraction_demo.ipynb` demonstrates
+this end-to-end: it holds back three notes from an earlier admission, extracts
+the rest, then shows the refusal when those older notes are submitted.
+
+!!! note "Provisional"
+
+    Refusing is a deliberate interim position. An earlier design extracted the
+    older document anyway behind an **update guard** that dropped updates to
+    resources sourced from newer documents. That code is retained but disabled
+    (`_apply_update_guard`, and the commented-out block in
+    `_process_single_document`) in case the policy is revisited.
 
 ## Meta Assembly
 
@@ -387,9 +458,9 @@ Two client-side behaviors soften this in practice:
 - **Duplicate suppression**: observations that already exist (same date,
   code, and value) are dropped client-side before persisting, so
   re-extracting the same data does not touch validated resources.
-- **The update guard**: out-of-order documents cannot overwrite (and thus
-  cannot un-validate) resources whose current version came from a newer
-  document.
+- **Chronological refusal**: an out-of-order document cannot overwrite (and
+  thus cannot un-validate) anything, because it is [never extracted in the
+  first place](#out-of-order-documents-are-refused).
 
 An in-order update with genuinely new information *does* replace the resource
 and re-marks it `unvalidated` — by design, since a clinician has not seen the
@@ -444,11 +515,66 @@ pipeline = IngestionPipeline(
 
 ## Extract Options
 
+Two entry points, and the difference matters for large datasets:
+
+| Method | Scope | Ordering |
+|--------|-------|----------|
+| `extract_all(documents, batch_size=N)` | Every document, in batches of `N` | Sorts the **whole dataset** by ascending date first |
+| `extract(documents, limit=N)` | **One** pass, capped at `N` documents | Sorts by date **within each patient** in that pass |
+
+### `extract_all()` — the whole dataset
+
+Use this for anything you would describe as "ingest this CSV". It sorts every
+document by ascending date, splits the sorted list into batches, and calls
+`extract()` once per batch.
+
+```python
+outcomes = pipeline.extract_all(
+    documents,
+    batch_size=500,  # documents per extract() call; None = one call
+    skip_processed=True,  # applied per batch
+    on_batch=lambda batch: print(f"{len(batch)} done"),  # optional progress
+)
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `batch_size` | `None` | Documents per `extract()` call. `None` processes everything in one call. |
+| `skip_processed` | `True` | Passed to `extract()`, which applies it per batch. |
+| `on_batch` | `None` | Called with each batch's outcomes as that batch finishes. Use it for progress output or to persist partial results — a large run otherwise holds every outcome, including extracted bundles, in memory until it returns. |
+
+The global sort is what makes batching safe. Batching an *unsorted* list splits
+it by input order, so a later batch could carry documents older than what an
+earlier batch already persisted — and those are [refused](#out-of-order-documents-are-refused),
+failing the run partway through with some batches already committed. Sorting
+first puts every batch boundary on a clean chronological cut.
+
+The chronology check also runs over the whole dataset before the first batch,
+so a violation cannot surface only once its batch comes up, after earlier
+batches have already spent.
+
+Batches are cut by index, so the walk always terminates — it does not rely on
+`skip_processed` to advance, and works with `skip_processed=False` and with
+documents that have no `document_id`.
+
+All documents are validated *before* the first batch runs, so a bad reference
+late in the list surfaces before earlier batches spend anything. This is also
+the only place `document_id` uniqueness is checked across the whole dataset:
+`extract()` sees one batch at a time, so a duplicate pair split across two
+batches would otherwise slip through.
+
+Prefer larger batches. Each `extract()` call issues one FHIR query per distinct
+patient in that batch, so halving `batch_size` roughly doubles the query
+overhead. Batching bounds how much work an interruption loses; 500 bounds that
+about as usefully as 50 while doing a tenth of the chatter.
+
+### `extract()` — a single pass
+
 ```python
 for outcome in pipeline.extract(
     documents,
     skip_processed=True,  # default: query FHIR and skip already-processed docs
-    batch_size=500,  # optional: cap documents per call
+    limit=10,  # optional: cap this call, e.g. a sanity check before a full run
 ):
     ...
 ```
@@ -456,7 +582,18 @@ for outcome in pipeline.extract(
 | Option | Default | Description |
 |--------|---------|-------------|
 | `skip_processed` | `True` | Query FHIR for already-processed document IDs and skip them. Set to `False` to process all documents. |
-| `batch_size` | `None` | Cap the number of documents processed in this call. Applied after `skip_processed` filtering. `None` means process all. |
+| `limit` | `None` | Cap the number of documents processed in **this call**, taken from the front of the list after `skip_processed` filtering. `None` processes everything passed. |
+
+`limit` truncates a single pass; it does not chunk. `extract(documents, limit=500)`
+on a 2000-document list processes 500 and returns — the other 1500 are
+untouched. Reach for `extract_all()` when you want all of them.
+
+!!! note "Renamed in 0.2.0"
+
+    `limit` was called `batch_size`, a name that implied chunking it never
+    did. Passing `batch_size=` to `extract()` raises `TypeError` with
+    migration guidance rather than being silently ignored, since ignoring it
+    would extract every document you passed.
 
 When `skip_processed=True`, re-running `extract()` with the same document list is safe as long as documents have stable `document_id` values. Documents without a `document_id` cannot be tracked and will be processed again on every run.
 
@@ -513,7 +650,7 @@ client.delete_patient_resources(fhir_id)
 pipeline = IngestionPipeline(client, tier="low", default_organization="CGH-001")
 pipeline.seed(organizations=[...], patients=[...], practitioners=[...])
 
-for outcome in pipeline.extract(all_documents):
+for outcome in pipeline.extract_all(all_documents, batch_size=500):
     ...
 ```
 
