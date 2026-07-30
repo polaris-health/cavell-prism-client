@@ -110,19 +110,18 @@ class CavellAPI:
             raise CavellAPIError(response.status_code, error_detail, details)
 
     def check_connection(self) -> None:
-        """Ping the Cavell API (GET /resources, an authenticated route).
+        """Validate the connection AND the key (GET /key/info).
 
-        Verifies the base URL is correct, a key is being sent, and the API is
-        reachable. It does NOT verify the key is valid: /resources accepts any
-        non-empty bearer token. A bad key is only caught by the first extract
-        call, which the server pre-flights against the LLM Gateway (fails in
-        ~0.1s with no pipeline spend).
+        The server pre-flights the presented key against the LLM Gateway
+        without spending any tokens, so this catches a wrong URL, a missing
+        key, and an invalid/expired key up front.
 
-        Raises CavellAuthError when no key reaches the API, CavellAPIError on
-        other failures.
+        Raises CavellAuthError (401) when the key is missing or rejected,
+        CavellGatewayUnavailableError (503) when the gateway is unreachable,
+        CavellAPIError on other failures.
         """
         client = self._get_client()
-        response = client.get("/resources")
+        response = client.get("/key/info")
         self._raise_for_error(response)
 
     def extract(

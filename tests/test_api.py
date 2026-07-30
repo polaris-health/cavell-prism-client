@@ -42,8 +42,8 @@ class TestCavellAPIInit:
         api = CavellAPI("https://qa.prism.cavell.app/api", "secret-key")
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
-            json={"resources": []},
+            url="https://qa.prism.cavell.app/api/key/info",
+            json={"valid": True},
         )
         api.check_connection()
         request = httpx_mock.get_request()
@@ -460,24 +460,24 @@ class TestCavellAPIErrors:
 class TestCheckConnection:
     """Test check_connection method."""
 
-    def test_pings_resources_route(self, api, httpx_mock):
-        """check_connection hits the authenticated /resources route."""
+    def test_pings_key_info_route(self, api, httpx_mock):
+        """check_connection hits the key-validating /key/info route."""
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
-            json={"resources": []},
+            url="https://qa.prism.cavell.app/api/key/info",
+            json={"valid": True},
         )
 
         api.check_connection()
 
         request = httpx_mock.get_request()
-        assert str(request.url).endswith("/resources")
+        assert str(request.url).endswith("/key/info")
 
     def test_missing_key_raises_auth_error(self, api, httpx_mock):
         """A 401 from the API surfaces as CavellAuthError."""
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
+            url="https://qa.prism.cavell.app/api/key/info",
             status_code=401,
             json={"detail": "Missing LLM Gateway key."},
         )

@@ -401,7 +401,7 @@ new version.
 
 ## Connection Check
 
-Call `client.check_connection()` after creating the client to verify both the FHIR server and Cavell API are reachable. This catches misconfigured URLs, a missing API key, and network issues before `seed()` or `extract()` fail deep in the stack. It does **not** prove the key is *valid* — that is only checked by the first extraction call, which the server pre-flights against the LLM Gateway and rejects in ~0.1s (no pipeline spend) if the key is bad. `extract()` also runs this check once automatically before processing.
+Call `client.check_connection()` after creating the client to verify both the FHIR server and Cavell API are reachable. The Cavell half calls `GET /key/info`, which validates your LLM Gateway key against the gateway without spending any tokens — so misconfigured URLs, a missing key, **and an invalid key** are all caught here, before `seed()` or `extract()` fail deep in the stack. `extract()` also runs this check once automatically before processing any documents.
 
 ```python
 status = client.check_connection()

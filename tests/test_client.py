@@ -133,8 +133,8 @@ class TestCheckConnection:
         )
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
-            json={"resources": []},
+            url="https://qa.prism.cavell.app/api/key/info",
+            json={"valid": True},
         )
 
         result = client.check_connection()
@@ -152,8 +152,8 @@ class TestCheckConnection:
         )
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
-            json={"resources": []},
+            url="https://qa.prism.cavell.app/api/key/info",
+            json={"valid": True},
         )
 
         result = client.check_connection()
@@ -171,7 +171,7 @@ class TestCheckConnection:
         )
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
+            url="https://qa.prism.cavell.app/api/key/info",
             status_code=401,
             json={"detail": "Unauthorized"},
         )
@@ -192,7 +192,7 @@ class TestCheckConnection:
         )
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
+            url="https://qa.prism.cavell.app/api/key/info",
             status_code=500,
             json={"detail": "Internal server error"},
         )

@@ -410,7 +410,10 @@ class Document:
             self.date = self.date.isoformat()
         else:
             try:
-                datetime.date.fromisoformat(self.date)
+                # Normalize, don't just validate: fromisoformat also accepts
+                # compact forms like "20240115", and every chronology decision
+                # downstream is a lexicographic string comparison.
+                self.date = datetime.date.fromisoformat(self.date).isoformat()
             except ValueError:
                 raise ValueError(
                     f"Invalid date format '{self.date}', "
@@ -719,10 +722,10 @@ class IngestionPipeline:
                 f"currently '{self._phase.value}'"
             )
 
-        # One cheap authenticated GET before any spend: catches a missing key
-        # or a wrong URL up front. A syntactically-present-but-invalid key is
-        # only caught by the first extract call (the server pre-flights it
-        # against the LLM Gateway and 401s in ~0.1s), which aborts the run.
+        # One cheap validated GET before any spend: the server pre-flights
+        # the key against the LLM Gateway (no tokens), so a wrong URL, a
+        # missing key, or an invalid key all fail here, before any documents
+        # are processed.
         self._api.check_connection()
 
         # Resume filtering: skip already-processed documents
@@ -957,6 +960,20 @@ class IngestionPipeline:
             for o in retry_outcomes:
                 merged[o.document_index] = o
             all_outcomes = list(merged.values())
+
+            # A run-global failure can also strike during the deferred pass.
+            if abort_event.is_set():
+                for outcome in all_outcomes:
+                    if outcome.success:
+                        self._documents_processed += 1
+                        if outcome.extract_result and outcome.extract_result.usage:
+                            self._total_cost += (
+                                outcome.extract_result.usage.estimated_cost
+                            )
+                    else:
+                        self._documents_failed += 1
+                logger.error(f"Run aborted: {abort_exc[0]}")
+                raise abort_exc[0]
 
         # Tally counters from the final, merged outcomes.
         for outcome in all_outcomes:
@@ -1276,7 +1293,16 @@ class IngestionPipeline:
             # Remove keys whose values are now empty dicts (cleared references)
             for k in [k for k, v in obj.items() if isinstance(v, dict) and not v]:
                 del obj[k]
+            # Same for list values: prune items emptied by the recursion, and
+            # drop the key when the whole list emptied — HAPI rejects [{}].
+            for k in list(obj.keys()):
+                v = obj[k]
+                if isinstance(v, list):
+                    v[:] = [i for i in v if not (isinstance(i, dict) and not i)]
+                    if not v:
+                        del obj[k]
         elif isinstance(obj, list):
             for item in obj:
                 if isinstance(item, (dict, list)):
                     IngestionPipeline._rewrite_practitioner_refs(item, url_to_ref)
+            obj[:] = [i for i in obj if not (isinstance(i, dict) and not i)]

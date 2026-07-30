@@ -58,10 +58,10 @@ class CavellClient:
         """Verify connectivity to both the FHIR server and Cavell API.
 
         The FHIR half checks /metadata (reachability and, if configured,
-        OAuth2 credentials). The Cavell half checks an authenticated route:
-        it verifies the URL, that a key is being sent, and reachability —
-        but NOT that the key is valid (a bad key is only caught by the first
-        extraction call, which fails fast with no pipeline spend).
+        OAuth2 credentials). The Cavell half calls GET /key/info, which
+        validates the presented LLM Gateway key against the gateway without
+        spending tokens — a wrong URL, missing key, or invalid key all
+        surface here.
 
         Returns a dict with 'fhir' and 'cavell_api' keys, each containing
         'ok' (bool) and 'error' (str) if the check failed.
