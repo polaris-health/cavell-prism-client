@@ -1,6 +1,7 @@
 """Cavell API client for FHIR extraction."""
 
 import logging
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -69,19 +70,25 @@ class CavellAPI:
         self.base_url = _normalize_base_url(base_url)
         self._api_key = api_key
         self._client: httpx.Client | None = None
+        self._client_lock = threading.Lock()
 
     def _get_client(self) -> httpx.Client:
-        """Get or create the HTTP client."""
-        if self._client is None:
-            self._client = httpx.Client(
-                base_url=self.base_url,
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                # Extraction involves many LLM calls; the API caps each call at
-                # ~300s, so a whole document (incl. an occasional slow call + its
-                # server-side retry) must be allowed comfortably more than that.
-                timeout=800.0,
-            )
-        return self._client
+        """Get or create the HTTP client (thread-safe)."""
+        if self._client is not None:
+            return self._client
+        with self._client_lock:
+            if self._client is None:
+                self._client = httpx.Client(
+                    base_url=self.base_url,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    # Extraction involves many LLM calls; the API caps each call at
+                    # ~300s, so a whole document (incl. an occasional slow call + its
+                    # server-side retry) must be allowed comfortably more than that.
+                    # Connect stays short: a blackholed host should fail in
+                    # seconds, not hold a worker for the full read budget.
+                    timeout=httpx.Timeout(800.0, connect=10.0),
+                )
+            return self._client
 
     def close(self) -> None:
         """Close the HTTP client."""
@@ -203,10 +210,12 @@ class CavellAPI:
                 break
             # WAF rate limits send Retry-After; upstream LLM 429s do not.
             retry_after = response.headers.get("Retry-After", "")
-            if retry_after.isdigit():
-                wait = min(float(retry_after), _RETRY_AFTER_CAP)
+            try:
+                # int(), not isdigit(): isdigit() accepts Unicode digits that
+                # float() rejects; HTTP-date values fall back to backoff.
+                wait = min(float(int(retry_after)), _RETRY_AFTER_CAP)
                 source = "Retry-After"
-            else:
+            except ValueError:
                 wait = float(2**attempt)
                 source = "backoff"
             logger.warning(

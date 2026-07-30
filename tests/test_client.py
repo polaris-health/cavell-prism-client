@@ -48,7 +48,7 @@ class TestCavellClientInit:
         with pytest.raises(CavellAuthError):
             CavellClient(
                 api_url=API_URL,
-                api_key="rejected-key",
+                api_key="rejected-key",  # pragma: allowlist secret
                 fhir_base_url="http://localhost:8080",
             )
 
@@ -59,7 +59,7 @@ class TestCavellClientInit:
 
         client = CavellClient(
             api_url=API_URL,
-            api_key="accepted-key",
+            api_key="accepted-key",  # pragma: allowlist secret
             fhir_base_url="http://localhost:8080",
         )
         client.close()
@@ -74,12 +74,17 @@ class TestCavellClientInit:
         The distinct type is the point: it says which half is misconfigured.
         """
         mock_api_preflight(httpx_mock)
-        # No /metadata stub - the mock transport 404s unmatched URLs.
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/metadata",
+            status_code=404,
+            text="Not found",
+        )
 
         with pytest.raises(FHIRConnectionError) as exc_info:
             CavellClient(
                 api_url=API_URL,
-                api_key="accepted-key",
+                api_key="accepted-key",  # pragma: allowlist secret
                 fhir_base_url="http://localhost:8080",
             )
 
@@ -98,7 +103,7 @@ class TestCavellClientInit:
         with pytest.raises(CavellGatewayUnavailableError):
             CavellClient(
                 api_url=API_URL,
-                api_key="accepted-key",
+                api_key="accepted-key",  # pragma: allowlist secret
                 fhir_base_url="http://localhost:8080",
             )
 

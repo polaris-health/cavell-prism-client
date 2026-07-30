@@ -407,7 +407,7 @@ new version.
 The exception type tells you which half is misconfigured:
 
 ```python
-CavellClient(api_url=..., api_key="sk-typo", fhir_base_url=...)
+CavellClient(api_url=..., api_key="sk-typo", fhir_base_url=...)  # pragma: allowlist secret
 # CavellAuthError: Cavell API error (401): LLM Gateway rejected the provided key.
 
 CavellClient(api_url=..., api_key=<valid>, fhir_base_url="http://localhost:9999")
