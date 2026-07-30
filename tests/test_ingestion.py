@@ -49,7 +49,7 @@ def mock_seed_response(httpx_mock, entries):
 
 
 def mock_context_empty(httpx_mock, patient_fhir_id, repeat=False):
-    """Mock clinical context fetches (empty results)."""
+    """Mock ALL clinical context fetches (empty results)."""
     for rt in ["Condition", "AllergyIntolerance", "Procedure", "MedicationRequest"]:
         param = "patient" if rt == "AllergyIntolerance" else "subject"
         httpx_mock.add_response(
@@ -58,6 +58,30 @@ def mock_context_empty(httpx_mock, patient_fhir_id, repeat=False):
             json={"entry": []},
             repeat=repeat,
         )
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            f"http://localhost:8080/fhir/Observation?subject={patient_fhir_id}"
+            f"&_count=50&_sort=-date"
+        ),
+        json={"entry": []},
+        repeat=repeat,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            f"http://localhost:8080/fhir/ResearchSubject"
+            f"?individual={patient_fhir_id}&_count=500"
+        ),
+        json={"entry": []},
+        repeat=repeat,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="http://localhost:8080/fhir/ResearchStudy?status=active&_count=500",
+        json={"entry": []},
+        repeat=True,
+    )
     httpx_mock.add_response(
         method="GET",
         url=(
@@ -131,8 +155,8 @@ def mock_patient_exists(httpx_mock, patient_fhir_ids):
 
 
 def mock_empty_document_identifiers(httpx_mock, patient_fhir_ids=("pat-1",)):
-    """Mock the extract() plumbing: API pre-flight + per-patient
-    DocumentReference queries used by skip_processed (empty results)."""
+    """Mock the extract() plumbing: API pre-flight, per-patient
+    DocumentReference resume queries, and chronology watermarks (all empty)."""
     mock_api_preflight(httpx_mock)
     if isinstance(patient_fhir_ids, str):
         patient_fhir_ids = [patient_fhir_ids]
@@ -147,6 +171,7 @@ def mock_empty_document_identifiers(httpx_mock, patient_fhir_ids=("pat-1",)):
             json={"resourceType": "Bundle", "entry": []},
             repeat=True,
         )
+        mock_watermark(httpx_mock, pid)
 
 
 class TestDocumentValidation:
@@ -3196,7 +3221,8 @@ class TestChronologyGuard(_PipelineHarness):
         """An unreachable watermark query disables the check, not the run."""
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1")
-        # No watermark mock: the query 404s and the guard fails open.
+        # Watermark query errors out -> the guard fails open.
+        mock_watermark(httpx_mock, "pat-1", status_code=500)
         mock_context_empty(httpx_mock, "pat-1")
         mock_extract_response(httpx_mock, count=1)
         mock_persist_response(httpx_mock, created=1)

@@ -427,6 +427,8 @@ class IngestionOutcome:
 
     success: bool
     patient_identifier: str
+    # Position in the list extract() processed — i.e. AFTER skip_processed
+    # filtering and batch_size truncation, not the caller's original list.
     document_index: int
     extract_result: ExtractResult | None = None
     error: str | None = None
@@ -737,18 +739,24 @@ class IngestionPipeline:
                     f"{len(no_id)} document(s) have no document_id and cannot "
                     f"be tracked for resume — they will be re-processed every run"
                 )
-            processed_ids: set[str] = set()
+            # Scoped per patient: document IDs only need to be unique within
+            # a patient (hospital exports commonly restart numbering), so
+            # patient B's "note-1" must not be skipped because patient A
+            # already processed a "note-1".
+            processed_by_patient: dict[str, set[str]] = {}
             for pid in {d.patient_identifier for d in documents}:
                 fhir_id = self._id_map.get((IDENTIFIER_SYSTEM, pid))
                 if fhir_id:
-                    processed_ids |= self._fhir.list_document_identifiers(
+                    processed_by_patient[pid] = self._fhir.list_document_identifiers(
                         patient=fhir_id
                     )
             original_count = len(documents)
             documents = [
                 d
                 for d in documents
-                if not d.document_id or d.document_id not in processed_ids
+                if not d.document_id
+                or d.document_id
+                not in processed_by_patient.get(d.patient_identifier, set())
             ]
             skipped = original_count - len(documents)
 
@@ -758,15 +766,17 @@ class IngestionPipeline:
         # Build index for original document positions
         doc_indices = {id(doc): i for i, doc in enumerate(documents)}
 
-        # Check for duplicate document_ids
-        seen_doc_ids: dict[str, int] = {}
+        # Check for duplicate document_ids (scoped per patient, matching the
+        # FHIR identity: patient + document identifier)
+        seen_doc_ids: dict[tuple[str, str], int] = {}
         duplicates: list[str] = []
         for doc in documents:
             if doc.document_id:
-                if doc.document_id in seen_doc_ids:
+                key = (doc.patient_identifier, doc.document_id)
+                if key in seen_doc_ids:
                     duplicates.append(doc.document_id)
                 else:
-                    seen_doc_ids[doc.document_id] = doc_indices[id(doc)]
+                    seen_doc_ids[key] = doc_indices[id(doc)]
         if duplicates:
             raise ValueError(f"Duplicate document_id values: {sorted(set(duplicates))}")
 
@@ -1020,6 +1030,30 @@ class IngestionPipeline:
 
         for attempt in range(1, _DOC_MAX_ATTEMPTS + 1):
             try:
+                # A transient failure on the persist POST can strike AFTER the
+                # FHIR transaction committed. Before re-extracting (and
+                # re-persisting duplicates), check whether the previous
+                # attempt's DocumentReference already landed.
+                if attempt > 1 and doc.document_id:
+                    try:
+                        landed = self._fhir.list_document_identifiers(
+                            patient=patient_fhir_id
+                        )
+                    except Exception:
+                        landed = set()
+                    if doc.document_id in landed:
+                        logger.warning(
+                            f"{label}: previous attempt persisted despite the "
+                            f"error — treating as processed, not re-extracting"
+                        )
+                        return IngestionOutcome(
+                            success=True,
+                            patient_identifier=doc.patient_identifier,
+                            document_index=doc_index,
+                            document_id=doc.document_id,
+                            out_of_order=out_of_order,
+                        )
+
                 # Resolve org and optionally practitioner
                 org_fhir_id = self._resolve_id(
                     ORGANIZATION_IDENTIFIER_SYSTEM, organization_identifier

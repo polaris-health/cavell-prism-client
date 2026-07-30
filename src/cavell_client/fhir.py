@@ -321,6 +321,10 @@ class FHIRClient:
         response.raise_for_status()
         return response
 
+    # Runaway-pagination backstop: a misbehaving server returning a
+    # self-referencing "next" link would otherwise loop forever.
+    _MAX_PAGES = 10_000
+
     def _iter_bundle_entries(
         self, method: str, path: str, **kwargs: Any
     ) -> Iterator[dict]:
@@ -328,7 +332,7 @@ class FHIRClient:
         response = self._make_request(method, path, **kwargs)
         bundle = response.json()
 
-        while True:
+        for _page in range(self._MAX_PAGES):
             yield from bundle.get("entry", [])
 
             next_url = None
@@ -337,10 +341,14 @@ class FHIRClient:
                     next_url = link["url"]
                     break
             if not next_url:
-                break
+                return
 
             response = self._make_request("GET", next_url)
             bundle = response.json()
+        logger.warning(
+            f"Pagination stopped after {self._MAX_PAGES} pages for {path} — "
+            f"misbehaving server?"
+        )
 
     def get_patient_everything(self, patient_id: str) -> list[dict]:
         """Fetch all resources for a patient via $everything.

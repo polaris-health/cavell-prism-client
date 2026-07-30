@@ -32,10 +32,14 @@ def mock_fhir_preflight(httpx_mock, base_url="http://localhost:8080/fhir"):
     )
 
 
-def mock_watermark(httpx_mock, patient_fhir_id, date=None, repeat=True):
+def mock_watermark(
+    httpx_mock, patient_fhir_id, date=None, repeat=True, status_code=200
+):
     """Mock the newest-document-date query for a patient.
 
-    date=None → no processed documents (empty bundle).
+    date=None → no processed documents (empty bundle). Replaces any
+    previously registered watermark for the same patient (the shared
+    extract-plumbing helper registers an empty one).
     """
     entry = (
         []
@@ -50,5 +54,7 @@ def mock_watermark(httpx_mock, patient_fhir_id, date=None, repeat=True):
             f"&_elements=date"
         ),
         json={"resourceType": "Bundle", "entry": entry},
+        status_code=status_code,
+        replace=True,
         repeat=repeat,
     )
