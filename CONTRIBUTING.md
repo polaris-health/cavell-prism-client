@@ -28,6 +28,12 @@ server on `http://localhost:8090`.
 - `develop` is the default branch; all PRs target it.
 - `main` is release-only: promotion PRs `develop → main` merge with a merge
   commit (enforced by ruleset + the `branch-guard` check).
+- Every PR (develop and main) requires one **code-owner** approval
+  (`.github/CODEOWNERS`), and authors cannot approve their own PRs. Repo
+  admins can bypass the approval when merging a PR (`gh pr merge --admin`) —
+  the bypass is recorded on the PR; direct pushes and force pushes stay
+  impossible for everyone, and `v*` release tags can only be created by
+  admins.
 
 ## Releases
 

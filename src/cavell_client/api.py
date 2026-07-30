@@ -123,6 +123,23 @@ class CavellAPI:
         client = self._get_client()
         response = client.get("/key/info")
         self._raise_for_error(response)
+        # A 2xx alone does not prove the key was checked: a base_url pointing
+        # at a host that answers unknown paths with a page (a SPA catch-all,
+        # a proxy error page) would turn "invalid key" into "valid". Demand
+        # the documented body, so a wrong URL - or an API too old to expose
+        # this route - fails loudly instead of passing silently.
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if not isinstance(payload, dict) or payload.get("valid") is not True:
+            raise CavellAPIError(
+                response.status_code,
+                f"GET {self.base_url}/key/info did not return the expected "
+                '{"valid": true} response. Check that api_url points at a '
+                "Cavell Prism API (including the /api path) and that the "
+                "server exposes /key/info.",
+            )
 
     def extract(
         self,

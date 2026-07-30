@@ -44,3 +44,4 @@ nav:
   - Pipeline: ingestion.md
   - Demo: notebooks/extraction_demo.ipynb
   - Hospitalization Demo: notebooks/hospitalization_extraction_demo.ipynb
+  - Demo Data: notebooks/README.md

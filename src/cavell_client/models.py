@@ -92,3 +92,14 @@ class FHIRAuthError(CavellError):
 
     def __init__(self, message: str):
         super().__init__(f"FHIR authentication failed: {message}")
+
+
+class FHIRConnectionError(CavellError):
+    """Raised when the FHIR server is unreachable or rejects the request.
+
+    Distinct from the Cavell API errors so callers can tell which half of the
+    configuration is wrong: this one always points at fhir_base_url.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(f"FHIR server unreachable: {message}")

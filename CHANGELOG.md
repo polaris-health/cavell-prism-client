@@ -19,11 +19,18 @@ First public release, targeting the Prism API. The package is published as
   FHIR-client construction — switch to keyword arguments.
 - **Base URLs moved** to `https://{qa,stg,prd}.prism.cavell.app/api`. A bare
   host without a path gets `/api` appended automatically.
-- **`check_connection()`** now pings the authenticated `GET /resources`
-  route (`GET /tiers` is public on Prism and no longer proves anything).
-  It verifies the URL, key presence, and reachability — not key validity;
-  a bad key is caught by the first extraction call (~0.1s, no pipeline
-  spend).
+- **`CavellClient(...)` now validates both endpoints at construction**, so a
+  misconfiguration raises there instead of deep inside `seed()`/`extract()`,
+  and the exception type says which half is wrong: `GET /key/info`
+  pre-flights the LLM Gateway key without spending tokens
+  (`CavellAuthError` / `CavellGatewayUnavailableError` / `CavellAPIError`),
+  then `GET /metadata` checks the FHIR server (`FHIRAuthError` /
+  `FHIRConnectionError`). Calling `check_connection()` afterwards is no
+  longer necessary; constructing a client now requires network access to
+  both. `extract()` still pre-flights the key once per run.
+- **`FHIRConnectionError`** — FHIR failures surface as a library exception
+  instead of a raw `httpx.HTTPStatusError`/`ConnectError` escaping from
+  `check_connection()`.
 - **Run-global failures raise.** A 401 (`CavellAuthError`) or a 503 that
   survives in-place retries (`CavellGatewayUnavailableError`) aborts
   `IngestionPipeline.extract()` with an exception instead of producing
@@ -44,6 +51,17 @@ First public release, targeting the Prism API. The package is published as
   tag via FHIR `$meta-delete`; `list_unvalidated_resources(patient, type)`
   lists the clinician review queue.
 - `list_processed_document_ids(patient_id=...)` for patient-scoped resume.
+- **Active CarePlans are sent as extraction context**, activating the
+  server's plan versioning: continuing plans are updated/ended instead of
+  re-created on every note (previously ~10 duplicate plans per patient).
+- Local dev tooling: `scripts/start_fhir.sh [--fresh]` and
+  `scripts/fhir_summary.py`; ruff security (S) rules; hardened pre-commit
+  (detect-secrets, uv-lock, lockfile-pinned ruff/ty).
+- The `notebook` extra now declares version floors —
+  `pip install "cavell-prism-client[notebook]"` pulls `notebook>=7.6.1`,
+  `tqdm>=4.70.0`, and `ipywidgets>=8.0` (the demo notebooks need the
+  ipywidgets 8 progress-bar API).
+- Python 3.14 is tested in CI and declared in the classifiers.
 
 ### Changed
 
@@ -59,7 +77,7 @@ First public release, targeting the Prism API. The package is published as
 ```python
 # before (0.1.x)
 client = CavellClient(
-    api_url="https://fhir-agent-demo.cavell.app/api",
+    api_url="https://<old-deployment-url>/api",
     username="user",
     password="pass",
     fhir_base_url="http://localhost:8090",

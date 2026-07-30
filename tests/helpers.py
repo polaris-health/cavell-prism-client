@@ -22,6 +22,16 @@ def mock_api_preflight(httpx_mock):
     )
 
 
+def mock_fhir_preflight(httpx_mock, base_url="http://localhost:8080/fhir"):
+    """Mock the GET /metadata pre-flight CavellClient runs at construction."""
+    httpx_mock.add_response(
+        method="GET",
+        url=f"{base_url}/metadata",
+        json={"resourceType": "CapabilityStatement", "status": "active"},
+        repeat=True,
+    )
+
+
 def mock_watermark(httpx_mock, patient_fhir_id, date=None, repeat=True):
     """Mock the newest-document-date query for a patient.
 

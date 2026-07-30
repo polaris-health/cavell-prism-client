@@ -43,12 +43,8 @@ with CavellClient(
     fhir_client_id="...",  # optional; provide together with fhir_client_secret
     fhir_client_secret="...",  # optional; omit both for unauthenticated FHIR servers
 ) as client:
-    # Verify connectivity before doing any real work
-    status = client.check_connection()
-    if not status["fhir"]["ok"]:
-        raise SystemExit(f"FHIR server unreachable: {status['fhir']['error']}")
-    if not status["cavell_api"]["ok"]:
-        raise SystemExit(f"Cavell API unreachable: {status['cavell_api']['error']}")
+    # Connectivity is already verified: construction raises if the key is
+    # rejected or either endpoint is unreachable.
 
     # Create pipeline with optional tier selection and concurrency
     pipeline = IngestionPipeline(
@@ -370,7 +366,7 @@ The pipeline treats these the same as extraction failures: it skips remaining do
 
 Before each document, the SDK fetches existing clinical resources from the FHIR server and passes them as context to the extraction API. The API uses this context to POST a new resource or PUT an update to an existing one.
 
-The context covers Conditions, AllergyIntolerances, Procedures, MedicationRequests, the 50 most recent Observations, ResearchSubjects, and **active CarePlans** — so care plans that continue across notes are updated and versioned instead of duplicated (a plan that ends is marked completed/revoked and drops out of the context).
+The context covers Conditions, AllergyIntolerances, Procedures, MedicationRequests, the 50 most recent Observations, ResearchSubjects, and **active CarePlans** — so care plans that continue across notes are updated and versioned instead of duplicated (a plan that ends is marked completed/revoked and drops out of the context) — plus all **active ResearchStudy** resources, which are not patient-scoped and always included for deduplication.
 
 Chronological ordering matters:
 
@@ -401,14 +397,33 @@ new version.
 
 ## Connection Check
 
-Call `client.check_connection()` after creating the client to verify both the FHIR server and Cavell API are reachable. The Cavell half calls `GET /key/info`, which validates your LLM Gateway key against the gateway without spending any tokens — so misconfigured URLs, a missing key, **and an invalid key** are all caught here, before `seed()` or `extract()` fail deep in the stack. `extract()` also runs this check once automatically before processing any documents.
+**You do not need to check the connection — `CavellClient` already did.** Constructing it validates both halves of your configuration and raises on the first failure, so nothing is left to verify before `seed()` or `extract()`:
+
+| Check | Request | Raises on failure |
+|-------|---------|-------------------|
+| Cavell API key | `GET /key/info` — pre-flights your LLM Gateway key against the gateway, no tokens spent | `CavellAuthError` (rejected key), `CavellGatewayUnavailableError` (gateway down), `CavellAPIError` (URL doesn't serve the route) |
+| FHIR server | `GET /metadata` | `FHIRAuthError` (OAuth2 handshake failed), `FHIRConnectionError` (unreachable or wrong URL) |
+
+The exception type tells you which half is misconfigured:
+
+```python
+CavellClient(api_url=..., api_key="sk-typo", fhir_base_url=...)
+# CavellAuthError: Cavell API error (401): LLM Gateway rejected the provided key.
+
+CavellClient(api_url=..., api_key=<valid>, fhir_base_url="http://localhost:9999")
+# FHIRConnectionError: FHIR server unreachable: http://localhost:9999 (...)
+```
+
+Neither check can be skipped: the Prism API is always remote, so a configuration that can't be validated is an error rather than a supported mode. `extract()` re-runs the key pre-flight once per run, so a key that expires between runs never reaches the pipeline.
+
+`client.check_connection()` remains available for re-checking a long-lived client (say, before a new batch hours later). Unlike the constructor it *reports* rather than raises, and always checks both services even if one fails:
 
 ```python
 status = client.check_connection()
 # {'fhir': {'ok': True}, 'cavell_api': {'ok': True}}
 ```
 
-Each key contains `ok` (bool) and, on failure, `error` (str). Both services are always checked, even if one fails.
+Each key contains `ok` (bool) and, on failure, `error` (str).
 
 ## Pipeline Options
 

@@ -12,6 +12,11 @@ on:
   schedule:
     - cron: '17 5 * * *'  # runs on the default branch (develop)
   workflow_dispatch:
+    inputs:
+      force:
+        description: Publish even if develop is unchanged since the last nightly
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,6 +35,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "force requested - publishing regardless of changes"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           LAST=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/publish-nightly.yml/runs?status=success&branch=develop&per_page=1" --jq '.workflow_runs[0].head_sha // empty')
           if [ "$LAST" = "$GITHUB_SHA" ]; then
             echo "develop unchanged since the last nightly - skipping"
@@ -51,13 +61,13 @@ jobs:
         # stamp because PEP 440 orders X.Y.Z.devN *below* X.Y.Z — which is
         # exactly right for a pre-release of the upcoming X.Y.Z.
         run: |
-          BASE="$(uvx hatch version)"
+          BASE="$(uvx --from hatch==1.15.1 hatch version)"
           case "$BASE" in
             *dev*) echo "::error::develop already carries a dev version ($BASE)"; exit 1;;
           esac
           DEV="${BASE}.dev$(date -u +%Y%m%d%H%M)"
           sed -i "s/^__version__ = .*/__version__ = \"$DEV\"/" src/cavell_client/__init__.py
-          [ "$(uvx hatch version)" = "$DEV" ] || { echo "::error::version stamp failed"; exit 1; }
+          [ "$(uvx --from hatch==1.15.1 hatch version)" = "$DEV" ] || { echo "::error::version stamp failed"; exit 1; }
           echo "Stamped $DEV"
       - run: uv build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

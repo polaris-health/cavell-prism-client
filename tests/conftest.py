@@ -89,9 +89,24 @@ def httpx_mock(monkeypatch):
 
 
 @pytest.fixture
-def client():
-    """Create CavellClient for testing."""
-    return CavellClient(
+def client(httpx_mock):
+    """Create CavellClient for testing.
+
+    Construction pre-flights both halves (GET /key/info and GET /metadata),
+    so those stubs are registered here and then withdrawn, leaving the mock
+    exactly as the test found it: tests stay free to stub either route
+    themselves (including failures), and fixture setup traffic never shows up
+    in per-test request assertions.
+    """
+    from tests.helpers import mock_api_preflight, mock_fhir_auth, mock_fhir_preflight
+
+    first_own = len(httpx_mock._responses)
+    mock_api_preflight(httpx_mock)
+    mock_fhir_auth(httpx_mock)
+    mock_fhir_preflight(httpx_mock)
+    own = {id(r) for r in httpx_mock._responses[first_own:]}
+
+    client = CavellClient(
         api_url="https://qa.prism.cavell.app/api",
         api_key="test-key",
         fhir_base_url="http://localhost:8080",
@@ -99,3 +114,7 @@ def client():
         fhir_client_secret="fhir-secret",
         fhir_api_path="/fhir",
     )
+
+    httpx_mock._responses[:] = [r for r in httpx_mock._responses if id(r) not in own]
+    httpx_mock._requests.clear()
+    return client

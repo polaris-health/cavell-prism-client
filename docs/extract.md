@@ -166,7 +166,9 @@ Returned on successful pipeline outcomes.
 | `CavellAPIError` | Cavell API returns an error |
 | `CavellAuthError` | The API returns 401 — the LLM Gateway key is missing or rejected (subclass of `CavellAPIError`, non-retryable) |
 | `CavellGatewayUnavailableError` | The API returns 503 — the LLM Gateway is unreachable from the server (subclass of `CavellAPIError`) |
+| `PatientNotFoundError` | A `patient_id` was provided but does not exist on the FHIR server |
 | `FHIRAuthError` | FHIR OAuth2 authentication fails |
+| `FHIRConnectionError` | The FHIR server is unreachable or `fhir_base_url` is wrong |
 | `CavellError` | Base class for library-specific exceptions |
 
 ```python

@@ -45,15 +45,14 @@ from cavell_client import (
     Document,
 )
 
+# Construction validates the key and both endpoints, raising on failure -
+# CavellAuthError for a bad key, FHIRConnectionError for an unreachable
+# FHIR server. No separate connection check is needed.
 with CavellClient(
     api_url="https://prd.prism.cavell.app/api",
     api_key="your-llm-gateway-key",
     fhir_base_url="http://localhost:8090",
 ) as client:
-    status = client.check_connection()
-    if not status["fhir"]["ok"] or not status["cavell_api"]["ok"]:
-        raise SystemExit(status)
-
     pipeline = IngestionPipeline(client, default_organization="CGH-001")
 
     pipeline.seed(
