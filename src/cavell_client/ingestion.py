@@ -3,6 +3,7 @@
 import concurrent.futures
 import datetime
 import enum
+import hashlib
 import logging
 import threading
 import time
@@ -64,6 +65,44 @@ def _reject_removed_extract_kwargs(kwargs: dict) -> None:
     if kwargs:
         unexpected = ", ".join(sorted(kwargs))
         raise TypeError(f"Unexpected keyword argument(s): {unexpected}")
+
+
+def _dedupe_documents_by_content(
+    documents: list["Document"],
+) -> tuple[list["Document"], int]:
+    """Drop documents that repeat an earlier one's content verbatim.
+
+    Source exports often carry the same note twice under different
+    ``document_id`` values (multi-feed merges, amended-note re-exports). The
+    resume-skip keys on ``document_id``, so those copies look like new
+    documents and get extracted again — producing a second Encounter,
+    DocumentReference and set of clinical resources for one real event.
+
+    Identity is ``(patient_identifier, date, text)``: same patient, same day,
+    byte-identical note. Text is hashed so the key stays small on large
+    corpora. Dates are kept in the key because the same text on two different
+    days is copy-forward documentation of two real encounters, not a
+    duplicate. The first occurrence in the caller's order wins.
+
+    Returns:
+        ``(kept, dropped_count)``.
+    """
+    seen: set[tuple[str, str, str]] = set()
+    kept: list[Document] = []
+    dropped = 0
+    for doc in documents:
+        digest = hashlib.sha256(doc.text.strip().encode("utf-8")).hexdigest()
+        key = (doc.patient_identifier, str(doc.date), digest)
+        if key in seen:
+            dropped += 1
+            logger.debug(
+                f"Duplicate content: skipping {doc.document_id or '<no id>'} "
+                f"(patient {doc.patient_identifier}, {doc.date})"
+            )
+            continue
+        seen.add(key)
+        kept.append(doc)
+    return kept, dropped
 
 
 def _is_transient_error(exc: Exception) -> bool:
@@ -847,6 +886,7 @@ class IngestionPipeline:
         *,
         batch_size: int | None = None,
         skip_processed: bool = True,
+        dedupe_content: bool = True,
         on_batch: "Callable[[list[IngestionOutcome]], None] | None" = None,
     ) -> "list[IngestionOutcome]":
         """Extract every document, globally date-ordered, in batches.
@@ -877,6 +917,12 @@ class IngestionPipeline:
                 halving the batch size roughly doubles the query overhead.
             skip_processed: Passed to :meth:`extract`, which applies it per
                 batch, so an interrupted run resumes on a re-call.
+            dedupe_content: Drop documents repeating an earlier one's content
+                verbatim — same patient, same date, byte-identical text. The
+                resume-skip keys on ``document_id``, so re-exported copies
+                under new ids would otherwise each be extracted, duplicating
+                that event's resources. Dropped documents get no outcome. Set
+                ``False`` to process the list exactly as given.
             on_batch: Called with each batch's outcomes as that batch
                 finishes. Use it for progress output or to persist partial
                 results — a large run otherwise holds every outcome, including
@@ -915,6 +961,20 @@ class IngestionPipeline:
         # the whole dataset — extract() sees one batch at a time, so a pair of
         # duplicates split across two batches would otherwise slip through.
         self._validate_documents(documents)
+
+        # Collapse re-exported copies before anything spends on them. Done here
+        # rather than in extract() for the same reason as the uniqueness check
+        # above: a duplicate pair split across two batches is only visible to
+        # the pass that sees the whole dataset.
+        if dedupe_content:
+            documents, duplicates = _dedupe_documents_by_content(documents)
+            if duplicates:
+                logger.warning(
+                    f"extract_all: skipping {duplicates} document(s) whose content "
+                    f"repeats an earlier document for the same patient and date"
+                )
+            if not documents:
+                return []
 
         # Stable, so same-day documents keep the caller's order.
         ordered = sorted(documents, key=lambda d: d.date)

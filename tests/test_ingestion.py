@@ -21,6 +21,7 @@ from cavell_client.ingestion import (
     Organization,
     Patient,
     Practitioner,
+    _dedupe_documents_by_content,
     _Phase,
 )
 from cavell_client.models import OutOfOrderDocumentError
@@ -3468,9 +3469,13 @@ class TestPractitionerRefListCleanup:
 
 
 def _note(patient, date, doc_id):
-    """A valid Document with text long enough to avoid the short-text warning."""
+    """A valid Document with text long enough to avoid the short-text warning.
+
+    The text includes ``doc_id`` so same-patient, same-day notes stay distinct:
+    identical content is what ``extract_all``'s duplicate-content pass drops.
+    """
     return Document(
-        text=f"Clinical note for {patient} recorded on {date}.",
+        text=f"Clinical note {doc_id} for {patient} recorded on {date}.",
         patient_identifier=patient,
         date=date,
         document_id=doc_id,
@@ -3578,6 +3583,99 @@ class TestExtractAll(_PipelineHarness):
         pipeline.extract_all(docs, batch_size=2)
 
         assert [d.document_id for d in seen] == ["first", "second", "third"]
+
+    def test_duplicate_content_under_different_ids_extracted_once(self):
+        """Re-exported copies of one note must not each be extracted.
+
+        The resume-skip keys on document_id, so a duplicate carrying a new id
+        looks like a new document and would duplicate that event's resources.
+        """
+        docs = [
+            _note("MRN-1", "2024-03-01", "note-1"),
+            Document(
+                text=_note("MRN-1", "2024-03-01", "note-1").text,
+                patient_identifier="MRN-1",
+                date="2024-03-01",
+                document_id="note-9999",
+            ),
+        ]
+
+        kept, dropped = _dedupe_documents_by_content(docs)
+
+        assert dropped == 1
+        assert [d.document_id for d in kept] == ["note-1"]
+
+    def test_same_text_on_different_dates_kept(self):
+        """Copy-forward across two encounters is two real events, not a dup."""
+        a = _note("MRN-1", "2024-03-01", "a")
+        b = Document(
+            text=a.text,
+            patient_identifier="MRN-1",
+            date="2024-06-01",
+            document_id="b",
+        )
+
+        kept, dropped = _dedupe_documents_by_content([a, b])
+
+        assert dropped == 0
+        assert len(kept) == 2
+
+    def test_same_text_different_patients_kept(self):
+        a = _note("MRN-1", "2024-03-01", "a")
+        b = Document(
+            text=a.text,
+            patient_identifier="MRN-2",
+            date="2024-03-01",
+            document_id="b",
+        )
+
+        kept, dropped = _dedupe_documents_by_content([a, b])
+
+        assert dropped == 0
+        assert len(kept) == 2
+
+    def test_dedupe_content_false_processes_every_copy(
+        self, client, httpx_mock, monkeypatch
+    ):
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        seen = self._record(pipeline, monkeypatch)
+
+        base = _note("MRN-1", "2024-03-01", "note-1")
+        docs = [
+            base,
+            Document(
+                text=base.text,
+                patient_identifier="MRN-1",
+                date="2024-03-01",
+                document_id="note-2",
+            ),
+        ]
+
+        pipeline.extract_all(docs, dedupe_content=False)
+
+        assert [d.document_id for d in seen] == ["note-1", "note-2"]
+
+    def test_duplicates_dropped_before_extraction(
+        self, client, httpx_mock, monkeypatch
+    ):
+        pipeline = self._seed_for_batches(client, httpx_mock)
+        seen = self._record(pipeline, monkeypatch)
+
+        base = _note("MRN-1", "2024-03-01", "note-1")
+        docs = [
+            base,
+            Document(
+                text=base.text,
+                patient_identifier="MRN-1",
+                date="2024-03-01",
+                document_id="note-2",
+            ),
+        ]
+
+        outcomes = pipeline.extract_all(docs)
+
+        assert [d.document_id for d in seen] == ["note-1"]
+        assert len(outcomes) == 1
 
     def test_batch_size_none_processes_everything_in_one_call(
         self, client, httpx_mock, monkeypatch

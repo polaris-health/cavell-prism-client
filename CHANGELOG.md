@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Duplicate-content check**: `extract_all()` drops documents repeating an
+  earlier one's content verbatim — same `patient_identifier`, same `date`,
+  byte-identical `text`. Source exports often carry a note twice under
+  different `document_id` values (multi-feed merges, amended-note
+  re-exports); the resume-skip keys on `document_id`, so each copy looked
+  like a new document and produced its own Encounter, DocumentReference and
+  clinical resources for one real event. The first occurrence in the
+  caller's order wins, dropped documents get no `IngestionOutcome`, and the
+  count is logged at WARNING. The same text on two different dates is
+  copy-forward documentation of two real encounters and is kept. Pass
+  `dedupe_content=False` to process the list exactly as given. The check
+  lives in `extract_all()` rather than `extract()` because only the pass
+  that sees the whole dataset can catch a duplicate pair split across two
+  batches.
+
 ## [0.2.0] - 2026-07-31
 
 First public release, targeting the Prism API. The package is published as
