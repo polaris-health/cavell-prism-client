@@ -26,6 +26,8 @@ from cavell_client.models import (
     CavellAuthError,
     CavellGatewayUnavailableError,
     ExtractResult,
+    OutOfOrderDocument,
+    OutOfOrderDocumentError,
     PatientNotFoundError,
 )
 
@@ -44,6 +46,26 @@ _DOC_RETRY_BACKOFF = 2.0  # seconds, exponential
 _TRANSIENT_STATUS = frozenset({429, 500, 502, 503, 504})
 
 
+def _reject_removed_extract_kwargs(kwargs: dict) -> None:
+    """Raise a pointed migration error for extract()'s renamed `batch_size`.
+
+    Silently ignoring `batch_size` would be expensive: the caller expects a
+    capped run and would instead extract every document they passed.
+    """
+    if "batch_size" in kwargs:
+        raise TypeError(
+            "IngestionPipeline.extract() renamed 'batch_size' to 'limit' in "
+            "cavell-prism-client 0.2.0. It caps how many documents this single "
+            "call processes — it never chunked the list. Use "
+            "extract(documents, limit=N) to cap one call, or "
+            "extract_all(documents, batch_size=N) to process every document in "
+            "chronological chunks of N. See the CHANGELOG for migration notes."
+        )
+    if kwargs:
+        unexpected = ", ".join(sorted(kwargs))
+        raise TypeError(f"Unexpected keyword argument(s): {unexpected}")
+
+
 def _is_transient_error(exc: Exception) -> bool:
     """True for failures worth retrying: timeouts, connection drops, server 5xx/429.
 
@@ -59,6 +81,17 @@ def _apply_update_guard(
     entries: list[dict], doc_date: str, related_dates: dict[str, str]
 ) -> tuple[list[dict], list[str]]:
     """Drop updates to resources whose current version came from a newer document.
+
+    .. note::
+       **Currently unwired.** Reverse-chronological documents are refused
+       outright by :meth:`IngestionPipeline._check_chronology`, so nothing
+       reaches the persist step out of order and this guard has no work to do.
+       It is kept — defined and unit-tested — because the decision to reject
+       rather than guard is explicitly provisional; re-enabling it means
+       restoring the commented-out block in
+       :meth:`IngestionPipeline._process_single_document` and relaxing the
+       pre-flight check. See CHANGELOG 0.2.0.
+
 
     When a document is processed out of chronological order, its bundle may
     carry PUT entries that would overwrite data extracted from newer
@@ -428,14 +461,18 @@ class IngestionOutcome:
     success: bool
     patient_identifier: str
     # Position in the list extract() processed — i.e. AFTER skip_processed
-    # filtering and batch_size truncation, not the caller's original list.
+    # filtering and the `limit` truncation, not the caller's original list.
+    # Under extract_all() this is relative to the document's own batch.
     document_index: int
     extract_result: ExtractResult | None = None
     error: str | None = None
     document_id: str | None = None
     # transient failure (timeout/5xx) — eligible for the deferred retry pass
     transient: bool = False
-    # document was older than the patient's newest already-persisted document
+    # Document was older than the patient's newest already-persisted document.
+    # Always False in practice: such documents are refused before extraction by
+    # IngestionPipeline._check_chronology(), so no outcome is produced for them.
+    # Retained for the provisional revert to guard-instead-of-reject.
     out_of_order: bool = False
 
     def __str__(self) -> str:
@@ -679,45 +716,293 @@ class IngestionPipeline:
 
         self._phase = _Phase.PATIENTS_SEEDED
 
+    def _validate_documents(self, documents: list[Document]) -> dict[int, str]:
+        """Validate document references and per-patient document_id uniqueness.
+
+        Args:
+            documents: Documents to check.
+
+        Returns:
+            The resolved organization identifier per document, keyed by
+            ``id(doc)`` — the caller must keep ``documents`` alive.
+
+        Raises:
+            ValueError: On a document_id repeated within one patient, a
+                document with no organization and no ``default_organization``,
+                or a reference to an unseeded patient/organization/practitioner.
+        """
+        doc_indices = {id(doc): i for i, doc in enumerate(documents)}
+
+        # Duplicate document_ids, scoped per patient to match the FHIR identity
+        # (patient + document identifier); hospital exports commonly restart
+        # numbering per patient.
+        seen_doc_ids: set[tuple[str, str]] = set()
+        duplicates: list[str] = []
+        for doc in documents:
+            if doc.document_id:
+                key = (doc.patient_identifier, doc.document_id)
+                if key in seen_doc_ids:
+                    duplicates.append(doc.document_id)
+                else:
+                    seen_doc_ids.add(key)
+        if duplicates:
+            raise ValueError(f"Duplicate document_id values: {sorted(set(duplicates))}")
+
+        resolved_orgs: dict[int, str] = {}
+        for doc in documents:
+            org = doc.organization_identifier
+            if not org:
+                if not self._default_organization:
+                    raise ValueError(
+                        f"Document at index {doc_indices[id(doc)]} has no "
+                        f"organization_identifier and no default_organization set"
+                    )
+                org = self._default_organization
+            resolved_orgs[id(doc)] = org
+
+            key = (IDENTIFIER_SYSTEM, doc.patient_identifier)
+            if key not in self._id_map:
+                raise ValueError(
+                    f"Document at index {doc_indices[id(doc)]} references unknown "
+                    f"patient '{doc.patient_identifier}'"
+                )
+            key = (ORGANIZATION_IDENTIFIER_SYSTEM, org)
+            if key not in self._id_map:
+                raise ValueError(
+                    f"Document at index {doc_indices[id(doc)]} references unknown "
+                    f"organization '{org}'"
+                )
+            if doc.practitioner_identifier:
+                if doc.practitioner_identifier not in self._practitioner_names:
+                    raise ValueError(
+                        f"Document at index {doc_indices[id(doc)]} references unknown "
+                        f"practitioner '{doc.practitioner_identifier}'"
+                    )
+
+        return resolved_orgs
+
+    def _check_chronology(self, documents: list[Document]) -> dict[str, str | None]:
+        """Refuse any document older than its patient's newest persisted document.
+
+        Extraction is context-aware and only moves forward in time, so a
+        reverse-chronological document is rejected before anything in the call
+        is extracted — no partial spend, nothing persisted.
+
+        Fails **open** per patient: if the watermark cannot be fetched, that
+        patient is left unchecked with a warning rather than taking the run
+        down. A transient FHIR error should not block ingestion.
+
+        Args:
+            documents: Documents about to be extracted. Indexes reported in the
+                error are positions in this list.
+
+        Returns:
+            Patient identifier -> watermark (``None`` where unknown), so the
+            caller can reuse it instead of re-querying per patient.
+
+        Raises:
+            OutOfOrderDocumentError: If any document predates its patient's
+                watermark. Equal dates pass — dates are day-resolution, so
+                same-day documents have no defined order.
+        """
+        watermarks: dict[str, str | None] = {}
+        for patient_id in {d.patient_identifier for d in documents}:
+            fhir_id = self._id_map.get((IDENTIFIER_SYSTEM, patient_id))
+            if fhir_id is None:
+                continue
+            try:
+                watermarks[patient_id] = self._fhir.get_latest_document_date(fhir_id)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to fetch latest document date for patient "
+                    f"'{patient_id}' (chronology check skipped): {e}"
+                )
+                watermarks[patient_id] = None
+
+        violations: list[OutOfOrderDocument] = []
+        for index, doc in enumerate(documents):
+            watermark = watermarks.get(doc.patient_identifier)
+            if watermark is not None and str(doc.date) < watermark:
+                violations.append(
+                    OutOfOrderDocument(
+                        patient_identifier=doc.patient_identifier,
+                        document_id=doc.document_id,
+                        document_index=index,
+                        date=str(doc.date),
+                        watermark=watermark,
+                    )
+                )
+        if violations:
+            logger.error(
+                f"Refusing {len(violations)} reverse-chronological document(s); "
+                f"nothing was extracted"
+            )
+            raise OutOfOrderDocumentError(violations)
+
+        return watermarks
+
+    def extract_all(
+        self,
+        documents: list[Document],
+        *,
+        batch_size: int | None = None,
+        skip_processed: bool = True,
+        on_batch: "Callable[[list[IngestionOutcome]], None] | None" = None,
+    ) -> "list[IngestionOutcome]":
+        """Extract every document, globally date-ordered, in batches.
+
+        This is the entry point for a whole dataset. :meth:`extract` makes a
+        single pass and its ``limit`` truncates that pass; this method walks
+        the full list, calling :meth:`extract` once per batch.
+
+        Documents are sorted by ascending date across the **entire** dataset
+        before batching, which is what makes batching chronologically safe.
+        Batching an unsorted list splits it by input order, so a later batch
+        could carry documents older than what an earlier batch already
+        persisted — and those are refused outright, failing the run partway
+        through. Sorting first puts every batch boundary on a clean
+        chronological cut, so each patient's documents reach the API
+        oldest-first even when they span several batches.
+
+        Batches are cut by index, so the walk always terminates. It does not
+        depend on ``skip_processed`` to advance, which means it works with
+        ``skip_processed=False`` and with documents that have no
+        ``document_id``.
+
+        Args:
+            documents: Every document to process.
+            batch_size: Documents per :meth:`extract` call. ``None`` processes
+                everything in a single call. Prefer larger batches: each call
+                issues one FHIR query per distinct patient *in that batch*, so
+                halving the batch size roughly doubles the query overhead.
+            skip_processed: Passed to :meth:`extract`, which applies it per
+                batch, so an interrupted run resumes on a re-call.
+            on_batch: Called with each batch's outcomes as that batch
+                finishes. Use it for progress output or to persist partial
+                results — a large run otherwise holds every outcome, including
+                its extracted bundles, in memory until this returns.
+
+        Returns:
+            Outcomes for every document processed, in batch order. Note that
+            ``IngestionOutcome.document_index`` is relative to the document's
+            own batch, not to ``documents``.
+
+        Raises:
+            ValueError: If ``batch_size`` is less than 1, or if any document
+                fails validation. Validation runs over the whole list before
+                the first batch, so a bad reference late in the list surfaces
+                before earlier batches spend anything.
+            OutOfOrderDocumentError: If any document is older than its
+                patient's newest already-persisted document. Also checked
+                across the whole dataset up front, for the same reason.
+            RuntimeError: If called before patients are seeded.
+            CavellAuthError: If the API rejects the key.
+            CavellGatewayUnavailableError: If the LLM Gateway stays
+                unreachable through the in-place retries.
+        """
+        if batch_size is not None and batch_size < 1:
+            raise ValueError(f"batch_size must be >= 1 if set, got {batch_size}")
+        if self._phase not in (_Phase.PATIENTS_SEEDED, _Phase.EXTRACTING):
+            raise RuntimeError(
+                f"extract_all() requires phase 'patients_seeded' or 'extracting', "
+                f"currently '{self._phase.value}'"
+            )
+        if not documents:
+            return []
+
+        # Validate everything before the first batch spends. This is also the
+        # only place per-patient document_id uniqueness can be enforced across
+        # the whole dataset — extract() sees one batch at a time, so a pair of
+        # duplicates split across two batches would otherwise slip through.
+        self._validate_documents(documents)
+
+        # Stable, so same-day documents keep the caller's order.
+        ordered = sorted(documents, key=lambda d: d.date)
+
+        # Refuse reverse-chronological documents against the whole dataset now.
+        # extract() re-checks per batch, but that would only catch a violation
+        # once its batch came up — after earlier batches had already spent.
+        self._check_chronology(ordered)
+
+        if batch_size is None:
+            outcomes = self.extract(ordered, skip_processed=skip_processed)
+            if on_batch is not None:
+                on_batch(outcomes)
+            return outcomes
+
+        n_batches = (len(ordered) + batch_size - 1) // batch_size
+        logger.info(
+            f"extract_all: {len(ordered)} documents dated {ordered[0].date} to "
+            f"{ordered[-1].date} in {n_batches} batch(es) of up to {batch_size}"
+        )
+
+        all_outcomes: list[IngestionOutcome] = []
+        for n, start in enumerate(range(0, len(ordered), batch_size), 1):
+            batch = ordered[start : start + batch_size]
+            logger.info(
+                f"extract_all: batch {n}/{n_batches} — {len(batch)} document(s) "
+                f"dated {batch[0].date} to {batch[-1].date}"
+            )
+            outcomes = self.extract(batch, skip_processed=skip_processed)
+            all_outcomes.extend(outcomes)
+            if on_batch is not None:
+                on_batch(outcomes)
+
+        return all_outcomes
+
     def extract(
         self,
         documents: list[Document],
         *,
         skip_processed: bool = True,
-        batch_size: int | None = None,
+        limit: int | None = None,
+        **removed_kwargs: Any,
     ) -> "list[IngestionOutcome]":
         """Phase 3: Extract FHIR resources from documents.
 
         Processes patients concurrently (limited by max_concurrency),
         documents within each patient sequentially in date order.
 
+        This processes **one** pass over ``documents``; ``limit`` truncates
+        that pass rather than chunking it. To walk a large dataset in
+        chronological chunks, use :meth:`extract_all`.
+
         Can be called multiple times. When ``skip_processed=True`` (the
         default), already-processed documents are automatically filtered
         out so re-running is always safe.
 
         Documents older than the patient's newest already-persisted document
-        are flagged ``out_of_order`` (with a warning) and still processed,
-        but their bundle passes an update guard: updates to resources whose
-        current version came from a newer document are dropped.
+        are **refused**: the whole call raises
+        :class:`~cavell_client.models.OutOfOrderDocumentError` before anything
+        is extracted, so no tokens are spent and nothing is persisted.
+        Extraction is context-aware and only moves forward in time.
 
         Args:
             documents: Documents to extract from
             skip_processed: Query FHIR for already-processed document IDs
                 and skip them.  Set to ``False`` to process all documents.
-            batch_size: Cap the number of documents processed in this call.
-                Applied after skip_processed filtering.
+            limit: Cap the number of documents processed in this call, taken
+                from the front of the list after skip_processed filtering.
+                ``None`` processes every document passed.
 
         Returns:
-            List of IngestionOutcome, one per document
+            List of IngestionOutcome, one per document processed (which is
+            fewer than ``documents`` when filtering or ``limit`` applies)
 
         Raises:
             RuntimeError: If called before patients are seeded
             ValueError: If validation fails
+            OutOfOrderDocumentError: If any document is older than its
+                patient's newest already-persisted document. Checked before
+                any extraction, so the call spends and persists nothing.
             CavellAuthError: If the API rejects the key (checked once up
                 front, and the run aborts on the first 401 mid-run)
             CavellGatewayUnavailableError: If the LLM Gateway stays
                 unreachable through the in-place retries (run aborts)
         """
+        _reject_removed_extract_kwargs(removed_kwargs)
+        if limit is not None and limit < 1:
+            raise ValueError(f"limit must be >= 1 if set, got {limit}")
         if self._phase not in (_Phase.PATIENTS_SEEDED, _Phase.EXTRACTING):
             raise RuntimeError(
                 f"extract() requires phase 'patients_seeded' or 'extracting', "
@@ -760,66 +1045,29 @@ class IngestionPipeline:
             ]
             skipped = original_count - len(documents)
 
-        if batch_size is not None:
-            documents = documents[:batch_size]
+        if limit is not None:
+            documents = documents[:limit]
 
         # Build index for original document positions
         doc_indices = {id(doc): i for i, doc in enumerate(documents)}
 
-        # Check for duplicate document_ids (scoped per patient, matching the
-        # FHIR identity: patient + document identifier)
-        seen_doc_ids: dict[tuple[str, str], int] = {}
-        duplicates: list[str] = []
-        for doc in documents:
-            if doc.document_id:
-                key = (doc.patient_identifier, doc.document_id)
-                if key in seen_doc_ids:
-                    duplicates.append(doc.document_id)
-                else:
-                    seen_doc_ids[key] = doc_indices[id(doc)]
-        if duplicates:
-            raise ValueError(f"Duplicate document_id values: {sorted(set(duplicates))}")
-
-        # Resolve default organization and validate references
-        resolved_orgs: dict[int, str] = {}
-        for doc in documents:
-            org = doc.organization_identifier
-            if not org:
-                if not self._default_organization:
-                    raise ValueError(
-                        f"Document at index {doc_indices[id(doc)]} has no "
-                        f"organization_identifier and no default_organization set"
-                    )
-                org = self._default_organization
-            resolved_orgs[id(doc)] = org
-
-            key = (IDENTIFIER_SYSTEM, doc.patient_identifier)
-            if key not in self._id_map:
-                raise ValueError(
-                    f"Document at index {doc_indices[id(doc)]} references unknown "
-                    f"patient '{doc.patient_identifier}'"
-                )
-            key = (ORGANIZATION_IDENTIFIER_SYSTEM, org)
-            if key not in self._id_map:
-                raise ValueError(
-                    f"Document at index {doc_indices[id(doc)]} references unknown "
-                    f"organization '{org}'"
-                )
-            if doc.practitioner_identifier:
-                if doc.practitioner_identifier not in self._practitioner_names:
-                    raise ValueError(
-                        f"Document at index {doc_indices[id(doc)]} references unknown "
-                        f"practitioner '{doc.practitioner_identifier}'"
-                    )
+        resolved_orgs = self._validate_documents(documents)
 
         # Group by patient and sort by date
         by_patient: dict[str, list[Document]] = defaultdict(list)
         for doc in documents:
             by_patient[doc.patient_identifier].append(doc)
 
+        # Kept even though extract_all() pre-sorts globally: extract() is a
+        # public entry point in its own right, and the per-patient watermark
+        # below only advances monotonically if each patient's documents arrive
+        # oldest-first. On already-ordered input this is a no-op linear pass.
+        # Compare date sequences, not documents — a stable sort reorders iff the
+        # key sequence was out of order, so this is equivalent without
+        # deep-comparing note text.
         for patient_id, docs in by_patient.items():
             sorted_docs = sorted(docs, key=lambda d: d.date)
-            if sorted_docs != docs:
+            if [d.date for d in sorted_docs] != [d.date for d in docs]:
                 logger.info(f"Reordered documents for patient '{patient_id}' by date")
             by_patient[patient_id] = sorted_docs
 
@@ -834,6 +1082,10 @@ class IngestionPipeline:
                     f"on the FHIR server — re-run seed() to restore it"
                 ) from None
 
+        # Refuse reverse-chronological documents before any spend, and reuse the
+        # watermarks it fetched for the per-patient chronology bookkeeping below.
+        watermarks = self._check_chronology(documents)
+
         n_patients = len(by_patient)
         patient_label = "patient" if n_patients == 1 else "patients"
         parts = [
@@ -841,8 +1093,8 @@ class IngestionPipeline:
         ]
         if skipped:
             parts.append(f"{skipped} skipped")
-        if batch_size is not None:
-            parts.append(f"batch_size={batch_size}")
+        if limit is not None:
+            parts.append(f"limit={limit}")
         logger.info(" | ".join(parts))
 
         self._phase = _Phase.EXTRACTING
@@ -869,16 +1121,10 @@ class IngestionPipeline:
         ) -> list[IngestionOutcome]:
             outcomes = []
             # Per-patient chronology watermark: the newest already-persisted
-            # document date. Fail-open — a guard must not take down ingestion.
-            patient_fhir_id = self._resolve_id(IDENTIFIER_SYSTEM, patient_identifier)
-            try:
-                watermark = self._fhir.get_latest_document_date(patient_fhir_id)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to fetch latest document date for patient "
-                    f"'{patient_identifier}' (chronology check disabled): {e}"
-                )
-                watermark = None
+            # document date, fetched once by _check_chronology above. None means
+            # it could not be determined (fail-open) or the patient has no
+            # processed documents yet.
+            watermark = watermarks.get(patient_identifier)
             for i, doc in enumerate(docs):
                 if abort_event.is_set():
                     break
@@ -1011,21 +1257,27 @@ class IngestionPipeline:
         doesn't cascade-skip the rest of the patient. Deterministic failures (a rejected
         bundle, a 4xx) fail fast without retrying.
 
-        ``watermark`` is the patient's newest already-persisted document date;
-        a strictly older document is processed anyway but flagged out-of-order
-        and its bundle passes the update guard before persisting. ``on_fatal``
-        is invoked with the exception when the failure is run-global (401, or
-        503 after exhausted retries).
+        ``watermark`` is the patient's newest already-persisted document date,
+        used only as a backstop assertion — reverse-chronological documents are
+        refused by :meth:`_check_chronology` before extraction begins, so one
+        should never arrive here. ``on_fatal`` is invoked with the exception
+        when the failure is run-global (401, or 503 after exhausted retries).
         """
         patient_fhir_id = self._resolve_id(IDENTIFIER_SYSTEM, doc.patient_identifier)
         label = doc.document_id or f"doc[{doc_index}]"
 
+        # Should be unreachable: _check_chronology() refuses older documents
+        # before extraction starts, and within a call the watermark only advances
+        # to the date of the document just processed (documents arrive
+        # oldest-first), so it never overtakes the current one. Kept as a
+        # backstop — if it ever fires, the pre-flight check was bypassed.
         out_of_order = watermark is not None and str(doc.date) < watermark
         if out_of_order:
-            logger.warning(
+            logger.error(
                 f"{label} dated {doc.date} is older than the newest persisted "
                 f"document ({watermark}) for patient '{doc.patient_identifier}' "
-                f"— extracting anyway with the update guard applied"
+                f"— this should have been refused before extraction; proceeding "
+                f"without an update guard"
             )
 
         for attempt in range(1, _DOC_MAX_ATTEMPTS + 1):
@@ -1100,18 +1352,23 @@ class IngestionPipeline:
                 # Deduplicate and persist to FHIR
                 entries = bundle.get("entry", [])
                 entries = self._fhir.deduplicate_observations(entries, patient_fhir_id)
-                if out_of_order:
-                    related_dates = self._fhir.get_related_document_dates(
-                        patient_fhir_id
-                    )
-                    entries, dropped = _apply_update_guard(
-                        entries, str(doc.date), related_dates
-                    )
-                    if dropped:
-                        logger.info(
-                            f"Update guard dropped {len(dropped)} update(s) from "
-                            f"older document {label}: {', '.join(dropped)}"
-                        )
+                # DISABLED — reverse-chronological documents are now refused up
+                # front by _check_chronology(), so nothing reaches this point out
+                # of order and the guard has no work to do. Kept (not deleted)
+                # because rejecting rather than guarding is provisional: restore
+                # this block and relax the pre-flight check to bring it back.
+                # if out_of_order:
+                #     related_dates = self._fhir.get_related_document_dates(
+                #         patient_fhir_id
+                #     )
+                #     entries, dropped = _apply_update_guard(
+                #         entries, str(doc.date), related_dates
+                #     )
+                #     if dropped:
+                #         logger.info(
+                #             f"Update guard dropped {len(dropped)} update(s) from "
+                #             f"older document {label}: {', '.join(dropped)}"
+                #         )
                 persistence = self._fhir.post_bundle(entries)
 
                 if not persistence.success:
