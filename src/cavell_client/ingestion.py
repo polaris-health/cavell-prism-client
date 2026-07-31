@@ -72,7 +72,7 @@ def _dedupe_documents_by_content(
 ) -> tuple[list["Document"], int]:
     """Drop documents that repeat an earlier one's content verbatim.
 
-    Source exports often carry the same note twice under different
+    Source exports can carry the same note twice under different
     ``document_id`` values (multi-feed merges, amended-note re-exports). The
     resume-skip keys on ``document_id``, so those copies look like new
     documents and get extracted again — producing a second Encounter,
