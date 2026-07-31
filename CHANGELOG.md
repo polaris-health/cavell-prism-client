@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-07-31
 
 First public release, targeting the Prism API. The package is published as
 **`cavell-prism-client`**; the import name stays `cavell_client`.
