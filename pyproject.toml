@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Typing :: Typed",
 ]
@@ -58,6 +59,7 @@ exclude = [
     ".pre-commit-config.yaml",
     "commitlint.config.js",
     "uv.lock",
+    ".secrets.baseline",
 ]
 
 [tool.ruff]
@@ -65,7 +67,14 @@ line-length = 88
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "UP"]
+select = ["E", "W", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest asserts and deliberately fake credentials
+"tests/**" = ["S101", "S105", "S106"]
+# demo notebooks and the study script use assert as a readable guard
+"docs/notebooks/*.ipynb" = ["S101"]
+"scripts/**" = ["S101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -76,6 +85,7 @@ addopts = "--timeout=60"
 [dependency-groups]
 dev = [
     "mkdocs-jupyter>=0.26.3",
+    "pre-commit>=4.0",
     "mkdocs-material[imaging]>=9.7.7",
     "pytest>=9.1.1",
     "pytest-timeout>=2.3",

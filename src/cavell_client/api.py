@@ -1,6 +1,7 @@
 """Cavell API client for FHIR extraction."""
 
 import logging
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -69,19 +70,25 @@ class CavellAPI:
         self.base_url = _normalize_base_url(base_url)
         self._api_key = api_key
         self._client: httpx.Client | None = None
+        self._client_lock = threading.Lock()
 
     def _get_client(self) -> httpx.Client:
-        """Get or create the HTTP client."""
-        if self._client is None:
-            self._client = httpx.Client(
-                base_url=self.base_url,
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                # Extraction involves many LLM calls; the API caps each call at
-                # ~300s, so a whole document (incl. an occasional slow call + its
-                # server-side retry) must be allowed comfortably more than that.
-                timeout=800.0,
-            )
-        return self._client
+        """Get or create the HTTP client (thread-safe)."""
+        if self._client is not None:
+            return self._client
+        with self._client_lock:
+            if self._client is None:
+                self._client = httpx.Client(
+                    base_url=self.base_url,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    # Extraction involves many LLM calls; the API caps each call at
+                    # ~300s, so a whole document (incl. an occasional slow call + its
+                    # server-side retry) must be allowed comfortably more than that.
+                    # Connect stays short: a blackholed host should fail in
+                    # seconds, not hold a worker for the full read budget.
+                    timeout=httpx.Timeout(800.0, connect=10.0),
+                )
+            return self._client
 
     def close(self) -> None:
         """Close the HTTP client."""
@@ -110,20 +117,36 @@ class CavellAPI:
             raise CavellAPIError(response.status_code, error_detail, details)
 
     def check_connection(self) -> None:
-        """Ping the Cavell API (GET /resources, an authenticated route).
+        """Validate the connection AND the key (GET /key/info).
 
-        Verifies the base URL is correct, a key is being sent, and the API is
-        reachable. It does NOT verify the key is valid: /resources accepts any
-        non-empty bearer token. A bad key is only caught by the first extract
-        call, which the server pre-flights against the LLM Gateway (fails in
-        ~0.1s with no pipeline spend).
+        The server pre-flights the presented key against the LLM Gateway
+        without spending any tokens, so this catches a wrong URL, a missing
+        key, and an invalid/expired key up front.
 
-        Raises CavellAuthError when no key reaches the API, CavellAPIError on
-        other failures.
+        Raises CavellAuthError (401) when the key is missing or rejected,
+        CavellGatewayUnavailableError (503) when the gateway is unreachable,
+        CavellAPIError on other failures.
         """
         client = self._get_client()
-        response = client.get("/resources")
+        response = client.get("/key/info")
         self._raise_for_error(response)
+        # A 2xx alone does not prove the key was checked: a base_url pointing
+        # at a host that answers unknown paths with a page (a SPA catch-all,
+        # a proxy error page) would turn "invalid key" into "valid". Demand
+        # the documented body, so a wrong URL - or an API too old to expose
+        # this route - fails loudly instead of passing silently.
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if not isinstance(payload, dict) or payload.get("valid") is not True:
+            raise CavellAPIError(
+                response.status_code,
+                f"GET {self.base_url}/key/info did not return the expected "
+                '{"valid": true} response. Check that api_url points at a '
+                "Cavell Prism API (including the /api path) and that the "
+                "server exposes /key/info.",
+            )
 
     def extract(
         self,
@@ -187,10 +210,12 @@ class CavellAPI:
                 break
             # WAF rate limits send Retry-After; upstream LLM 429s do not.
             retry_after = response.headers.get("Retry-After", "")
-            if retry_after.isdigit():
-                wait = min(float(retry_after), _RETRY_AFTER_CAP)
+            try:
+                # int(), not isdigit(): isdigit() accepts Unicode digits that
+                # float() rejects; HTTP-date values fall back to backoff.
+                wait = min(float(int(retry_after)), _RETRY_AFTER_CAP)
                 source = "Retry-After"
-            else:
+            except ValueError:
                 wait = float(2**attempt)
                 source = "backoff"
             logger.warning(

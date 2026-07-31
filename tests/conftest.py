@@ -1,5 +1,7 @@
 """Pytest configuration and fixtures."""
 
+import threading
+
 import pytest
 
 from cavell_client import CavellClient
@@ -14,6 +16,7 @@ def httpx_mock(monkeypatch):
         def __init__(self):
             self._responses = []
             self._requests = []
+            self._lock = threading.Lock()
 
         def add_response(
             self,
@@ -24,7 +27,15 @@ def httpx_mock(monkeypatch):
             text: str = "",
             headers: dict | None = None,
             repeat: bool = False,
+            replace: bool = False,
         ):
+            if replace:
+                with self._lock:
+                    self._responses = [
+                        r
+                        for r in self._responses
+                        if not (r["method"] == method.upper() and r["url"] == url)
+                    ]
             self._responses.append(
                 {
                     "method": method.upper(),
@@ -44,6 +55,10 @@ def httpx_mock(monkeypatch):
             return self._requests
 
         def handle_request(self, request: httpx.Request) -> httpx.Response:
+            with self._lock:
+                return self._handle_request_locked(request)
+
+        def _handle_request_locked(self, request: httpx.Request) -> httpx.Response:
             self._requests.append(request)
 
             for i, resp in enumerate(self._responses):
@@ -65,11 +80,17 @@ def httpx_mock(monkeypatch):
                         request=request,
                     )
 
-            # No matching response - return 404
-            return httpx.Response(
-                status_code=404,
-                content=b"Not found",
-                request=request,
+            # Unmatched request: fail LOUDLY. A silent 404 lets fail-open
+            # code paths (context fetch, watermark) absorb harness mistakes,
+            # making URL regressions invisible. Tests that WANT an error
+            # response must register it explicitly.
+            registered = (
+                "\n  ".join(f"{r['method']} {r['url']}" for r in self._responses)
+                or "(none)"
+            )
+            raise AssertionError(
+                f"Unmatched request: {request.method} {request.url}\n"
+                f"Registered responses:\n  {registered}"
             )
 
     mock = MockTransport()
@@ -89,9 +110,24 @@ def httpx_mock(monkeypatch):
 
 
 @pytest.fixture
-def client():
-    """Create CavellClient for testing."""
-    return CavellClient(
+def client(httpx_mock):
+    """Create CavellClient for testing.
+
+    Construction pre-flights both halves (GET /key/info and GET /metadata),
+    so those stubs are registered here and then withdrawn, leaving the mock
+    exactly as the test found it: tests stay free to stub either route
+    themselves (including failures), and fixture setup traffic never shows up
+    in per-test request assertions.
+    """
+    from tests.helpers import mock_api_preflight, mock_fhir_auth, mock_fhir_preflight
+
+    first_own = len(httpx_mock._responses)
+    mock_api_preflight(httpx_mock)
+    mock_fhir_auth(httpx_mock)
+    mock_fhir_preflight(httpx_mock)
+    own = {id(r) for r in httpx_mock._responses[first_own:]}
+
+    client = CavellClient(
         api_url="https://qa.prism.cavell.app/api",
         api_key="test-key",
         fhir_base_url="http://localhost:8080",
@@ -99,3 +135,7 @@ def client():
         fhir_client_secret="fhir-secret",
         fhir_api_path="/fhir",
     )
+
+    httpx_mock._responses[:] = [r for r in httpx_mock._responses if id(r) not in own]
+    httpx_mock._requests.clear()
+    return client

@@ -9,7 +9,12 @@ from urllib.parse import urlparse
 
 import httpx
 
-from cavell_client.models import FHIRAuthError, PatientNotFoundError, PersistResult
+from cavell_client.models import (
+    FHIRAuthError,
+    FHIRConnectionError,
+    PatientNotFoundError,
+    PersistResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +189,7 @@ class FHIRClient:
         """Initialize FHIR client.
 
         Args:
-            base_url: FHIR server base URL (e.g., "http://localhost:8080")
+            base_url: FHIR server base URL (e.g., "http://localhost:8090")
             client_id: OAuth2 client ID (None to skip auth)
             client_secret: OAuth2 client secret (None to skip auth)
             api_path: API path prefix (e.g., "/fhir" for Aidbox, "" for HAPI)
@@ -251,12 +256,19 @@ class FHIRClient:
             )
             return self._client
 
-    def _clear_auth(self) -> None:
-        """Clear cached token and client (forces re-auth on next request)."""
-        self._access_token = None
-        if self._client:
-            self._client.close()
-            self._client = None
+    def _clear_auth(self, close_client: bool = True) -> None:
+        """Clear cached token and client (forces re-auth on next request).
+
+        With ``close_client=False`` the old client object is only dereferenced,
+        not closed — used on the 401-refresh path, where other worker threads
+        may still have in-flight requests on it (closing would raise on them).
+        """
+        with self._client_lock:
+            self._access_token = None
+            if self._client:
+                if close_client:
+                    self._client.close()
+                self._client = None
 
     def close(self) -> None:
         """Close the HTTP client."""
@@ -265,9 +277,24 @@ class FHIRClient:
     def check_connection(self) -> None:
         """Ping the FHIR server's metadata endpoint.
 
-        Raises on any failure (connection refused, auth error, bad URL).
+        Raises:
+            FHIRAuthError: the OAuth2 handshake failed
+            FHIRConnectionError: the server is unreachable, the URL is wrong,
+                or /metadata came back with an error status. Raw httpx errors
+                are wrapped so callers can distinguish a FHIR misconfiguration
+                from a Cavell API one.
         """
-        self._make_request("GET", "/metadata")
+        try:
+            self._make_request("GET", "/metadata")
+        except FHIRAuthError:
+            raise
+        except httpx.HTTPStatusError as e:
+            raise FHIRConnectionError(
+                f"{self.base_url}{self.api_path}/metadata returned "
+                f"{e.response.status_code}"
+            ) from None
+        except httpx.HTTPError as e:
+            raise FHIRConnectionError(f"{self.base_url} ({e})") from None
 
     def _make_request(self, method: str, path: str, **kwargs) -> httpx.Response:
         """Make authenticated request to FHIR server.
@@ -287,12 +314,16 @@ class FHIRClient:
         # Retry once on 401 (token expired)
         if response.status_code == 401:
             logger.info("FHIR token expired, refreshing")
-            self._clear_auth()
+            self._clear_auth(close_client=False)
             client = self._get_client()
             response = client.request(method, path, **kwargs)
 
         response.raise_for_status()
         return response
+
+    # Runaway-pagination backstop: a misbehaving server returning a
+    # self-referencing "next" link would otherwise loop forever.
+    _MAX_PAGES = 10_000
 
     def _iter_bundle_entries(
         self, method: str, path: str, **kwargs: Any
@@ -301,7 +332,7 @@ class FHIRClient:
         response = self._make_request(method, path, **kwargs)
         bundle = response.json()
 
-        while True:
+        for _page in range(self._MAX_PAGES):
             yield from bundle.get("entry", [])
 
             next_url = None
@@ -310,10 +341,14 @@ class FHIRClient:
                     next_url = link["url"]
                     break
             if not next_url:
-                break
+                return
 
             response = self._make_request("GET", next_url)
             bundle = response.json()
+        logger.warning(
+            f"Pagination stopped after {self._MAX_PAGES} pages for {path} — "
+            f"misbehaving server?"
+        )
 
     def get_patient_everything(self, patient_id: str) -> list[dict]:
         """Fetch all resources for a patient via $everything.
@@ -764,12 +799,19 @@ class FHIRClient:
             "entry": entries,
         }
 
-        client = self._get_client()
-        response = client.request("POST", "/", json=bundle)
+        # Route through _make_request so an expired OAuth token refreshes
+        # instead of surfacing as a deterministic persist failure.
+        try:
+            response = self._make_request("POST", "/", json=bundle)
+        except httpx.HTTPStatusError as e:
+            response = e.response
 
         # Transaction failure returns OperationOutcome
         if response.status_code >= 400:
-            outcome = response.json()
+            try:
+                outcome = response.json()
+            except Exception:
+                outcome = {}
             error_msg = self._extract_error_message(outcome, str(response.status_code))
             if logger.isEnabledFor(logging.DEBUG):
                 for i, entry in enumerate(entries):

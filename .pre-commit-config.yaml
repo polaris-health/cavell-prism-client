@@ -1,6 +1,9 @@
+# Install once per clone: uv sync && uv run pre-commit install
+# ruff/ty run via `uv run` so their versions come from uv.lock — the same
+# versions CI enforces; never pin tool versions here a second time.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         exclude: \.py$
@@ -11,15 +14,30 @@ repos:
       - id: check-added-large-files
       - id: check-toml
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.9
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
     hooks:
-      - id: ruff-check
-        args: [--fix]
-      - id: ruff-format
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: uv\.lock
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.12.0
+    hooks:
+      - id: uv-lock
 
   - repo: local
     hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        pass_filenames: false
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        pass_filenames: false
       - id: ty
         name: ty
         entry: uv run ty check

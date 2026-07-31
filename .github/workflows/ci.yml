@@ -1,6 +1,6 @@
 # Required PR checks. The check name GitHub reports is jobs.<id>.name when
 # set, else the job id - these jobs deliberately have NO name so the ids
-# (branch-guard, check, test (3.11), test (3.12), test (3.13)) are the
+# (branch-guard, check, test (3.11) ... test (3.14)) are the
 # contexts the rulesets require. Keep both stable together. No paths
 # filters: a required check that never runs blocks the PR forever.
 name: CI
@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.11', '3.12', '3.13']
+        python: ['3.11', '3.12', '3.13', '3.14']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0

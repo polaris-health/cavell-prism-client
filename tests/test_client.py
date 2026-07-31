@@ -3,7 +3,18 @@
 import pytest
 
 from cavell_client import CavellClient
-from tests.helpers import mock_fhir_auth
+from cavell_client.models import (
+    CavellAPIError,
+    CavellAuthError,
+    CavellGatewayUnavailableError,
+    FHIRConnectionError,
+)
+from tests.helpers import (
+    API_URL,
+    mock_api_preflight,
+    mock_fhir_auth,
+    mock_fhir_preflight,
+)
 
 
 class TestCavellClientInit:
@@ -25,13 +36,86 @@ class TestCavellClientInit:
                 api_key="k",
             )
 
+    def test_bad_key_rejected_at_construction(self, httpx_mock):
+        """A rejected key raises from __init__, not later from extract()."""
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{API_URL}/key/info",
+            status_code=401,
+            json={"detail": "LLM Gateway rejected the provided key."},
+        )
+
+        with pytest.raises(CavellAuthError):
+            CavellClient(
+                api_url=API_URL,
+                api_key="rejected-key",  # pragma: allowlist secret
+                fhir_base_url="http://localhost:8080",
+            )
+
+    def test_good_key_pre_flighted_once(self, httpx_mock):
+        """The happy path pre-flights each half exactly once."""
+        mock_api_preflight(httpx_mock)
+        mock_fhir_preflight(httpx_mock)
+
+        client = CavellClient(
+            api_url=API_URL,
+            api_key="accepted-key",  # pragma: allowlist secret
+            fhir_base_url="http://localhost:8080",
+        )
+        client.close()
+
+        urls = [str(r.url) for r in httpx_mock.get_requests()]
+        assert len([u for u in urls if "/key/info" in u]) == 1
+        assert len([u for u in urls if "/metadata" in u]) == 1
+
+    def test_unreachable_fhir_rejected_at_construction(self, httpx_mock):
+        """A valid key but a bad FHIR URL raises FHIRConnectionError.
+
+        The distinct type is the point: it says which half is misconfigured.
+        """
+        mock_api_preflight(httpx_mock)
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/metadata",
+            status_code=404,
+            text="Not found",
+        )
+
+        with pytest.raises(FHIRConnectionError) as exc_info:
+            CavellClient(
+                api_url=API_URL,
+                api_key="accepted-key",  # pragma: allowlist secret
+                fhir_base_url="http://localhost:8080",
+            )
+
+        assert "localhost:8080" in str(exc_info.value)
+        assert not isinstance(exc_info.value, CavellAPIError)
+
+    def test_unreachable_api_rejected_at_construction(self, httpx_mock):
+        """A URL that doesn't serve /key/info fails construction, not later."""
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{API_URL}/key/info",
+            status_code=503,
+            json={"detail": "LLM Gateway is unreachable; try again shortly."},
+        )
+
+        with pytest.raises(CavellGatewayUnavailableError):
+            CavellClient(
+                api_url=API_URL,
+                api_key="accepted-key",  # pragma: allowlist secret
+                fhir_base_url="http://localhost:8080",
+            )
+
 
 class TestCavellClientContextManager:
     """Test context manager."""
 
     def test_context_manager(self, httpx_mock):
         """Test using client as context manager calls close()."""
+        mock_api_preflight(httpx_mock)
         mock_fhir_auth(httpx_mock)
+        mock_fhir_preflight(httpx_mock)
 
         httpx_mock.add_response(
             method="GET",
@@ -133,8 +217,8 @@ class TestCheckConnection:
         )
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
-            json={"resources": []},
+            url="https://qa.prism.cavell.app/api/key/info",
+            json={"valid": True},
         )
 
         result = client.check_connection()
@@ -152,8 +236,8 @@ class TestCheckConnection:
         )
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
-            json={"resources": []},
+            url="https://qa.prism.cavell.app/api/key/info",
+            json={"valid": True},
         )
 
         result = client.check_connection()
@@ -171,7 +255,7 @@ class TestCheckConnection:
         )
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
+            url="https://qa.prism.cavell.app/api/key/info",
             status_code=401,
             json={"detail": "Unauthorized"},
         )
@@ -192,7 +276,7 @@ class TestCheckConnection:
         )
         httpx_mock.add_response(
             method="GET",
-            url="https://qa.prism.cavell.app/api/resources",
+            url="https://qa.prism.cavell.app/api/key/info",
             status_code=500,
             json={"detail": "Internal server error"},
         )

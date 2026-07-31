@@ -9,14 +9,14 @@ Saves per-note results to a JSONL file for later analysis.
 
 Prerequisites:
     docker compose up -d          # HAPI FHIR on localhost:8090
-    Cavell API running             # localhost:8000
+    A Prism API URL + LLM Gateway key
 
 Options:
     --dir         Path to study directory containing manifest.json and notes/
     --init        Seed references + patients and exit (no extraction)
     --patient     Process only these patient IDs
     --tier        Model tier: low, medium, high (default: medium)
-    --api-url     Cavell API base URL (default: http://localhost:8000/api)
+    --api-url     Cavell API base URL (default: https://qa.prism.cavell.app/api)
     --api-key     LLM Gateway key (default: $CAVELL_API_KEY)
     --fhir-url    FHIR server base URL (default: http://localhost:8090)
     --concurrency Max parallel patients (default: 4)
@@ -355,8 +355,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--api-url",
-        default="http://localhost:8000/api",
-        help="Cavell API base URL (default: http://localhost:8000/api)",
+        default="https://qa.prism.cavell.app/api",
+        help="Cavell API base URL (default: https://qa.prism.cavell.app/api)",
     )
     parser.add_argument(
         "--api-key",

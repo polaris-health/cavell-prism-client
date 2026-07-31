@@ -67,8 +67,16 @@ with CavellClient(
 ```
 
 Extraction is resume-safe (`skip_processed=True` by default), retries
-transient failures, warns on out-of-order documents, and aborts cleanly on
-auth/gateway outages.
+transient failures, and aborts cleanly on auth/gateway outages. A document
+older than the patient's newest already-extracted note is refused up front
+with `OutOfOrderDocumentError` — extraction is context-aware and only moves
+forward in time.
+
+For a whole dataset, use `pipeline.extract_all(documents, batch_size=500)`: it
+sorts every document by ascending date before splitting it into batches, so
+each patient's notes are extracted oldest-first even when they span batches.
+`extract()` makes a single pass and its `limit` caps that pass rather than
+chunking it.
 
 ## Clinical validation
 
@@ -87,8 +95,8 @@ Setup guides, the pipeline walkthrough, and demo notebooks (synthetic data):
 
 ## Contributing & security
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and the release
-process, and [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
+See [CONTRIBUTING.md](https://github.com/polaris-health/cavell-prism-client/blob/main/CONTRIBUTING.md) for development setup and the release
+process, and [SECURITY.md](https://github.com/polaris-health/cavell-prism-client/blob/main/SECURITY.md) for how to report vulnerabilities.
 
 ## License
 
