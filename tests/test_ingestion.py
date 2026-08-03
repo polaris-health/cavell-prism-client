@@ -96,7 +96,13 @@ def mock_context_empty(httpx_mock, patient_fhir_id, repeat=False):
     )
 
 
-def mock_extract_response(httpx_mock, count=1, estimated_cost=None):
+def mock_extract_response(
+    httpx_mock,
+    count=1,
+    estimated_cost=None,
+    extraction_status=None,
+    failed_extractors=None,
+):
     """Mock a Cavell API extraction response."""
     entries = []
     for _ in range(count):
@@ -125,6 +131,10 @@ def mock_extract_response(httpx_mock, count=1, estimated_cost=None):
             "requests": 1,
             "estimated_cost": estimated_cost,
         }
+    if extraction_status is not None:
+        body["extraction_status"] = extraction_status
+    if failed_extractors is not None:
+        body["failed_extractors"] = failed_extractors
     httpx_mock.add_response(
         method="POST",
         url="https://qa.prism.cavell.app/api/extract/text",
@@ -4016,3 +4026,84 @@ class TestOutOfOrderRejection(_PipelineHarness):
         outcomes = pipeline.extract([_note("MRN-1", "2024-05-01", "already-done")])
 
         assert outcomes == []
+
+
+class TestPartialExtractionPassthrough:
+    """extraction_status / failed_extractors reach ExtractResult.
+
+    A partial extraction still returns a usable bundle — it is simply missing
+    whatever the failed extractors would have found. Callers (and the quality
+    benchmark) need to tell that apart from a note that genuinely had nothing
+    to extract, so the signal must survive the trip through the pipeline.
+    """
+
+    def _run(self, client, httpx_mock, **extract_kwargs):
+        mock_fhir_auth(httpx_mock)
+        mock_empty_document_identifiers(httpx_mock)
+        mock_seed_response(
+            httpx_mock, [("201 Created", "Organization/org-1/_history/1")]
+        )
+        mock_seed_response(httpx_mock, [("201 Created", "Patient/pat-1/_history/1")])
+        mock_patient_exists(httpx_mock, "pat-1")
+
+        pipeline = IngestionPipeline(client, default_organization="ORG-1")
+        pipeline.seed(
+            organizations=[Organization(identifier="ORG-1", name="Org")],
+            patients=[Patient(identifier="MRN-1")],
+        )
+
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1, **extract_kwargs)
+        mock_persist_response(httpx_mock, created=1)
+
+        outcomes = pipeline.extract(
+            [
+                Document(
+                    text="test note text here",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    document_id="d1",
+                )
+            ]
+        )
+        assert len(outcomes) == 1
+        assert outcomes[0].extract_result is not None
+        return outcomes[0].extract_result
+
+    def test_partial_status_and_failed_extractors(self, client, httpx_mock):
+        result = self._run(
+            client,
+            httpx_mock,
+            extraction_status="partial",
+            failed_extractors=["medications", "procedures"],
+        )
+
+        assert result.extraction_status == "partial"
+        assert result.failed_extractors == ["medications", "procedures"]
+        assert result.is_partial
+
+    def test_complete_status(self, client, httpx_mock):
+        result = self._run(
+            client, httpx_mock, extraction_status="complete", failed_extractors=[]
+        )
+
+        assert result.extraction_status == "complete"
+        assert result.failed_extractors == []
+        assert not result.is_partial
+
+    def test_absent_fields_default_safely(self, client, httpx_mock):
+        """An older API that omits both fields must not break ingestion."""
+        result = self._run(client, httpx_mock)
+
+        assert result.extraction_status is None
+        assert result.failed_extractors == []
+        assert not result.is_partial
+
+    def test_usage_breakdown_survives(self, client, httpx_mock):
+        """The nested per-agent cost attribution is preserved end to end."""
+        result = self._run(client, httpx_mock, estimated_cost=0.01)
+
+        assert result.usage is not None
+        assert result.usage.estimated_cost == pytest.approx(0.01)
+        # this mock carries no breakdown; the field exists and is None
+        assert result.usage.breakdown is None

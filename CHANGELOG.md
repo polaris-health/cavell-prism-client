@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **`CavellAPI.extract_raw()`** returns the extraction response body verbatim,
+  with the same arguments, 429-retry behaviour and error contract as
+  `extract()`, which is now a typed view over it. The tuple `extract()` returns
+  could only carry `(bundle, count, usage)`, so three documented response fields
+  were discarded before any caller could see them.
+- **`ExtractResult.extraction_status`** and **`.failed_extractors`**, plus an
+  `is_partial` property. Prism returns `extraction_status: "partial"` when an
+  extractor fails after its retries; the bundle is still valid, just missing
+  whatever that extractor would have found. Callers previously could not tell
+  that apart from a note that genuinely had nothing to extract — which matters
+  for anything measuring recall, and for deciding whether a document is worth
+  re-running.
+- **`UsageStats.breakdown`** carries the API's per-stage, then per-agent token
+  and cost attribution (`pre_extraction`/`extraction`/`coding` → each
+  extractor). Kept as a plain dict rather than nested `UsageStats` so a new
+  stage or extractor reaches callers without a client release.
+
 ## [0.3.0] - 2026-07-31
 
 ### Added

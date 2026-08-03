@@ -12,6 +12,7 @@ from cavell_client.models import (
     CavellAuthError,
     CavellGatewayUnavailableError,
     UsageStats,
+    parse_usage,
 )
 
 logger = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ class CavellAPI:
                 "server exposes /key/info.",
             )
 
-    def extract(
+    def extract_raw(
         self,
         text: str,
         context: list[dict] | None = None,
@@ -160,24 +161,18 @@ class CavellAPI:
         practitioner_id: str | None = None,
         document_identifier: str | None = None,
         visit_identifier: str | None = None,
-    ) -> tuple[dict, int, UsageStats | None]:
-        """Extract FHIR resources from clinical text.
+    ) -> dict:
+        """Extract FHIR resources and return the response body verbatim.
 
-        Args:
-            text: Clinical text to extract from
-            context: Existing FHIR resources for context-aware extraction
-            meta: Supplementary context (demographics, document date)
-            tier: Model tier to use for extraction (low/medium/high)
-            allowed_resources: Restrict extraction to these FHIR resource types
-                (allowlist); omit to extract all types
-            patient_id: FHIR Patient ID for real references in the bundle
-            organization_id: FHIR Organization ID for real references
-            practitioner_id: FHIR Practitioner ID of attending practitioner
-            document_identifier: Identifier stamped on the DocumentReference
-            visit_identifier: Visit/admission identifier stamped on the Encounter
+        Same arguments, retry behaviour and error contract as :meth:`extract`,
+        but nothing is dropped or reshaped: callers get every documented
+        response field, including ``extraction_status``, ``failed_extractors``
+        and the nested ``usage.breakdown``. Use this when you need fields the
+        typed :class:`~cavell_client.models.ExtractResult` does not surface, or
+        when you want to persist the raw response.
 
         Returns:
-            Tuple of (bundle, count, usage_stats)
+            The decoded JSON response body.
 
         Raises:
             CavellAPIError: If the API returns an error
@@ -226,21 +221,60 @@ class CavellAPI:
             response = client.post("/extract/text", json=payload)
         self._raise_for_error(response)
 
-        data = response.json()
-        bundle = data.get("bundle", {})
-        count = data.get("count", 0)
+        return response.json()
 
-        usage = None
-        if usage_data := data.get("usage"):
-            usage = UsageStats(
-                input_tokens=usage_data.get("input_tokens", 0),
-                output_tokens=usage_data.get("output_tokens", 0),
-                total_tokens=usage_data.get("total_tokens", 0),
-                requests=usage_data.get("requests", 0),
-                estimated_cost=usage_data.get("estimated_cost", 0.0),
-            )
+    def extract(
+        self,
+        text: str,
+        context: list[dict] | None = None,
+        meta: str | None = None,
+        tier: str | None = None,
+        allowed_resources: list[str] | None = None,
+        patient_id: str | None = None,
+        organization_id: str | None = None,
+        practitioner_id: str | None = None,
+        document_identifier: str | None = None,
+        visit_identifier: str | None = None,
+    ) -> tuple[dict, int, UsageStats | None]:
+        """Extract FHIR resources from clinical text.
 
-        return bundle, count, usage
+        A typed view over :meth:`extract_raw`. ``extraction_status`` and
+        ``failed_extractors`` are not part of this tuple; they are carried on
+        :class:`~cavell_client.models.ExtractResult` by the pipeline, or read
+        directly from :meth:`extract_raw`.
+
+        Args:
+            text: Clinical text to extract from
+            context: Existing FHIR resources for context-aware extraction
+            meta: Supplementary context (demographics, document date)
+            tier: Model tier to use for extraction (low/medium/high)
+            allowed_resources: Restrict extraction to these FHIR resource types
+                (allowlist); omit to extract all types
+            patient_id: FHIR Patient ID for real references in the bundle
+            organization_id: FHIR Organization ID for real references
+            practitioner_id: FHIR Practitioner ID of attending practitioner
+            document_identifier: Identifier stamped on the DocumentReference
+            visit_identifier: Visit/admission identifier stamped on the Encounter
+
+        Returns:
+            Tuple of (bundle, count, usage_stats)
+
+        Raises:
+            CavellAPIError: If the API returns an error
+        """
+        data = self.extract_raw(
+            text,
+            context=context,
+            meta=meta,
+            tier=tier,
+            allowed_resources=allowed_resources,
+            patient_id=patient_id,
+            organization_id=organization_id,
+            practitioner_id=practitioner_id,
+            document_identifier=document_identifier,
+            visit_identifier=visit_identifier,
+        )
+        return data.get("bundle", {}), data.get("count", 0), parse_usage(data)
 
     def list_tiers(self) -> list[dict]:
         """List available model tiers (public endpoint, no key required).
