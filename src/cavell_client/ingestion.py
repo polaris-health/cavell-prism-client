@@ -30,6 +30,7 @@ from cavell_client.models import (
     OutOfOrderDocument,
     OutOfOrderDocumentError,
     PatientNotFoundError,
+    parse_usage,
 )
 
 if TYPE_CHECKING:
@@ -1393,8 +1394,10 @@ class IngestionPipeline:
                         else attending_line.lstrip("\n")
                     )
 
-                # Call extraction API — reference IDs as explicit params
-                bundle, count, usage = self._api.extract(
+                # Call extraction API — reference IDs as explicit params.
+                # extract_raw keeps extraction_status/failed_extractors, which
+                # extract()'s tuple cannot carry.
+                response = self._api.extract_raw(
                     text=doc.text,
                     context=context if context else None,
                     meta=meta,
@@ -1405,6 +1408,16 @@ class IngestionPipeline:
                     document_identifier=doc.document_id,
                     visit_identifier=doc.visit_id,
                 )
+                bundle = response.get("bundle", {})
+                count = response.get("count", 0)
+                usage = parse_usage(response)
+                extraction_status = response.get("extraction_status")
+                failed_extractors = list(response.get("failed_extractors") or [])
+                if failed_extractors:
+                    logger.warning(
+                        f"Partial extraction for {label}: "
+                        f"{', '.join(failed_extractors)} failed"
+                    )
 
                 # Match extracted practitioners to seeded ones
                 self._resolve_practitioners(bundle, org_fhir_id)
@@ -1452,6 +1465,8 @@ class IngestionPipeline:
                     patient_id=patient_fhir_id,
                     usage=usage,
                     persistence=persistence,
+                    extraction_status=extraction_status,
+                    failed_extractors=failed_extractors,
                 )
 
                 return IngestionOutcome(
