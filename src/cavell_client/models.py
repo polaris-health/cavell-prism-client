@@ -16,6 +16,29 @@ class UsageStats:
     total_tokens: int
     requests: int
     estimated_cost: float
+    #: Per-stage, then per-agent token/cost attribution, exactly as the API
+    #: returned it (stage -> {..., "breakdown": {label -> {...}}}). Kept as a
+    #: plain dict rather than nested UsageStats so an added stage or label
+    #: reaches callers without a client release. ``None`` when the API omits it.
+    breakdown: dict | None = None
+
+
+def parse_usage(response: dict) -> "UsageStats | None":
+    """Build :class:`UsageStats` from an extraction response body.
+
+    Returns ``None`` when the response carries no ``usage`` object.
+    """
+    usage = response.get("usage")
+    if not usage:
+        return None
+    return UsageStats(
+        input_tokens=usage.get("input_tokens", 0),
+        output_tokens=usage.get("output_tokens", 0),
+        total_tokens=usage.get("total_tokens", 0),
+        requests=usage.get("requests", 0),
+        estimated_cost=usage.get("estimated_cost", 0.0),
+        breakdown=usage.get("breakdown"),
+    )
 
 
 @dataclass
@@ -42,11 +65,23 @@ class ExtractResult:
     patient_id: str  # Resolved patient ID
     usage: UsageStats | None = None
     persistence: PersistResult | None = None
+    #: "complete" when every extractor ran, "partial" when one or more failed
+    #: after their retries. A partial extraction still returns a valid bundle —
+    #: it is simply missing whatever the failed extractors would have found.
+    extraction_status: str | None = None
+    #: Names of the extractors that failed after retries. Non-empty implies
+    #: extraction_status == "partial".
+    failed_extractors: list[str] = field(default_factory=list)
 
     @property
     def resources(self) -> list[dict]:
         """Extract the FHIR resources from the bundle."""
         return [e["resource"] for e in self.bundle.get("entry", [])]
+
+    @property
+    def is_partial(self) -> bool:
+        """True when at least one extractor failed for this document."""
+        return self.extraction_status == "partial" or bool(self.failed_extractors)
 
 
 class CavellError(Exception):

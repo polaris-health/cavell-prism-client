@@ -173,6 +173,120 @@ class TestCavellAPIExtract:
         api.close()
         assert api._client is None
 
+    def test_extract_parses_usage_breakdown(self, api, httpx_mock):
+        """The nested per-stage/per-agent breakdown reaches UsageStats."""
+        httpx_mock.add_response(
+            method="POST",
+            url="https://qa.prism.cavell.app/api/extract/text",
+            json={
+                "bundle": {"entry": []},
+                "count": 0,
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "total_tokens": 15,
+                    "requests": 1,
+                    "estimated_cost": 0.001,
+                    "breakdown": {
+                        "extraction": {
+                            "total_tokens": 15,
+                            "breakdown": {"condition_extractor": {"total_tokens": 15}},
+                        }
+                    },
+                },
+            },
+        )
+
+        _bundle, _count, usage = api.extract(text="Patient has diabetes")
+
+        assert usage is not None
+        assert usage.breakdown is not None
+        extraction = usage.breakdown["extraction"]
+        assert extraction["breakdown"]["condition_extractor"]["total_tokens"] == 15
+
+
+class TestExtractRaw:
+    """extract_raw returns the response body untouched."""
+
+    _RESPONSE = {
+        "bundle": {"resourceType": "Bundle", "entry": []},
+        "count": 0,
+        "usage": {
+            "input_tokens": 1,
+            "output_tokens": 2,
+            "total_tokens": 3,
+            "requests": 4,
+            "estimated_cost": 0.5,
+            "breakdown": {"coding": {"total_tokens": 3}},
+        },
+        "extraction_status": "partial",
+        "failed_extractors": ["medications"],
+    }
+
+    def _stub(self, httpx_mock, **overrides):
+        body = {**self._RESPONSE, **overrides}
+        httpx_mock.add_response(
+            method="POST",
+            url="https://qa.prism.cavell.app/api/extract/text",
+            json=body,
+        )
+
+    def test_returns_every_field(self, api, httpx_mock):
+        """Fields extract()'s tuple cannot carry are preserved verbatim."""
+        self._stub(httpx_mock)
+
+        data = api.extract_raw(text="Patient has diabetes")
+
+        assert data == self._RESPONSE
+
+    def test_extract_is_a_view_over_extract_raw(self, api, httpx_mock):
+        """extract() maps the same body without losing usage detail."""
+        self._stub(httpx_mock)
+
+        bundle, count, usage = api.extract(text="Patient has diabetes")
+
+        assert bundle == self._RESPONSE["bundle"]
+        assert count == 0
+        assert usage is not None
+        assert usage.requests == 4
+        assert usage.breakdown == {"coding": {"total_tokens": 3}}
+
+    def test_forwards_optional_params(self, api, httpx_mock):
+        """Payload construction is shared with extract()."""
+        self._stub(httpx_mock)
+
+        import json
+
+        api.extract_raw(
+            text="Patient has diabetes",
+            context=[{"resourceType": "Condition", "id": "123"}],
+            meta="Document date: 2024-01-15",
+            tier="medium",
+            patient_id="pat-1",
+            visit_identifier="V-001",
+        )
+
+        body = json.loads(httpx_mock.get_request().content)
+        assert body["context"] == [{"resourceType": "Condition", "id": "123"}]
+        assert body["meta"] == "Document date: 2024-01-15"
+        assert body["tier"] == "medium"
+        assert body["patient_id"] == "pat-1"
+        assert body["visit_identifier"] == "V-001"
+
+    def test_raises_on_error(self, api, httpx_mock):
+        """Shares extract()'s error contract."""
+        httpx_mock.add_response(
+            method="POST",
+            url="https://qa.prism.cavell.app/api/extract/text",
+            status_code=422,
+            json={"detail": "Invalid text format"},
+        )
+
+        with pytest.raises(CavellAPIError) as exc_info:
+            api.extract_raw(text="bad text")
+
+        assert exc_info.value.status_code == 422
+
 
 class TestExtractNewParams:
     """Test new extract parameters: organization_id, practitioner_id, identifiers."""
