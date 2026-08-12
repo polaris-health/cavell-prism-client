@@ -111,6 +111,7 @@ with CavellClient(
                 text="Patient reports chest pain...",
                 patient_identifier="MRN-67890",
                 date="2024-02-01",
+                document_id="note-003",
                 organization_identifier="SMH-002",  # overrides default
             ),
         ]
@@ -170,7 +171,7 @@ documents = Document.from_rows(
 )
 ```
 
-`Patient.from_rows()` and `Practitioner.from_rows()` deduplicate by identifier (first occurrence wins) and skip rows with empty identifiers. `Document.from_rows()` creates one document per row, validates that `document_id` values are unique, and warns on short text (`< 20` characters).
+`Patient.from_rows()` and `Practitioner.from_rows()` deduplicate by identifier (first occurrence wins) and skip rows with empty identifiers. `Document.from_rows()` creates one document per row, validates that `document_id` values are unique, and warns on short text (`< 20` characters). Its `columns` mapping must include `text`, `patient_identifier`, `date` and `document_id`; a row with a blank value for any of them raises rather than being silently coerced to `None`.
 
 `Document.from_rows()` preserves CSV row order and does **not** sort by date. To
 ingest the whole file, hand the list to
@@ -222,12 +223,18 @@ All three validate upfront — unknown field names, missing CSV columns, and mis
 |-------|------|----------|-------------|
 | `text` | `str` | Yes | Clinical text |
 | `patient_identifier` | `str` | Yes | Patient identifier (e.g., MRN) |
-| `date` | `str` or `date` | Yes | ISO date (`"2024-01-15"`) or `datetime.date` for chronological ordering |
+| `date` | `str` or `date` | Yes | ISO date (`"2024-01-15"`) or `datetime.date`, normalized to `YYYY-MM-DD` on construction. Drives chronological ordering, and is sent to the API as the `document_date` payload field |
+| `document_id` | `str` | Yes | Your identifier for this document, stamped on the DocumentReference. Keyword-only. Everything that makes re-running safe keys on it — the resume filter, the chronology watermark, and failure reporting |
 | `organization_identifier` | `str` | No | Org identifier — falls back to `default_organization` if omitted |
-| `meta` | `str` | No | Extra context for the extraction API (e.g. department, ward). **Do not include the document date or practitioner** — the pipeline injects those automatically (see [Meta Assembly](#meta-assembly)). |
+| `meta` | `str` | No | Extra context for the extraction API (e.g. department, ward). **Do not include the document date or practitioner** — the date is sent as its own `document_date` payload field and the practitioner is injected automatically (see [Meta Assembly](#meta-assembly)). |
 | `practitioner_identifier` | `str` | No | If provided, the SDK resolves this to a FHIR ID (passed as a param) and injects the practitioner's name into `meta`, improving matching precision |
-| `document_id` | `str` | No | Optional tag for tracking processed documents |
 | `visit_id` | `str` | No | Visit/admission identifier stamped on the Encounter resource — groups notes by hospital visit |
+
+Field validation and normalization happen in one place: building a `Document`
+is what checks it. `extract()` and `extract_all()` add only a type check —
+passing raw CSV rows straight through raises `TypeError` naming the offending
+positions, rather than failing inside a worker thread mid-run. It runs before
+the API pre-flight, so a malformed list costs not even one request.
 
 ### IngestionOutcome
 
@@ -242,7 +249,7 @@ Returned by `pipeline.extract()` for each document.
 | `extract_result` | `ExtractResult` or `None` | Result if successful |
 | `error` | `str` or `None` | Error message if failed |
 | `transient` | `bool` | The failure was transient (timeout, connection drop, server 5xx/429) — the deferred retry pass re-ran or will re-run it (see [Document extraction failures](#document-extraction-failures)) |
-| `out_of_order` | `bool` | Always `False` — such documents are [refused before extraction](#out-of-order-documents-are-refused), so no outcome is produced for them. Retained for a possible return to the update-guard behaviour |
+| `out_of_order` | `bool` | The document was [refused](#out-of-order-documents-are-refused) for predating its patient's newest already-persisted document. Always paired with `success=False`; nothing was extracted or persisted for it and no tokens were spent |
 
 Note on naming: `Document.meta` is the SDK's free-text supplementary context
 for the extraction model. It is unrelated to FHIR `Resource.meta`, the
@@ -288,24 +295,24 @@ than data already persisted for that patient (from an earlier run), you are
 going backwards in time — and the pipeline **refuses to extract it**.
 
 The check runs before anything in the call is extracted. It compares each
-document against its patient's watermark (the date of the newest
-already-processed document) and, if any document is older, raises
-`OutOfOrderDocumentError`. Nothing is extracted, no tokens are spent, and
-nothing is persisted — including the in-order documents in the same call.
+document against **its own patient's** watermark (the date of the newest
+already-processed document for that patient) and drops the ones that are
+older. Nothing is extracted or persisted for a refused document and no tokens
+are spent on it, but it still gets an outcome — no exception is raised, and
+refusal is scoped to the offending document.
 
 ```python
-from cavell_client import OutOfOrderDocumentError
+outcomes = pipeline.extract_all(documents, batch_size=500)
 
-try:
-    pipeline.extract_all(documents, batch_size=500)
-except OutOfOrderDocumentError as e:
-    for violation in e.violations:
-        print(violation)
+for o in outcomes:
+    if o.out_of_order:
+        print(o.error)
         # note-9001 (patient MRN-20002) dated 2023-09-12 is older than 2024-04-09
 ```
 
-Each entry in `e.violations` is an `OutOfOrderDocument` with
-`patient_identifier`, `document_id`, `document_index`, `date`, and `watermark`.
+Everything else in the call is extracted as normal — other patients' documents,
+and the *same* patient's forward-dated documents. A single backdated note
+therefore costs exactly that note.
 
 **Why refuse rather than merge?** Extraction is context-aware: each note is
 read against the resources its predecessors produced (see [Meta
@@ -316,7 +323,8 @@ that contamination. Refusing is the conservative position while that is true.
 
 **To ingest documents you have out of order**, either:
 
-- Drop them from the batch, if the newer data already supersedes them; or
+- Leave them refused, if the newer data already supersedes them — you no
+  longer have to pull them out of the batch by hand; or
 - Delete the patient's data with `client.delete_patient_resources(...)`,
   re-seed, and re-extract the whole timeline in date order. `extract_all()`
   handles the ordering.
@@ -326,18 +334,19 @@ Caveats:
 - Dates are truncated to the day, so two same-day documents have no defined
   order and are **not** a violation. Process same-day documents in one run
   (the input order is preserved for equal dates).
-- Documents processed without a `document_id` are invisible to the watermark
-  (same as for resume filtering), so they neither raise the watermark nor get
-  checked against it.
 - The check **fails open per patient**: if the watermark query errors, that
   patient is left unchecked with a warning rather than failing the run. A
   transient FHIR error should not block ingestion.
 - Documents already processed are filtered out by `skip_processed` *before*
   the check, so re-running a completed batch never trips it.
+- Refusals count toward `pipeline.documents_failed`, not `documents_processed`,
+  and contribute nothing to `pipeline.total_cost`.
 
 Step 10 of `docs/notebooks/hospitalization_extraction_demo.ipynb` demonstrates
-this end-to-end: it holds back three notes from an earlier admission, extracts
-the rest, then shows the refusal when those older notes are submitted.
+this end-to-end: it holds back five notes — three from an earlier admission for
+one patient, two from a later readmission for another — extracts the rest, then
+submits all five in one call and shows the three older ones refused while the
+two newer ones are extracted.
 
 !!! note "Provisional"
 
@@ -349,21 +358,32 @@ the rest, then shows the refusal when those older notes are submitted.
 
 ## Meta Assembly
 
-Before each extraction call, the pipeline builds the `meta` string sent to the API by combining up to three parts in order:
+Before each extraction call, the pipeline builds the `meta` string sent to the API by combining up to two parts in order:
 
-1. **Document date** (always) — `Document date: 2024-01-15`
-2. **Your `meta` value** (if set) — e.g. `Department: Cardiology`
-3. **Attending practitioner** (if `practitioner_identifier` is set) — e.g. `Attending: Jane Smith (DOC-001)`
+1. **Your `meta` value** (if set) — e.g. `Department: Cardiology`
+2. **Attending practitioner** (if `practitioner_identifier` is set) — e.g. `Attending: Jane Smith (DOC-001)`
 
-For example, a document with `date="2024-01-15"`, `meta="Department: Cardiology"`, and `practitioner_identifier="DOC-001"` produces:
+For example, a document with `meta="Department: Cardiology"` and `practitioner_identifier="DOC-001"` produces:
 
 ```
-Document date: 2024-01-15
 Department: Cardiology
 Attending: Jane Smith (DOC-001)
 ```
 
-Because the pipeline injects the date and practitioner, **do not duplicate them** in your `meta` field — that would confuse the extraction model.
+When there is nothing to say — no `meta`, no practitioner — the field is omitted from the payload entirely rather than sent empty.
+
+The **document date is not part of `meta`**. It travels as its own `document_date` payload field, normalized to `YYYY-MM-DD`:
+
+```json
+{
+  "text": "...",
+  "document_date": "2024-01-15",
+  "meta": "Department: Cardiology\nAttending: Jane Smith (DOC-001)",
+  "document_identifier": "note-001"
+}
+```
+
+Because the pipeline sends the date separately and injects the practitioner, **do not duplicate either** in your `meta` field — that would confuse the extraction model.
 
 ## Error Handling
 
@@ -545,17 +565,14 @@ outcomes = pipeline.extract_all(
 
 The global sort is what makes batching safe. Batching an *unsorted* list splits
 it by input order, so a later batch could carry documents older than what an
-earlier batch already persisted — and those are [refused](#out-of-order-documents-are-refused),
-failing the run partway through with some batches already committed. Sorting
-first puts every batch boundary on a clean chronological cut.
-
-The chronology check also runs over the whole dataset before the first batch,
-so a violation cannot surface only once its batch comes up, after earlier
-batches have already spent.
+earlier batch already persisted — and those would be
+[refused](#out-of-order-documents-are-refused) rather than extracted, silently
+losing them. Sorting first puts every batch boundary on a clean chronological
+cut, which also means each patient's backdated documents are checked in an
+earlier batch than their forward-dated ones.
 
 Batches are cut by index, so the walk always terminates — it does not rely on
-`skip_processed` to advance, and works with `skip_processed=False` and with
-documents that have no `document_id`.
+`skip_processed` to advance, and works with `skip_processed=False` too.
 
 All documents are validated *before* the first batch runs, so a bad reference
 late in the list surfaces before earlier batches spend anything. This is also
@@ -595,7 +612,7 @@ untouched. Reach for `extract_all()` when you want all of them.
     migration guidance rather than being silently ignored, since ignoring it
     would extract every document you passed.
 
-When `skip_processed=True`, re-running `extract()` with the same document list is safe as long as documents have stable `document_id` values. Documents without a `document_id` cannot be tracked and will be processed again on every run.
+When `skip_processed=True`, re-running `extract()` with the same document list is safe as long as documents have stable `document_id` values — reuse the identifier from your source system rather than generating a fresh one per run, or every run re-extracts everything and duplicates its resources.
 
 ### Cumulative statistics
 
@@ -668,12 +685,14 @@ for outcome in pipeline.extract([
         text="Initial visit at City General...",
         patient_identifier="MRN-12345",
         date="2024-01-15",
+        document_id="note-001",
         organization_identifier="CGH-001",
     ),
     Document(
         text="Transfer to St. Mary's...",
         patient_identifier="MRN-12345",
         date="2024-02-01",
+        document_id="note-002",
         organization_identifier="SMH-002",
     ),
 ])

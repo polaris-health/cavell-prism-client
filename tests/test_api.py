@@ -116,7 +116,8 @@ class TestCavellAPIExtract:
         api.extract(
             text="Patient has diabetes",
             context=[{"resourceType": "Condition", "id": "123"}],
-            meta="Document date: 2024-01-15",
+            meta="Department: Cardiology",
+            document_date="2024-01-15",
             tier="medium",
             allowed_resources=["Condition", "MedicationRequest"],
         )
@@ -128,9 +129,24 @@ class TestCavellAPIExtract:
         assert body["text"] == "Patient has diabetes"
         assert "persist" not in body
         assert body["context"] == [{"resourceType": "Condition", "id": "123"}]
-        assert body["meta"] == "Document date: 2024-01-15"
+        assert body["meta"] == "Department: Cardiology"
+        assert body["document_date"] == "2024-01-15"
         assert body["tier"] == "medium"
         assert body["allowed_resources"] == ["Condition", "MedicationRequest"]
+
+    def test_document_date_omitted_when_unset(self, api, httpx_mock):
+        """Optional like every other param — absent rather than null."""
+        httpx_mock.add_response(
+            method="POST",
+            url="https://qa.prism.cavell.app/api/extract/text",
+            json={"bundle": {"entry": []}, "count": 0},
+        )
+
+        api.extract(text="Patient has diabetes")
+
+        import json
+
+        assert "document_date" not in json.loads(httpx_mock.get_request().content)
 
     def test_extract_api_error(self, api, httpx_mock):
         """Test extraction API error handling."""
@@ -260,7 +276,8 @@ class TestExtractRaw:
         api.extract_raw(
             text="Patient has diabetes",
             context=[{"resourceType": "Condition", "id": "123"}],
-            meta="Document date: 2024-01-15",
+            meta="Department: Cardiology",
+            document_date="2024-01-15",
             tier="medium",
             patient_id="pat-1",
             visit_identifier="V-001",
@@ -268,7 +285,8 @@ class TestExtractRaw:
 
         body = json.loads(httpx_mock.get_request().content)
         assert body["context"] == [{"resourceType": "Condition", "id": "123"}]
-        assert body["meta"] == "Document date: 2024-01-15"
+        assert body["meta"] == "Department: Cardiology"
+        assert body["document_date"] == "2024-01-15"
         assert body["tier"] == "medium"
         assert body["patient_id"] == "pat-1"
         assert body["visit_identifier"] == "V-001"

@@ -6,6 +6,61 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`Document.document_id` is now required** (breaking). It is keyword-only, so
+  the positional arguments around it are unchanged, and omitting it raises
+  `TypeError` at construction. Everything that makes ingestion safe to re-run
+  keys on it: the `skip_processed` resume filter, the chronology watermark
+  (read off persisted document identifiers), and failure reporting. A document
+  without one was silently re-extracted and re-persisted on every run,
+  invisible to the chronology guard, and reported only by a batch-relative
+  `doc[N]` index. `Document.from_rows()` now requires a `document_id` column,
+  and a blank value in that column raises instead of becoming `None`.
+- **The document date is now sent as its own `document_date` payload field**
+  (breaking), as an ISO `YYYY-MM-DD` string, instead of being prepended to
+  `meta` as the prose line `Document date: 2024-01-15`. `meta` now carries only
+  what it is for — your supplementary context plus the injected attending
+  practitioner — and is omitted from the payload entirely when both are absent.
+  `CavellAPI.extract()` and `.extract_raw()` take a new optional
+  `document_date` argument, keyword-compatible with existing calls.
+
+  **Requires the matching Prism-side field.** Until the server reads
+  `document_date`, the extraction model no longer receives the document date
+  at all, since it is no longer in `meta`.
+- **`extract()` and `extract_all()` check that they were handed `Document`
+  objects.** Passing anything else — a raw CSV row dict is the usual slip —
+  now raises `TypeError` naming the offending positions, instead of an
+  `AttributeError` from inside a worker thread partway through a run. The
+  check runs over the whole list before the API pre-flight, so a bad item
+  costs not even one request. Field contents are unchanged and still validated
+  in one place, by `Document` itself.
+
+- **The chronology guard now refuses individual documents instead of the whole
+  call.** One backdated document for one patient used to abort the entire run:
+  `_check_chronology` collected violations across every patient and raised
+  `OutOfOrderDocumentError` before anything was extracted, so a single bad row
+  threw away every other patient's valid work. The offending documents are now
+  dropped and everything else — including the same patient's forward-dated
+  documents — is extracted as normal.
+- **`extract()` and `extract_all()` no longer raise `OutOfOrderDocumentError`**
+  (breaking). A refused document comes back as
+  `IngestionOutcome(success=False, out_of_order=True)` with the same message
+  text in `error`, and counts toward `documents_failed`. Replace
+  `except OutOfOrderDocumentError` with a filter on `outcome.out_of_order`.
+  This also makes a repeated call idempotent: previously the second run of a
+  mixed batch raised once its valid documents had been processed and filtered.
+- `extract_all()` no longer runs a whole-dataset chronology check before the
+  first batch. It existed so a late violation could not surface after earlier
+  batches had spent; a violation no longer aborts anything, and dropping it
+  saves one FHIR watermark query per patient per run.
+
+### Deprecated
+
+- **`OutOfOrderDocumentError`** is no longer raised anywhere. It remains
+  exported so existing `except` clauses keep importing, and will be removed in
+  a future release. `OutOfOrderDocument` is unaffected.
+
 ## [0.4.0] - 2026-08-10
 
 ### Added

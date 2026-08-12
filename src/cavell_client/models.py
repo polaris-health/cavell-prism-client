@@ -114,18 +114,19 @@ class OutOfOrderDocument(NamedTuple):
 
 
 class OutOfOrderDocumentError(CavellError):
-    """Raised when a document is older than its patient's newest persisted one.
+    """Deprecated: no longer raised. Refusal is now per document.
 
-    Extraction is context-aware and only moves forward in time: each note is
-    extracted against the resources its predecessors produced. A note older
-    than what is already persisted for that patient would be read against a
-    future clinical picture, so the pipeline refuses it up front — before any
-    document in the call is extracted and before any tokens are spent.
+    .. deprecated::
+        The pipeline used to abort a whole ``extract()``/``extract_all()`` call
+        with this exception as soon as any one document predated its patient's
+        watermark, which threw away every other patient's valid work. Refusal
+        is now scoped to the offending documents: they come back as
+        ``IngestionOutcome(success=False, out_of_order=True)`` with the same
+        message text, and everything else in the call is extracted normally.
 
-    Inspect :attr:`violations` to see every offending document. To ingest them,
-    either delete the patient's data and re-extract the whole timeline in order
-    (see ``CavellClient.delete_patient_resources``), or drop the older
-    documents from the batch.
+        Filter outcomes on ``out_of_order`` instead. Retained only so existing
+        ``except`` clauses keep importing; it will be removed in a future
+        release.
     """
 
     #: How many offenders to name in the exception message before truncating.
@@ -140,7 +141,7 @@ class OutOfOrderDocumentError(CavellError):
         super().__init__(
             f"{len(violations)} document(s) across {len(patients)} patient(s) are "
             f"older than the newest already-persisted document for their patient. "
-            f"Extraction only moves forward in time, so nothing was extracted:\n"
+            f"Extraction only moves forward in time, so they were not extracted:\n"
             f"{listed}"
         )
 

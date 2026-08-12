@@ -24,7 +24,6 @@ from cavell_client.ingestion import (
     _dedupe_documents_by_content,
     _Phase,
 )
-from cavell_client.models import OutOfOrderDocumentError
 from tests.helpers import mock_api_preflight, mock_fhir_auth, mock_watermark
 
 IDENTIFIER_SYSTEM_ENCODED = quote(IDENTIFIER_SYSTEM, safe="")
@@ -196,12 +195,20 @@ class TestDocumentValidation:
     """Test Document dataclass validation."""
 
     def test_date_accepts_iso_string(self):
-        doc = Document(text="t", patient_identifier="MRN-1", date="2024-01-15")
+        doc = Document(
+            text="t",
+            patient_identifier="MRN-1",
+            date="2024-01-15",
+            document_id="doc-1",
+        )
         assert doc.date == "2024-01-15"
 
     def test_date_accepts_datetime_date(self):
         doc = Document(
-            text="t", patient_identifier="MRN-1", date=datetime.date(2024, 1, 15)
+            text="t",
+            patient_identifier="MRN-1",
+            date=datetime.date(2024, 1, 15),
+            document_id="doc-1",
         )
         assert doc.date == "2024-01-15"
 
@@ -210,19 +217,35 @@ class TestDocumentValidation:
             text="t",
             patient_identifier="MRN-1",
             date=datetime.datetime(2024, 1, 15, 10, 30),
+            document_id="doc-1",
         )
         assert doc.date == "2024-01-15"
 
     def test_date_rejects_bad_format(self):
         with pytest.raises(ValueError, match="Invalid date format"):
-            Document(text="t", patient_identifier="MRN-1", date="15-01-2024")
+            Document(
+                text="t",
+                patient_identifier="MRN-1",
+                date="15-01-2024",
+                document_id="doc-1",
+            )
 
     def test_date_rejects_garbage(self):
         with pytest.raises(ValueError, match="Invalid date format"):
-            Document(text="t", patient_identifier="MRN-1", date="not-a-date")
+            Document(
+                text="t",
+                patient_identifier="MRN-1",
+                date="not-a-date",
+                document_id="doc-1",
+            )
 
     def test_organization_identifier_optional(self):
-        doc = Document(text="t", patient_identifier="MRN-1", date="2024-01-15")
+        doc = Document(
+            text="t",
+            patient_identifier="MRN-1",
+            date="2024-01-15",
+            document_id="doc-1",
+        )
         assert doc.organization_identifier is None
 
 
@@ -253,7 +276,12 @@ class TestDefaultOrganization:
         outcomes = []
         for outcome in pipeline.extract(
             [
-                Document(text="test", patient_identifier="MRN-1", date="2024-01-01"),
+                Document(
+                    text="test",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    document_id="doc-1",
+                ),
             ]
         ):
             outcomes.append(outcome)
@@ -280,7 +308,10 @@ class TestDefaultOrganization:
             for _ in pipeline.extract(
                 [
                     Document(
-                        text="test", patient_identifier="MRN-1", date="2024-01-01"
+                        text="test",
+                        patient_identifier="MRN-1",
+                        date="2024-01-01",
+                        document_id="doc-1",
                     ),
                 ]
             ):
@@ -321,6 +352,7 @@ class TestDefaultOrganization:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="SMH-002",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -349,6 +381,7 @@ class TestPhaseGuards:
                         patient_identifier="MRN-1",
                         date="2024-01-01",
                         organization_identifier="CGH-001",
+                        document_id="doc-1",
                     ),
                 ]
             ):
@@ -409,6 +442,7 @@ class TestCrossValidation:
                         patient_identifier="UNKNOWN-MRN",
                         date="2024-01-01",
                         organization_identifier="CGH-001",
+                        document_id="doc-1",
                     ),
                 ]
             ):
@@ -436,6 +470,7 @@ class TestCrossValidation:
                         patient_identifier="MRN-1",
                         date="2024-01-01",
                         organization_identifier="UNKNOWN-ORG",
+                        document_id="doc-1",
                     ),
                 ]
             ):
@@ -678,6 +713,7 @@ class TestExtract:
                     patient_identifier="MRN-1",
                     date="2024-01-15",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -706,6 +742,7 @@ class TestExtract:
                     patient_identifier="MRN-1",
                     date="2024-01-15",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         )
@@ -714,8 +751,15 @@ class TestExtract:
         assert results[0].success
         assert pipeline.documents_processed == 1
 
-    def test_document_date_injected_into_meta(self, client, httpx_mock):
-        """Document.date is sent as 'Document date: YYYY-MM-DD' in meta."""
+    def _extract_body(self, httpx_mock):
+        requests = httpx_mock.get_requests()
+        extract_request = [
+            r for r in requests if r.method == "POST" and "extract/text" in str(r.url)
+        ][-1]
+        return json.loads(extract_request.content)
+
+    def test_document_date_sent_as_its_own_field(self, client, httpx_mock):
+        """Document.date is a payload field, not prose inside meta."""
         pipeline = self._setup_pipeline(client, httpx_mock)
 
         mock_context_empty(httpx_mock, "pat-1")
@@ -729,20 +773,42 @@ class TestExtract:
                     patient_identifier="MRN-1",
                     date="2024-01-15",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
             pass
 
-        requests = httpx_mock.get_requests()
-        extract_request = [
-            r for r in requests if r.method == "POST" and "extract/text" in str(r.url)
-        ][-1]
-        body = json.loads(extract_request.content)
-        assert "Document date: 2024-01-15" in body["meta"]
+        body = self._extract_body(httpx_mock)
+        assert body["document_date"] == "2024-01-15"
+        # Nothing else to say about this document, so meta is omitted entirely.
+        assert "meta" not in body
 
-    def test_document_date_prepended_to_existing_meta(self, client, httpx_mock):
-        """Document date is prepended when Document already has meta."""
+    def test_document_date_normalized_before_sending(self, client, httpx_mock):
+        """Whatever Document accepted, the payload carries ISO YYYY-MM-DD."""
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        for _ in pipeline.extract(
+            [
+                Document(
+                    text="Patient has diabetes",
+                    patient_identifier="MRN-1",
+                    date=datetime.date(2024, 1, 15),
+                    organization_identifier="CGH-001",
+                    document_id="doc-1",
+                ),
+            ]
+        ):
+            pass
+
+        assert self._extract_body(httpx_mock)["document_date"] == "2024-01-15"
+
+    def test_meta_carries_context_without_the_date(self, client, httpx_mock):
+        """meta keeps the caller's context plus the attending, and only that."""
         pipeline = self._setup_pipeline(client, httpx_mock)
 
         mock_context_empty(httpx_mock, "pat-1")
@@ -757,18 +823,15 @@ class TestExtract:
                     date="2024-01-15",
                     organization_identifier="CGH-001",
                     meta="Department: Cardiology",
+                    document_id="doc-1",
                 ),
             ]
         ):
             pass
 
-        requests = httpx_mock.get_requests()
-        extract_request = [
-            r for r in requests if r.method == "POST" and "extract/text" in str(r.url)
-        ][-1]
-        body = json.loads(extract_request.content)
-        assert body["meta"].startswith("Document date: 2024-01-15")
-        assert "Department: Cardiology" in body["meta"]
+        body = self._extract_body(httpx_mock)
+        assert body["meta"] == "Department: Cardiology"
+        assert body["document_date"] == "2024-01-15"
 
     def test_date_sorting(self, client, httpx_mock):
         """Test that documents are sorted by date within patient."""
@@ -788,12 +851,14 @@ class TestExtract:
                 patient_identifier="MRN-1",
                 date="2024-03-01",
                 organization_identifier="CGH-001",
+                document_id="doc-1",
             ),
             Document(
                 text="First note",
                 patient_identifier="MRN-1",
                 date="2024-01-01",
                 organization_identifier="CGH-001",
+                document_id="doc-2",
             ),
         ]
 
@@ -828,12 +893,14 @@ class TestExtract:
                 patient_identifier="MRN-1",
                 date="2024-01-01",
                 organization_identifier="CGH-001",
+                document_id="doc-1",
             ),
             Document(
                 text="Second note",
                 patient_identifier="MRN-1",
                 date="2024-02-01",
                 organization_identifier="CGH-001",
+                document_id="doc-2",
             ),
         ]
 
@@ -871,6 +938,7 @@ class TestExtract:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -906,6 +974,7 @@ class TestExtract:
                         patient_identifier="MRN-1",
                         date="2024-01-01",
                         organization_identifier="CGH-001",
+                        document_id="doc-1",
                     ),
                 ]
             )
@@ -943,12 +1012,14 @@ class TestExtract:
                 patient_identifier="MRN-1",
                 date="2024-01-01",
                 organization_identifier="CGH-001",
+                document_id="doc-1",
             ),
             Document(
                 text="second",
                 patient_identifier="MRN-1",
                 date="2024-02-01",
                 organization_identifier="CGH-001",
+                document_id="doc-2",
             ),
         ]
         outcomes = sorted(pipeline.extract(docs), key=lambda o: o.document_index)
@@ -972,6 +1043,7 @@ class TestExtract:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -991,6 +1063,7 @@ class TestExtract:
                     patient_identifier="MRN-1",
                     date="2024-02-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-2",
                 ),
             ]
         ):
@@ -1014,6 +1087,7 @@ class TestExtract:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -1075,6 +1149,7 @@ class TestExtract:
                     date="2024-01-01",
                     organization_identifier="CGH-001",
                     visit_id="visit-abc-123",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -1107,12 +1182,14 @@ class TestExtract:
                 patient_identifier="MRN-1",
                 date="2024-01-01",
                 organization_identifier="CGH-001",
+                document_id="doc-1",
             ),
             Document(
                 text="Note for patient 2",
                 patient_identifier="MRN-2",
                 date="2024-01-01",
                 organization_identifier="CGH-001",
+                document_id="doc-2",
             ),
         ]
 
@@ -1247,32 +1324,14 @@ class TestExtract:
         with pytest.raises(ValueError, match="limit must be >= 1"):
             pipeline.extract([], limit=bad)
 
-    def test_no_document_id_warns(self, client, httpx_mock, monkeypatch, caplog):
-        """Docs without document_id log a warning when skip_processed=True."""
-        pipeline = self._setup_pipeline(client, httpx_mock)
-
-        monkeypatch.setattr(
-            pipeline._fhir, "list_document_identifiers", lambda **kw: set()
-        )
-
-        mock_context_empty(httpx_mock, "pat-1")
-        mock_extract_response(httpx_mock, count=1)
-        mock_persist_response(httpx_mock, created=1)
-
-        docs = [
-            Document(
+    def test_document_id_is_required(self):
+        """Without an id there is no resume, no watermark and no failure label."""
+        with pytest.raises(TypeError, match="document_id"):
+            Document(  # ty: ignore[missing-argument]
                 text="Note without document_id",
                 patient_identifier="MRN-1",
                 date="2024-01-01",
-                organization_identifier="CGH-001",
-                # no document_id
-            ),
-        ]
-
-        with caplog.at_level(logging.WARNING, logger="cavell_client"):
-            list(pipeline.extract(docs, skip_processed=True))
-
-        assert any("document_id" in msg for msg in caplog.messages)
+            )
 
 
 class TestEndToEnd:
@@ -1697,6 +1756,7 @@ class TestPractitionerMatching:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -1745,6 +1805,7 @@ class TestPractitionerMatching:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -1777,6 +1838,7 @@ class TestPractitionerMatching:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -1818,6 +1880,7 @@ class TestPractitionerMatching:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -1901,6 +1964,7 @@ class TestPractitionerMatching:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -1942,6 +2006,7 @@ class TestPractitionerMatching:
                     date="2024-01-01",
                     organization_identifier="CGH-001",
                     practitioner_identifier="DOC-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -1953,7 +2018,43 @@ class TestPractitionerMatching:
             r for r in requests if r.method == "POST" and "extract/text" in str(r.url)
         ][-1]
         body = json.loads(extract_request.content)
-        assert "Attending: Jane Smith (DOC-001)" in body["meta"]
+        # The document carries no meta of its own, so the attending line is all
+        # of it — the date is a payload field, not a line in here.
+        assert body["meta"] == "Attending: Jane Smith (DOC-001)"
+        assert body["document_date"] == "2024-01-01"
+
+    def test_meta_joins_document_meta_and_attending(self, client, httpx_mock):
+        """Both parts, in order, with nothing else spliced in."""
+        pipeline = _setup_pipeline_with_practitioners(client, httpx_mock)
+
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        for _ in pipeline.extract(
+            [
+                Document(
+                    text="Patient has diabetes",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    organization_identifier="CGH-001",
+                    meta="Department: Cardiology",
+                    practitioner_identifier="DOC-001",
+                    document_id="doc-1",
+                ),
+            ]
+        ):
+            pass
+
+        extract_request = [
+            r
+            for r in httpx_mock.get_requests()
+            if r.method == "POST" and "extract/text" in str(r.url)
+        ][-1]
+        body = json.loads(extract_request.content)
+        assert body["meta"] == (
+            "Department: Cardiology\nAttending: Jane Smith (DOC-001)"
+        )
 
     def test_reference_data_as_params_with_practitioners(self, client, httpx_mock):
         """Verify patient_id, organization_id, practitioner_id are passed as params."""
@@ -1971,6 +2072,7 @@ class TestPractitionerMatching:
                     date="2024-01-01",
                     organization_identifier="CGH-001",
                     practitioner_identifier="DOC-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -2025,6 +2127,7 @@ class TestPractitionerMatching:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -2085,6 +2188,7 @@ class TestPractitionerEdgeCases:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -2170,6 +2274,7 @@ class TestEndToEndWithPractitioners:
                     date="2024-01-15",
                     organization_identifier="CGH-001",
                     practitioner_identifier="DOC-001",
+                    document_id="doc-1",
                 ),
             ]
         ):
@@ -2317,6 +2422,7 @@ class TestDocumentFromRows:
         "text": "note_text",
         "patient_identifier": "patient_id",
         "date": "note_date",
+        "document_id": "doc_id",
     }
 
     def _row(self, **overrides):
@@ -2324,12 +2430,16 @@ class TestDocumentFromRows:
             "note_text": "Patient presents with persistent cough and fever.",
             "patient_id": "MRN-1",
             "note_date": "2024-01-15",
+            "doc_id": "N1",
         }
         base.update(overrides)
         return base
 
     def test_basic_mapping(self):
-        rows = [self._row(), self._row(patient_id="MRN-2", note_date="2024-02-01")]
+        rows = [
+            self._row(),
+            self._row(doc_id="N2", patient_id="MRN-2", note_date="2024-02-01"),
+        ]
         docs = Document.from_rows(rows, columns=self.REQUIRED)
         assert len(docs) == 2
         assert docs[0].patient_identifier == "MRN-1"
@@ -2337,12 +2447,11 @@ class TestDocumentFromRows:
         assert docs[1].patient_identifier == "MRN-2"
 
     def test_optional_columns(self):
-        rows = [self._row(doc_id="N1", dept="Cardiology", prac="DOC-1", vid="V1")]
+        rows = [self._row(dept="Cardiology", prac="DOC-1", vid="V1")]
         docs = Document.from_rows(
             rows,
             columns={
                 **self.REQUIRED,
-                "document_id": "doc_id",
                 "meta": "dept",
                 "practitioner_identifier": "prac",
                 "visit_id": "vid",
@@ -2376,6 +2485,25 @@ class TestDocumentFromRows:
                 columns={"patient_identifier": "patient_id", "date": "note_date"},
             )
 
+    def test_missing_document_id_column(self):
+        """document_id is required, like text/patient_identifier/date."""
+        with pytest.raises(ValueError, match="columns must include 'document_id'"):
+            Document.from_rows(
+                [self._row()],
+                columns={
+                    "text": "note_text",
+                    "patient_identifier": "patient_id",
+                    "date": "note_date",
+                },
+            )
+
+    def test_document_id_column_cannot_be_disabled(self):
+        """Mapping to None disables optional fields; required ones must raise."""
+        with pytest.raises(ValueError, match="cannot be disabled"):
+            Document.from_rows(
+                [self._row()], columns={**self.REQUIRED, "document_id": None}
+            )
+
     def test_unknown_field_in_columns(self):
         with pytest.raises(ValueError, match="bogus"):
             Document.from_rows([self._row()], columns={**self.REQUIRED, "bogus": "col"})
@@ -2399,7 +2527,7 @@ class TestDocumentFromRows:
             self._row(doc_id="N1", patient_id="MRN-2"),
         ]
         with pytest.raises(ValueError, match="Duplicate document_id.*N1"):
-            Document.from_rows(rows, columns={**self.REQUIRED, "document_id": "doc_id"})
+            Document.from_rows(rows, columns=self.REQUIRED)
 
     def test_short_text_warns(self, caplog):
         rows = [self._row(note_text="Short.")]
@@ -2409,19 +2537,23 @@ class TestDocumentFromRows:
         assert "short text" in caplog.text.lower()
 
     def test_empty_optional_becomes_none(self):
-        rows = [self._row(doc_id="", prac="", vid="")]
+        rows = [self._row(prac="", vid="")]
         docs = Document.from_rows(
             rows,
             columns={
                 **self.REQUIRED,
-                "document_id": "doc_id",
                 "practitioner_identifier": "prac",
                 "visit_id": "vid",
             },
         )
-        assert docs[0].document_id is None
         assert docs[0].practitioner_identifier is None
         assert docs[0].visit_id is None
+
+    def test_empty_document_id_raises(self):
+        """A blank id is not silently coerced to None — it is a required field."""
+        rows = [self._row(doc_id="")]
+        with pytest.raises(ValueError, match="document_id must not be empty"):
+            Document.from_rows(rows, columns=self.REQUIRED)
 
     def test_date_conversion(self):
         """Date strings are validated through Document.__post_init__."""
@@ -2965,6 +3097,76 @@ class _PipelineHarness:
         return pipeline
 
 
+class TestExtractInputValidation(_PipelineHarness):
+    """extract()/extract_all() reject anything that is not a Document.
+
+    Field contents are Document's own business — this is only about the type,
+    so the mistake surfaces up front instead of as an AttributeError inside a
+    worker thread mid-run.
+    """
+
+    @staticmethod
+    def _valid():
+        return Document(
+            text="Clinical note long enough to avoid the short-text warning.",
+            patient_identifier="MRN-1",
+            date="2024-01-15",
+            document_id="doc-1",
+        )
+
+    @pytest.mark.parametrize("method", ["extract", "extract_all"])
+    def test_rejects_non_document_items(self, client, httpx_mock, method):
+        """A raw CSV row is the obvious mistake — it must not reach a worker."""
+        pipeline = self._seed(client, httpx_mock)
+        rows = [{"patient_id": "MRN-1", "note_text": "t", "note_date": "2024-01-15"}]
+
+        with pytest.raises(TypeError, match="are not Document objects") as exc:
+            getattr(pipeline, method)(rows)
+
+        assert "index 0: got dict" in str(exc.value)
+
+    def test_reports_every_offending_position(self, client, httpx_mock):
+        pipeline = self._seed(client, httpx_mock)
+
+        with pytest.raises(TypeError) as exc:
+            pipeline.extract([self._valid(), "nope", 42])
+
+        message = str(exc.value)
+        assert "2 of 3 item(s) are not Document objects" in message
+        assert "index 1: got str" in message
+        assert "index 2: got int" in message
+
+    def test_rejects_before_any_request(self, client, httpx_mock):
+        """The check runs ahead of the API pre-flight, so it costs no request."""
+        pipeline = self._seed(client, httpx_mock)
+        before = len(httpx_mock.get_requests())
+
+        with pytest.raises(TypeError):
+            pipeline.extract(["not a document"])
+
+        assert len(httpx_mock.get_requests()) == before
+
+    def test_truncates_a_long_list(self, client, httpx_mock):
+        pipeline = self._seed(client, httpx_mock)
+
+        with pytest.raises(TypeError) as exc:
+            pipeline.extract([{}] * 14)
+
+        assert "... and 4 more" in str(exc.value)
+
+    def test_documents_pass_through(self, client, httpx_mock):
+        """The guard must not reject anything the pipeline used to accept."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        outcomes = pipeline.extract([self._valid()])
+
+        assert [o.success for o in outcomes] == [True]
+
+
 class TestRunAbort(_PipelineHarness):
     """Run-global failures (401, exhausted 503) abort the whole run."""
 
@@ -2996,6 +3198,7 @@ class TestRunAbort(_PipelineHarness):
                 text="Patient has diabetes mellitus",
                 patient_identifier="MRN-1",
                 date="2024-01-01",
+                document_id="doc-1",
             )
         ]
         with pytest.raises(CavellAuthError):
@@ -3024,21 +3227,25 @@ class TestRunAbort(_PipelineHarness):
                 text="Note 1 for patient 1 with enough text",
                 patient_identifier="MRN-1",
                 date="2024-01-01",
+                document_id="doc-1",
             ),
             Document(
                 text="Note 2 for patient 1 with enough text",
                 patient_identifier="MRN-1",
                 date="2024-01-02",
+                document_id="doc-2",
             ),
             Document(
                 text="Note 1 for patient 2 with enough text",
                 patient_identifier="MRN-2",
                 date="2024-01-01",
+                document_id="doc-3",
             ),
             Document(
                 text="Note 2 for patient 2 with enough text",
                 patient_identifier="MRN-2",
                 date="2024-01-02",
+                document_id="doc-4",
             ),
         ]
         with pytest.raises(CavellAuthError):
@@ -3070,6 +3277,7 @@ class TestRunAbort(_PipelineHarness):
                 text="Patient has diabetes mellitus",
                 patient_identifier="MRN-1",
                 date="2024-01-01",
+                document_id="doc-1",
             )
         ]
         with pytest.raises(CavellGatewayUnavailableError):
@@ -3099,6 +3307,7 @@ class TestRunAbort(_PipelineHarness):
                 text="Patient has diabetes mellitus",
                 patient_identifier="MRN-1",
                 date="2024-01-01",
+                document_id="doc-1",
             )
         ]
         outcomes = pipeline.extract(docs)
@@ -3112,9 +3321,9 @@ class TestChronologyGuard(_PipelineHarness):
     """Chronology handling: in-order documents pass, watermark failures fail open.
 
     The update-guard behaviour (extract an older document anyway, dropping
-    updates sourced from newer ones) is disabled — older documents are now
-    refused outright, see TestOutOfOrderRejection. The one test covering it is
-    skipped rather than deleted, because rejecting instead of guarding is
+    updates sourced from newer ones) is disabled — older documents are refused
+    per document instead, see TestOutOfOrderRejection. The one test covering it
+    is skipped rather than deleted, because refusing instead of guarding is
     provisional.
     """
 
@@ -3204,6 +3413,7 @@ class TestChronologyGuard(_PipelineHarness):
                 text="An older note about the patient's diabetes",
                 patient_identifier="MRN-1",
                 date="2024-05-01",
+                document_id="doc-1",
             )
         ]
         with caplog.at_level(logging.WARNING):
@@ -3237,6 +3447,7 @@ class TestChronologyGuard(_PipelineHarness):
                 text="A newer note about the patient's diabetes",
                 patient_identifier="MRN-1",
                 date="2024-03-01",
+                document_id="doc-1",
             )
         ]
         outcomes = pipeline.extract(docs)
@@ -3261,6 +3472,7 @@ class TestChronologyGuard(_PipelineHarness):
                 text="A same-day note about the patient's diabetes",
                 patient_identifier="MRN-1",
                 date="2024-03-01",
+                document_id="doc-1",
             )
         ]
         outcomes = pipeline.extract(docs)
@@ -3283,6 +3495,7 @@ class TestChronologyGuard(_PipelineHarness):
                 text="Patient has diabetes mellitus",
                 patient_identifier="MRN-1",
                 date="2024-01-01",
+                document_id="doc-1",
             )
         ]
         with caplog.at_level(logging.WARNING):
@@ -3391,11 +3604,21 @@ class TestDateNormalization:
     """Dates are canonicalized, not just validated (chronology is lexical)."""
 
     def test_compact_iso_date_normalized(self):
-        doc = Document(text="t", patient_identifier="MRN-1", date="20240115")
+        doc = Document(
+            text="t",
+            patient_identifier="MRN-1",
+            date="20240115",
+            document_id="doc-1",
+        )
         assert doc.date == "2024-01-15"
 
     def test_week_date_normalized(self):
-        doc = Document(text="t", patient_identifier="MRN-1", date="2024-W03-1")
+        doc = Document(
+            text="t",
+            patient_identifier="MRN-1",
+            date="2024-W03-1",
+            document_id="doc-1",
+        )
         assert doc.date == "2024-01-15"
 
 
@@ -3432,6 +3655,7 @@ class TestDeferredPassAbort(_PipelineHarness):
                 text="Patient has diabetes mellitus",
                 patient_identifier="MRN-1",
                 date="2024-01-01",
+                document_id="doc-1",
             )
         ]
         with pytest.raises(CavellGatewayUnavailableError):
@@ -3825,27 +4049,53 @@ class TestExtractAll(_PipelineHarness):
             for r in httpx_mock.get_requests()
             if str(r.url).endswith("/api/extract/text")
         ]
-        assert [b["meta"].splitlines()[0] for b in extract_bodies] == [
-            "Document date: 2024-01-01",
-            "Document date: 2024-04-01",
-            "Document date: 2024-07-01",
-            "Document date: 2024-10-01",
+        assert [b["document_date"] for b in extract_bodies] == [
+            "2024-01-01",
+            "2024-04-01",
+            "2024-07-01",
+            "2024-10-01",
         ]
 
 
 class TestOutOfOrderRejection(_PipelineHarness):
-    """Documents older than the patient's newest persisted one are refused."""
+    """Documents older than the patient's newest persisted one are refused.
+
+    Refusal is scoped to the offending document. A backdated note must not take
+    down the rest of the call — not other patients' documents, and not the same
+    patient's forward-dated ones.
+    """
 
     @staticmethod
     def _no_extraction(pipeline, monkeypatch):
         """Make any extraction attempt a hard test failure."""
 
         def boom(*a, **kw):
-            raise AssertionError("extraction must not run for a refused batch")
+            raise AssertionError("extraction must not run for a refused document")
 
         monkeypatch.setattr(pipeline, "_process_single_document", boom)
 
-    def test_older_document_raises_before_extracting(
+    @staticmethod
+    def _record(pipeline, monkeypatch, transient_ids=()):
+        """Replace real extraction with a recorder. Returns the docs seen."""
+        seen: list[Document] = []
+
+        def fake(
+            doc, doc_index, organization_identifier, watermark=None, on_fatal=None
+        ):
+            seen.append(doc)
+            return IngestionOutcome(
+                success=doc.document_id not in transient_ids,
+                patient_identifier=doc.patient_identifier,
+                document_index=doc_index,
+                document_id=doc.document_id,
+                error=None if doc.document_id not in transient_ids else "timed out",
+                transient=doc.document_id in transient_ids,
+            )
+
+        monkeypatch.setattr(pipeline, "_process_single_document", fake)
+        return seen
+
+    def test_older_document_is_refused_without_raising(
         self, client, httpx_mock, monkeypatch
     ):
         pipeline = self._seed(client, httpx_mock)
@@ -3853,53 +4103,135 @@ class TestOutOfOrderRejection(_PipelineHarness):
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
         self._no_extraction(pipeline, monkeypatch)
 
-        docs = [_note("MRN-1", "2024-05-01", "older")]
+        (outcome,) = pipeline.extract([_note("MRN-1", "2024-05-01", "older")])
 
-        with pytest.raises(OutOfOrderDocumentError) as exc:
-            pipeline.extract(docs)
+        assert outcome.success is False
+        assert outcome.out_of_order is True
+        assert outcome.patient_identifier == "MRN-1"
+        assert outcome.document_id == "older"
+        assert outcome.error == (
+            "older (patient MRN-1) dated 2024-05-01 is older than 2024-06-01"
+        )
+        assert "[out-of-order]" in str(outcome)
 
-        (violation,) = exc.value.violations
-        assert violation.patient_identifier == "MRN-1"
-        assert violation.document_id == "older"
-        assert violation.date == "2024-05-01"
-        assert violation.watermark == "2024-06-01"
-        assert "older than" in str(exc.value)
-
-    def test_nothing_is_persisted(self, client, httpx_mock, monkeypatch):
+    def test_nothing_is_persisted_for_a_refused_document(
+        self, client, httpx_mock, monkeypatch
+    ):
         """No extract call, no bundle POST — the refusal costs nothing."""
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1")
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
         self._no_extraction(pipeline, monkeypatch)
 
-        with pytest.raises(OutOfOrderDocumentError):
-            pipeline.extract([_note("MRN-1", "2024-05-01", "older")])
+        pipeline.extract([_note("MRN-1", "2024-05-01", "older")])
 
         assert not any(
             str(r.url).endswith("/api/extract/text") for r in httpx_mock.get_requests()
         )
         assert pipeline.documents_processed == 0
-        assert pipeline.documents_failed == 0
+        assert pipeline.documents_failed == 1
         assert pipeline.total_cost == 0.0
 
-    def test_one_older_document_refuses_the_whole_call(
+    def test_other_patients_still_extract(self, client, httpx_mock, monkeypatch):
+        """The reported bug: one patient's backdated note aborted the whole run."""
+        pipeline = self._seed(client, httpx_mock, num_patients=3)
+        mock_patient_exists(httpx_mock, ["pat-1", "pat-2", "pat-3"], repeat=True)
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        seen = self._record(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-05-01", "a-old"),
+            _note("MRN-2", "2024-05-01", "b-ok"),
+            _note("MRN-3", "2024-05-01", "c-ok"),
+        ]
+
+        outcomes = pipeline.extract(docs)
+
+        assert [d.document_id for d in seen] == ["b-ok", "c-ok"]
+        assert {o.document_id for o in outcomes if o.success} == {"b-ok", "c-ok"}
+        assert [o.document_id for o in outcomes if o.out_of_order] == ["a-old"]
+        assert pipeline.documents_processed == 2
+        assert pipeline.documents_failed == 1
+
+    def test_same_patient_forward_documents_still_extract(
         self, client, httpx_mock, monkeypatch
     ):
-        """In-order documents in the same call are not extracted either."""
+        """Refusal is per document, so the patient's newer notes still run."""
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1")
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
-        self._no_extraction(pipeline, monkeypatch)
+        seen = self._record(pipeline, monkeypatch)
 
         docs = [
             _note("MRN-1", "2024-07-01", "newer"),
             _note("MRN-1", "2024-05-01", "older"),
         ]
 
-        with pytest.raises(OutOfOrderDocumentError) as exc:
-            pipeline.extract(docs)
+        outcomes = pipeline.extract(docs)
 
-        assert [v.document_id for v in exc.value.violations] == ["older"]
+        assert [d.document_id for d in seen] == ["newer"]
+        assert [o.document_id for o in outcomes if o.out_of_order] == ["older"]
+        assert [o.document_id for o in outcomes if o.success] == ["newer"]
+
+    def test_refused_document_index_survives_filtering(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """document_index still points at the caller's document."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        self._record(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-07-01", "newer"),
+            _note("MRN-1", "2024-05-01", "older"),
+        ]
+
+        outcomes = pipeline.extract(docs)
+
+        by_id = {o.document_id: o for o in outcomes}
+        assert docs[by_id["older"].document_index].document_id == "older"
+        assert docs[by_id["newer"].document_index].document_id == "newer"
+
+    def test_every_document_refused_returns_outcomes(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """Nothing to extract is not an error — it is a list of refusals."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        self._no_extraction(pipeline, monkeypatch)
+
+        docs = [
+            _note("MRN-1", "2024-05-01", "old-1"),
+            _note("MRN-1", "2024-04-01", "old-2"),
+        ]
+
+        outcomes = pipeline.extract(docs)
+
+        assert {o.document_id for o in outcomes} == {"old-1", "old-2"}
+        assert all(o.out_of_order and not o.success for o in outcomes)
+        assert pipeline.documents_failed == 2
+
+    def test_refused_document_is_not_deferred_retried(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """A transient failure for the patient must not resurrect the refusal."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1", repeat=True)
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        seen = self._record(pipeline, monkeypatch, transient_ids={"flaky"})
+
+        docs = [
+            _note("MRN-1", "2024-05-01", "older"),
+            _note("MRN-1", "2024-07-01", "flaky"),
+        ]
+
+        outcomes = pipeline.extract(docs)
+
+        # The deferred pass re-ran "flaky"; "older" never reached extraction.
+        assert [d.document_id for d in seen] == ["flaky", "flaky"]
+        assert [o.document_id for o in outcomes if o.out_of_order] == ["older"]
 
     def test_reports_every_violation(self, client, httpx_mock, monkeypatch):
         pipeline = self._seed(client, httpx_mock, num_patients=2)
@@ -3914,15 +4246,34 @@ class TestOutOfOrderRejection(_PipelineHarness):
             _note("MRN-1", "2024-04-01", "a-older"),
         ]
 
-        with pytest.raises(OutOfOrderDocumentError) as exc:
-            pipeline.extract(docs)
+        outcomes = pipeline.extract(docs)
 
-        assert {v.document_id for v in exc.value.violations} == {
+        assert {o.document_id for o in outcomes if o.out_of_order} == {
             "a-old",
             "b-old",
             "a-older",
         }
-        assert "3 document(s) across 2 patient(s)" in str(exc.value)
+
+    def test_logs_the_refusal(self, client, httpx_mock, caplog, monkeypatch):
+        pipeline = self._seed(client, httpx_mock, num_patients=2)
+        mock_patient_exists(httpx_mock, ["pat-1", "pat-2"], repeat=True)
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        mock_watermark(httpx_mock, "pat-2", date="2025-01-01T00:00:00Z")
+        self._no_extraction(pipeline, monkeypatch)
+
+        with caplog.at_level(logging.WARNING):
+            pipeline.extract(
+                [
+                    _note("MRN-1", "2024-05-01", "a-old"),
+                    _note("MRN-2", "2024-12-01", "b-old"),
+                ]
+            )
+
+        assert any(
+            "Refusing 2 reverse-chronological document(s) across 2 patient(s)"
+            in r.message
+            for r in caplog.records
+        )
 
     def test_same_day_is_allowed(self, client, httpx_mock):
         """Dates are day-resolution, so equal dates are not a violation."""
@@ -3968,26 +4319,29 @@ class TestOutOfOrderRejection(_PipelineHarness):
         assert outcomes[0].success
         assert any("chronology check skipped" in r.message for r in caplog.records)
 
-    def test_extract_all_refuses_before_the_first_batch(
+    def test_extract_all_continues_past_a_refused_batch(
         self, client, httpx_mock, monkeypatch
     ):
-        """A violation late in the dataset stops batch 1 from spending."""
+        """A batch whose every document is refused must not end the walk.
+
+        The global ascending sort puts the offender in batch 1, so this is the
+        case where the old behaviour lost the entire dataset.
+        """
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1", repeat=True)
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
-        self._no_extraction(pipeline, monkeypatch)
+        seen = self._record(pipeline, monkeypatch)
 
-        # Sorted ascending, the offender lands in the final batch.
         docs = [_note("MRN-1", f"2024-1{i}-01", f"ok-{i}") for i in range(1, 3)]
         docs.append(_note("MRN-1", "2024-05-01", "older"))
 
-        with pytest.raises(OutOfOrderDocumentError) as exc:
-            pipeline.extract_all(docs, batch_size=1)
+        outcomes = pipeline.extract_all(docs, batch_size=1)
 
-        assert [v.document_id for v in exc.value.violations] == ["older"]
-        assert not any(
-            str(r.url).endswith("/api/extract/text") for r in httpx_mock.get_requests()
-        )
+        assert [d.document_id for d in seen] == ["ok-1", "ok-2"]
+        assert [o.document_id for o in outcomes if o.out_of_order] == ["older"]
+        assert {o.document_id for o in outcomes if o.success} == {"ok-1", "ok-2"}
+        assert pipeline.documents_processed == 2
+        assert pipeline.documents_failed == 1
 
     def test_skipped_documents_are_not_violations(self, client, httpx_mock):
         """An already-processed older document is filtered out, not refused."""

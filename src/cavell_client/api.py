@@ -154,6 +154,7 @@ class CavellAPI:
         text: str,
         context: list[dict] | None = None,
         meta: str | None = None,
+        document_date: str | None = None,
         tier: str | None = None,
         allowed_resources: list[str] | None = None,
         patient_id: str | None = None,
@@ -171,6 +172,11 @@ class CavellAPI:
         typed :class:`~cavell_client.models.ExtractResult` does not surface, or
         when you want to persist the raw response.
 
+        Args:
+            document_date: When the document was written, as an ISO
+                ``YYYY-MM-DD`` string. Sent as its own payload field rather
+                than buried in ``meta`` prose.
+
         Returns:
             The decoded JSON response body.
 
@@ -184,6 +190,8 @@ class CavellAPI:
             payload["context"] = context
         if meta:
             payload["meta"] = meta
+        if document_date:
+            payload["document_date"] = document_date
         if tier:
             payload["tier"] = tier
         if allowed_resources:
@@ -228,6 +236,7 @@ class CavellAPI:
         text: str,
         context: list[dict] | None = None,
         meta: str | None = None,
+        document_date: str | None = None,
         tier: str | None = None,
         allowed_resources: list[str] | None = None,
         patient_id: str | None = None,
@@ -246,7 +255,11 @@ class CavellAPI:
         Args:
             text: Clinical text to extract from
             context: Existing FHIR resources for context-aware extraction
-            meta: Supplementary context (demographics, document date)
+            meta: Supplementary free-text context (department, ward, attending
+                practitioner). The document date is not part of this — pass it
+                as ``document_date``
+            document_date: When the document was written, as an ISO
+                ``YYYY-MM-DD`` string
             tier: Model tier to use for extraction (low/medium/high)
             allowed_resources: Restrict extraction to these FHIR resource types
                 (allowlist); omit to extract all types
@@ -266,6 +279,7 @@ class CavellAPI:
             text,
             context=context,
             meta=meta,
+            document_date=document_date,
             tier=tier,
             allowed_resources=allowed_resources,
             patient_id=patient_id,

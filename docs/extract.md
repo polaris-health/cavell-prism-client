@@ -108,7 +108,8 @@ from cavell_client.api import CavellAPI
 api = CavellAPI("https://prd.prism.cavell.app/api", api_key="...")
 bundle, count, usage = api.extract(
     text=note_text,
-    meta="Document date: 2024-01-15",
+    document_date="2024-01-15",  # ISO YYYY-MM-DD; its own field, not meta prose
+    meta="Department: Cardiology",
     tier="high",
     allowed_resources=["Condition", "MedicationRequest"],  # restrict output types
 )
