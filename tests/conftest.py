@@ -28,7 +28,17 @@ def httpx_mock(monkeypatch):
             headers: dict | None = None,
             repeat: bool = False,
             replace: bool = False,
+            url_prefix: str | None = None,
         ):
+            """Register a canned response.
+
+            ``url`` matches the request URL exactly — the default, and what
+            almost every test wants. ``url_prefix`` matches on a prefix
+            instead, for the few queries carrying a value the test cannot
+            predict (the Observation context window, whose cutoff is derived
+            from each document's date). Exact registrations are tried first,
+            so a prefix never shadows one.
+            """
             if replace:
                 with self._lock:
                     self._responses = [
@@ -40,6 +50,7 @@ def httpx_mock(monkeypatch):
                 {
                     "method": method.upper(),
                     "url": url,
+                    "url_prefix": url_prefix,
                     "status_code": status_code,
                     "json": json,
                     "text": text,
@@ -58,11 +69,22 @@ def httpx_mock(monkeypatch):
             with self._lock:
                 return self._handle_request_locked(request)
 
+        def _matches(self, resp: dict, request: httpx.Request, exact: bool) -> bool:
+            if resp["method"] != request.method:
+                return False
+            if exact:
+                return resp["url"] == str(request.url)
+            prefix = resp["url_prefix"]
+            return bool(prefix) and str(request.url).startswith(prefix)
+
         def _handle_request_locked(self, request: httpx.Request) -> httpx.Response:
             self._requests.append(request)
 
-            for i, resp in enumerate(self._responses):
-                if resp["method"] == request.method and resp["url"] == str(request.url):
+            # Exact registrations win, so a prefix can never shadow one.
+            for exact in (True, False):
+                for i, resp in enumerate(self._responses):
+                    if not self._matches(resp, request, exact):
+                        continue
                     if not resp["repeat"]:
                         self._responses.pop(i)
                     content = b""
@@ -85,7 +107,12 @@ def httpx_mock(monkeypatch):
             # making URL regressions invisible. Tests that WANT an error
             # response must register it explicitly.
             registered = (
-                "\n  ".join(f"{r['method']} {r['url']}" for r in self._responses)
+                "\n  ".join(
+                    f"{r['method']} {r['url_prefix']}*"
+                    if r["url_prefix"]
+                    else f"{r['method']} {r['url']}"
+                    for r in self._responses
+                )
                 or "(none)"
             )
             raise AssertionError(

@@ -1,5 +1,6 @@
 """Local FHIR server operations with OAuth2 authentication."""
 
+import datetime
 import json
 import logging
 import threading
@@ -25,26 +26,83 @@ ORGANIZATION_IDENTIFIER_SYSTEM = "urn:cavell:organization"
 PRACTITIONER_IDENTIFIER_SYSTEM = "urn:cavell:practitioner"
 PRACTITIONER_ROLE_IDENTIFIER_SYSTEM = "urn:cavell:practitioner-role"
 
-# Default resource types to fetch for context
+# Default resource types to fetch for context. Every entry here must be a type
+# the extraction API actually reads (its ``CONTEXT_SLOTS`` map) — anything else
+# is accepted by the API and silently ignored, so it would only inflate the
+# payload. Identity resources are deliberately absent: Patient, Organization
+# and Practitioner travel as explicit reference IDs instead.
 CONTEXT_RESOURCE_TYPES: tuple[str, ...] = (
     "Condition",
     "AllergyIntolerance",
     "Procedure",
     "MedicationRequest",
+    "MedicationAdministration",
+    "NutritionOrder",
     "Observation",
+    "FamilyMemberHistory",
     "ResearchSubject",
     "CarePlan",
 )
 
 # FHIR search parameter that scopes a resource to a patient. Most resources use
-# "subject"; a few use a different reference field.
+# "subject"; a few use a different reference field. R4 defines no "subject"
+# search param at all for NutritionOrder or FamilyMemberHistory — searching
+# those by "subject" is a 400, not an empty result.
 _PATIENT_SEARCH_PARAM: dict[str, str] = {
     "AllergyIntolerance": "patient",
+    "FamilyMemberHistory": "patient",
+    "NutritionOrder": "patient",
     "ResearchSubject": "individual",
 }
 
-# Observations can be voluminous; only the most recent ones are sent as context.
+# Observations can be voluminous, so the context is bounded twice over: to a
+# recent window, and then to a count within it. See _observation_context_params.
 MAX_CONTEXT_OBSERVATIONS = 50
+OBSERVATION_CONTEXT_YEARS = 2
+
+# ResearchStudy statuses that carry no extraction signal. Everything else —
+# active, completed, closed-to-accrual, and the rest — stays in the context:
+# a study the patient was enrolled in years ago is still the study a new note
+# refers to, and dropping it once it leaves "active" makes the extractor
+# re-create it under a fresh id.
+_EXCLUDED_STUDY_STATUSES: tuple[str, ...] = ("entered-in-error", "withdrawn")
+
+
+def _observation_window_start(reference_date: str | datetime.date | None) -> str:
+    """First day of the Observation context window, as ``YYYY-MM-DD``.
+
+    The window is anchored on the *document* being processed, not on today.
+    Backfilling an archive of 2015 notes with a today-anchored window would put
+    every stored observation outside it and hand the extractor nothing.
+
+    Falls back to today when the caller has no date to offer, and to the widest
+    plausible window when the date is unparseable — an unusable filter should
+    not be able to empty the context.
+    """
+    reference = None
+    if isinstance(reference_date, datetime.datetime):
+        reference = reference_date.date()
+    elif isinstance(reference_date, datetime.date):
+        reference = reference_date
+    elif reference_date:
+        try:
+            reference = datetime.date.fromisoformat(str(reference_date)[:10])
+        except ValueError:
+            logger.warning(
+                f"Unparseable reference date {reference_date!r} for the observation "
+                f"context window; falling back to today"
+            )
+    if reference is None:
+        reference = datetime.date.today()
+
+    try:
+        start = reference.replace(year=reference.year - OBSERVATION_CONTEXT_YEARS)
+    except ValueError:
+        # 29 February has no counterpart in a non-leap year.
+        start = reference.replace(
+            year=reference.year - OBSERVATION_CONTEXT_YEARS, day=28
+        )
+    return start.isoformat()
 
 
 def _observation_signature(obs: dict) -> tuple[str, str, str] | None:
@@ -553,24 +611,41 @@ class FHIRClient:
                 break
         return results
 
-    def search_research_studies(self, status: str = "active") -> list[dict]:
-        """Search for ResearchStudy resources by status.
+    def search_research_studies(
+        self, exclude_statuses: Sequence[str] = _EXCLUDED_STUDY_STATUSES
+    ) -> list[dict]:
+        """Search for ResearchStudy resources, minus the excluded statuses.
 
-        ResearchStudy resources are not patient-scoped: every study with the
-        given status applies to all patients, so they are always included in
-        the extraction context for deduplication.
+        ResearchStudy resources are not patient-scoped: a study applies to all
+        patients, so they are always included in the extraction context for
+        deduplication.
+
+        Deliberately *not* filtered to ``status=active``. A study the patient
+        joined two years ago is still the study a new note names, but its
+        status moves on — to ``completed``, ``closed-to-accrual`` and the rest
+        — and an active-only filter drops it from the context exactly then.
+        The extractor matches studies by title and embedding similarity, so a
+        study it cannot see is a study it re-creates under a fresh id.
+
+        Excluded statuses are filtered client-side rather than with a
+        ``status:not`` query: the multi-value semantics of ``:not`` differ
+        between FHIR servers, and the excluded statuses are rare enough that
+        fetching and dropping them costs nothing.
 
         Args:
-            status: ResearchStudy.status to filter by (default "active")
+            exclude_statuses: ResearchStudy.status values to leave out. The
+                default drops only the two that carry no signal.
 
         Returns:
             List of matching ResearchStudy resources
         """
+        excluded = set(exclude_statuses)
         return [
-            entry["resource"]
+            resource
             for entry in self._iter_bundle_entries(
-                "GET", "/ResearchStudy", params={"status": status, "_count": "500"}
+                "GET", "/ResearchStudy", params={"_count": "500"}
             )
+            if (resource := entry["resource"]).get("status") not in excluded
         ]
 
     def search_practitioners(
@@ -613,16 +688,20 @@ class FHIRClient:
         self,
         patient_id: str,
         resource_types: Sequence[str] = CONTEXT_RESOURCE_TYPES,
+        reference_date: str | datetime.date | None = None,
     ) -> list[dict]:
         """Fetch existing FHIR resources to use as extraction context.
 
-        Includes the patient-scoped ``resource_types`` plus all active
-        ResearchStudy resources, which are not patient-scoped but always
-        provided as context for deduplication.
+        Includes the patient-scoped ``resource_types`` plus ResearchStudy
+        resources, which are not patient-scoped but always provided as context
+        for deduplication.
 
         Args:
             patient_id: The patient ID to fetch context for
             resource_types: Patient-scoped resource types to fetch
+            reference_date: Date of the document being processed, used to
+                anchor the Observation window. Defaults to today, which is only
+                right when the documents being ingested are current.
 
         Returns:
             List of FHIR resources to use as context
@@ -631,11 +710,15 @@ class FHIRClient:
         for resource_type in resource_types:
             try:
                 if resource_type == "Observation":
-                    # Cap to the most recent observations, sorted newest-first.
+                    # Bounded twice: to a window ending at the document date,
+                    # and to the newest MAX_CONTEXT_OBSERVATIONS within it. A
+                    # patient with dense labs would otherwise spend the whole
+                    # budget on a fortnight of bloods.
+                    window_start = _observation_window_start(reference_date)
                     results = self.search_patient_resources(
                         patient_id,
                         resource_type,
-                        params={"_sort": "-date"},
+                        params={"date": f"ge{window_start}", "_sort": "-date"},
                         max_results=MAX_CONTEXT_OBSERVATIONS,
                     )
                 elif resource_type == "CarePlan":
@@ -657,13 +740,13 @@ class FHIRClient:
                     f"Failed to fetch {resource_type} for patient {patient_id}: {e}"
                 )
 
-        # Active studies apply to all patients, so always include them.
+        # Studies apply to all patients, so always include them.
         try:
-            studies = self.search_research_studies(status="active")
-            logger.debug(f"Fetched {len(studies)} active ResearchStudy for context")
+            studies = self.search_research_studies()
+            logger.debug(f"Fetched {len(studies)} ResearchStudy for context")
             all_resources.extend(studies)
         except Exception as e:
-            logger.warning(f"Failed to fetch active ResearchStudy: {e}")
+            logger.warning(f"Failed to fetch ResearchStudy: {e}")
 
         # Server bookkeeping (meta) and generated narrative (text) carry no
         # extraction signal; stripping them keeps the context payload small.

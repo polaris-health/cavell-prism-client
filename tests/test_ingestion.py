@@ -9,6 +9,8 @@ import httpx
 import pytest
 
 from cavell_client.fhir import (
+    _PATIENT_SEARCH_PARAM,
+    CONTEXT_RESOURCE_TYPES,
     IDENTIFIER_SYSTEM,
     ORGANIZATION_IDENTIFIER_SYSTEM,
     PRACTITIONER_IDENTIFIER_SYSTEM,
@@ -51,36 +53,37 @@ def mock_seed_response(httpx_mock, entries):
 
 
 def mock_context_empty(httpx_mock, patient_fhir_id, repeat=False):
-    """Mock ALL clinical context fetches (empty results)."""
-    for rt in ["Condition", "AllergyIntolerance", "Procedure", "MedicationRequest"]:
-        param = "patient" if rt == "AllergyIntolerance" else "subject"
+    """Mock ALL clinical context fetches (empty results).
+
+    Driven off ``CONTEXT_RESOURCE_TYPES`` rather than a hand-kept list. The
+    context fetch swallows per-type errors by design, so a type added to the
+    SDK but missed here would not fail a test — it would just quietly stop
+    being exercised, which is how two context types went unnoticed before.
+    """
+    special = {"Observation", "CarePlan"}
+    for rt in CONTEXT_RESOURCE_TYPES:
+        if rt in special:
+            continue
+        param = _PATIENT_SEARCH_PARAM.get(rt, "subject")
         httpx_mock.add_response(
             method="GET",
             url=f"http://localhost:8080/fhir/{rt}?{param}={patient_fhir_id}&_count=500",
             json={"entry": []},
             repeat=repeat,
         )
+    # The window cutoff comes from each document's date, so match on a prefix.
     httpx_mock.add_response(
         method="GET",
-        url=(
+        url_prefix=(
             f"http://localhost:8080/fhir/Observation?subject={patient_fhir_id}"
-            f"&_count=50&_sort=-date"
+            f"&_count=50&date=ge"
         ),
         json={"entry": []},
-        repeat=repeat,
+        repeat=True,
     )
     httpx_mock.add_response(
         method="GET",
-        url=(
-            f"http://localhost:8080/fhir/ResearchSubject"
-            f"?individual={patient_fhir_id}&_count=500"
-        ),
-        json={"entry": []},
-        repeat=repeat,
-    )
-    httpx_mock.add_response(
-        method="GET",
-        url="http://localhost:8080/fhir/ResearchStudy?status=active&_count=500",
+        url="http://localhost:8080/fhir/ResearchStudy?_count=500",
         json={"entry": []},
         repeat=True,
     )
@@ -783,6 +786,127 @@ class TestExtract:
         assert body["document_date"] == "2024-01-15"
         # Nothing else to say about this document, so meta is omitted entirely.
         assert "meta" not in body
+
+    def test_observation_context_window_anchors_on_the_document(
+        self, client, httpx_mock
+    ):
+        """Backfilling old documents must not query a window behind *today*."""
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        for _ in pipeline.extract(
+            [
+                Document(
+                    text="Patient has diabetes",
+                    patient_identifier="MRN-1",
+                    date="2015-04-02",
+                    organization_identifier="CGH-001",
+                    document_id="doc-1",
+                ),
+            ]
+        ):
+            pass
+
+        observation_requests = [
+            str(r.url)
+            for r in httpx_mock.get_requests()
+            if "/Observation?" in str(r.url)
+        ]
+        assert len(observation_requests) == 1
+        assert "date=ge2013-04-02" in observation_requests[0]
+
+    def test_context_covers_every_type_the_api_reads(self, client, httpx_mock):
+        """A type in CONTEXT_RESOURCE_TYPES must actually be fetched.
+
+        The context fetch logs and swallows per-type failures, so a type that
+        stops being requested degrades silently — no error, just a thinner
+        context and duplicate resources downstream.
+        """
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        for _ in pipeline.extract(
+            [
+                Document(
+                    text="Patient has diabetes",
+                    patient_identifier="MRN-1",
+                    date="2024-01-15",
+                    organization_identifier="CGH-001",
+                    document_id="doc-1",
+                ),
+            ]
+        ):
+            pass
+
+        urls = [str(r.url) for r in httpx_mock.get_requests()]
+        for resource_type in CONTEXT_RESOURCE_TYPES:
+            assert any(f"/fhir/{resource_type}?" in url for url in urls), (
+                f"{resource_type} is in CONTEXT_RESOURCE_TYPES but was never fetched"
+            )
+        assert any("/fhir/ResearchStudy?" in url for url in urls)
+
+    def test_fetched_context_reaches_the_extract_payload(self, client, httpx_mock):
+        """Fetching a type is only half the contract — it must also be sent.
+
+        The three types added most recently are the ones worth pinning: the API
+        reads them, but nothing filled their slots for months, and the failure
+        was silent in both directions.
+        """
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        mock_context_empty(httpx_mock, "pat-1")
+        stored = {
+            "NutritionOrder?patient=pat-1": {
+                "resourceType": "NutritionOrder",
+                "id": "no-88",
+                "status": "active",
+            },
+            "MedicationAdministration?subject=pat-1": {
+                "resourceType": "MedicationAdministration",
+                "id": "ma-12",
+                "status": "in-progress",
+            },
+            "FamilyMemberHistory?patient=pat-1": {
+                "resourceType": "FamilyMemberHistory",
+                "id": "fmh-4",
+                "status": "completed",
+            },
+        }
+        for query, resource in stored.items():
+            httpx_mock.add_response(
+                method="GET",
+                url=f"http://localhost:8080/fhir/{query}&_count=500",
+                json={"entry": [{"resource": resource}]},
+                replace=True,
+            )
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        for _ in pipeline.extract(
+            [
+                Document(
+                    text="Patient has diabetes",
+                    patient_identifier="MRN-1",
+                    date="2024-01-15",
+                    organization_identifier="CGH-001",
+                    document_id="doc-1",
+                ),
+            ]
+        ):
+            pass
+
+        sent = self._extract_body(httpx_mock)["context"]
+        assert {r["resourceType"]: r["id"] for r in sent} == {
+            "NutritionOrder": "no-88",
+            "MedicationAdministration": "ma-12",
+            "FamilyMemberHistory": "fmh-4",
+        }
 
     def test_document_date_normalized_before_sending(self, client, httpx_mock):
         """Whatever Document accepted, the payload carries ISO YYYY-MM-DD."""

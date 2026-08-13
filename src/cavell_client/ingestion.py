@@ -1488,8 +1488,13 @@ class IngestionPipeline:
                         PRACTITIONER_IDENTIFIER_SYSTEM, doc.practitioner_identifier
                     )
 
-                # Fetch clinical context only (no Patient/Organization)
-                context = self._fhir.fetch_patient_context(patient_fhir_id)
+                # Fetch clinical context only (no Patient/Organization). The
+                # document date anchors the Observation window, so backfilling
+                # old documents sees the observations around them rather than
+                # an empty window two years behind today.
+                context = self._fhir.fetch_patient_context(
+                    patient_fhir_id, reference_date=doc.date
+                )
 
                 # Build meta — the date is no longer part of it, it travels as
                 # its own payload field. Only the attending practitioner is

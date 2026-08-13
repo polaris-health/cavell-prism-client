@@ -457,7 +457,28 @@ The pipeline treats these the same as extraction failures: it skips remaining do
 
 Before each document, the SDK fetches existing clinical resources from the FHIR server and passes them as context to the extraction API. The API uses this context to POST a new resource or PUT an update to an existing one.
 
-The context covers Conditions, AllergyIntolerances, Procedures, MedicationRequests, the 50 most recent Observations, ResearchSubjects, and **active CarePlans** — so care plans that continue across notes are updated and versioned instead of duplicated (a plan that ends is marked completed/revoked and drops out of the context) — plus all **active ResearchStudy** resources, which are not patient-scoped and always included for deduplication.
+The context covers every resource type the extraction API can read, so that each is updated in place rather than duplicated:
+
+| Resource | Scope sent as context |
+|---|---|
+| `Condition` | all |
+| `AllergyIntolerance` | all |
+| `Procedure` | all |
+| `MedicationRequest` | all |
+| `MedicationAdministration` | all — so a dose series described across notes closes its period instead of starting a second one |
+| `NutritionOrder` | all, **including revoked/completed** — a diet order can only be *stopped* by updating the order that started it, which requires seeing it |
+| `FamilyMemberHistory` | all — family history is restated at nearly every visit; conditions are merged onto the relative already on record |
+| `Observation` | the last **2 years** relative to the document's own date, capped at the **50** most recent within that window |
+| `CarePlan` | **active only** — a plan that ends is marked completed/revoked and drops out, so it stops growing the context |
+| `ResearchSubject` | all |
+| `ResearchStudy` | all statuses except `entered-in-error`/`withdrawn`. Not patient-scoped: a study applies to every patient |
+
+Two notes on the scoping:
+
+- **The Observation window is anchored on the document, not on today.** Backfilling an archive of 2015 notes with a today-anchored window would put every stored observation outside it and hand the extractor nothing.
+- **ResearchStudy is deliberately not filtered to `active`.** A study the patient joined two years ago is still the study a new note names, but its status moves on to `completed` or `closed-to-accrual`. Filtering to active dropped it from the context exactly then, and the extractor — which matches studies by title and embedding similarity — re-created it under a fresh id.
+
+Identity resources are never sent as context: `Patient`, `Organization` and `Practitioner` travel as explicit reference IDs (`patient_id`, `organization_id`, `practitioner_id`) instead. `Encounter` and `DocumentReference` are note-scoped by design — one per document, legitimately repeating — so they are not context either.
 
 Chronological ordering matters:
 

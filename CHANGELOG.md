@@ -6,8 +6,40 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Three more resource types are now sent as extraction context:
+  `MedicationAdministration`, `NutritionOrder` and `FamilyMemberHistory`.** The
+  extraction API has read the first two for months, with prompts and
+  update-builders behind them, but nothing ever filled those slots — so their
+  UPDATE branches were unreachable and every note re-created the resource. Most
+  visibly, a diet order could not be *discontinued*: stopping one means updating
+  the order that started it, and the extractor was never shown it.
+  `FamilyMemberHistory` is new on the server side too; conditions are merged
+  onto the relative already on record instead of adding another entry for the
+  same father at every visit. **Requires the matching Prism-side context slot
+  for `FamilyMemberHistory`**; the other two work against any current server.
+  `NutritionOrder` and `FamilyMemberHistory` are searched by `patient` — R4
+  defines no `subject` search parameter for either.
+
 ### Changed
 
+- **The Observation context is now a 2-year window ending at the document's own
+  date, capped at the 50 most recent within it** (previously: the 50 most
+  recent overall, with no window). The window is anchored on the document
+  rather than on today, so backfilling an archive of older notes still sees the
+  observations around each one instead of an empty window two years behind the
+  present. `FHIRClient.fetch_patient_context()` takes a new optional
+  `reference_date`; the ingestion pipeline passes each document's date
+  automatically.
+- **`ResearchStudy` context is no longer filtered to `status=active`.** Only
+  `entered-in-error` and `withdrawn` are dropped now. A study the patient
+  joined two years ago is still the study a new note names, but its status
+  moves on to `completed` or `closed-to-accrual` — and the active-only filter
+  removed it from the context exactly then, so the extractor, which matches
+  studies by title and embedding similarity, re-created it under a fresh id.
+  `search_research_studies()` takes `exclude_statuses` in place of `status`
+  (breaking for direct callers of that method; the pipeline is unaffected).
 - **`Document.document_id` is now required** (breaking). It is keyword-only, so
   the positional arguments around it are unchanged, and omitting it raises
   `TypeError` at construction. Everything that makes ingestion safe to re-run

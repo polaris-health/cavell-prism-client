@@ -1,5 +1,6 @@
 """Tests for local FHIR client."""
 
+import datetime
 import json
 import logging
 from urllib.parse import quote
@@ -8,14 +9,19 @@ import httpx
 import pytest
 
 from cavell_client.fhir import (
+    _PATIENT_SEARCH_PARAM,
+    CONTEXT_RESOURCE_TYPES,
     DOCUMENT_IDENTIFIER_SYSTEM,
     IDENTIFIER_SYSTEM,
+    MAX_CONTEXT_OBSERVATIONS,
+    OBSERVATION_CONTEXT_YEARS,
     ORGANIZATION_IDENTIFIER_SYSTEM,
     PRACTITIONER_IDENTIFIER_SYSTEM,
     FHIRClient,
     _dedupe_entries_by_id,
     _filter_stale_refs,
     _observation_signature,
+    _observation_window_start,
 )
 from cavell_client.models import FHIRAuthError, PatientNotFoundError
 
@@ -581,10 +587,46 @@ class TestContextFetching:
                 ]
             },
         )
-        # Observation search (capped + sorted newest-first)
+        # MedicationAdministration search
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/Observation?subject=123&_count=50&_sort=-date",
+            url="http://localhost:8080/fhir/MedicationAdministration?subject=123&_count=500",
+            json={
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "MedicationAdministration",
+                            "id": "ma1",
+                        }
+                    }
+                ]
+            },
+        )
+        # NutritionOrder search (R4 has no 'subject' param — 'patient')
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/NutritionOrder?patient=123&_count=500",
+            json={
+                "entry": [{"resource": {"resourceType": "NutritionOrder", "id": "no1"}}]
+            },
+        )
+        # FamilyMemberHistory search (R4 has no 'subject' param — 'patient')
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/FamilyMemberHistory?patient=123&_count=500",
+            json={
+                "entry": [
+                    {"resource": {"resourceType": "FamilyMemberHistory", "id": "f1"}}
+                ]
+            },
+        )
+        # Observation search (windowed on the document date, capped, newest-first)
+        httpx_mock.add_response(
+            method="GET",
+            url=(
+                "http://localhost:8080/fhir/Observation?subject=123&_count=50"
+                "&date=ge2022-06-15&_sort=-date"
+            ),
             json={"entry": [{"resource": {"resourceType": "Observation", "id": "o1"}}]},
         )
         # CarePlan search (active plans only)
@@ -604,21 +646,32 @@ class TestContextFetching:
                 ]
             },
         )
-        # Active ResearchStudy search (not patient-scoped)
+        # ResearchStudy search (not patient-scoped, not status-filtered)
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/ResearchStudy?status=active&_count=500",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
             json={
-                "entry": [{"resource": {"resourceType": "ResearchStudy", "id": "rs1"}}]
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "ResearchStudy",
+                            "id": "rs1",
+                            "status": "completed",
+                        }
+                    }
+                ]
             },
         )
 
-        context = fhir.fetch_patient_context("123")
-        assert len(context) == 5
+        context = fhir.fetch_patient_context("123", reference_date="2024-06-15")
+        assert len(context) == 8
         resource_types = {r["resourceType"] for r in context}
         assert resource_types == {
             "Condition",
             "MedicationRequest",
+            "MedicationAdministration",
+            "NutritionOrder",
+            "FamilyMemberHistory",
             "Observation",
             "CarePlan",
             "ResearchStudy",
@@ -1223,12 +1276,6 @@ class TestFetchContextEdgeCases:
             url="http://localhost:8080/fhir/AllergyIntolerance?patient=pat-1&_count=500",
             status_code=500,
         )
-        # Procedure succeeds
-        httpx_mock.add_response(
-            method="GET",
-            url="http://localhost:8080/fhir/Procedure?subject=pat-1&_count=500",
-            json={"entry": []},
-        )
         # MedicationRequest succeeds
         httpx_mock.add_response(
             method="GET",
@@ -1239,10 +1286,31 @@ class TestFetchContextEdgeCases:
                 ]
             },
         )
-        # Observation succeeds (capped + sorted newest-first)
+        # Every remaining patient-scoped type succeeds with nothing to report.
+        for resource_type in CONTEXT_RESOURCE_TYPES:
+            if resource_type in {
+                "Condition",
+                "AllergyIntolerance",
+                "MedicationRequest",
+                "Observation",
+                "CarePlan",
+            }:
+                continue
+            param = _PATIENT_SEARCH_PARAM.get(resource_type, "subject")
+            httpx_mock.add_response(
+                method="GET",
+                url=(
+                    f"http://localhost:8080/fhir/{resource_type}"
+                    f"?{param}=pat-1&_count=500"
+                ),
+                json={"entry": []},
+            )
+        # Observation succeeds (windowed, capped, newest-first)
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/Observation?subject=pat-1&_count=50&_sort=-date",
+            url_prefix=(
+                "http://localhost:8080/fhir/Observation?subject=pat-1&_count=50&date=ge"
+            ),
             json={"entry": []},
         )
         # CarePlan succeeds (empty)
@@ -1251,10 +1319,10 @@ class TestFetchContextEdgeCases:
             url="http://localhost:8080/fhir/CarePlan?subject=pat-1&_count=500&status=active",
             json={"entry": []},
         )
-        # Active ResearchStudy succeeds
+        # ResearchStudy succeeds
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/ResearchStudy?status=active&_count=500",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
             json={"entry": []},
         )
 
@@ -1263,6 +1331,149 @@ class TestFetchContextEdgeCases:
         assert len(context) == 2
         resource_types = {r["resourceType"] for r in context}
         assert resource_types == {"Condition", "MedicationRequest"}
+
+
+class TestObservationWindow:
+    """The Observation context window: last N years, then capped by count."""
+
+    def test_window_is_two_years_back_from_the_document(self):
+        assert _observation_window_start("2024-06-15") == "2022-06-15"
+
+    def test_accepts_a_date_object(self):
+        assert _observation_window_start(datetime.date(2024, 6, 15)) == "2022-06-15"
+
+    def test_accepts_a_datetime(self):
+        assert (
+            _observation_window_start(datetime.datetime(2024, 6, 15, 9, 30))
+            == "2022-06-15"
+        )
+
+    def test_accepts_a_full_iso_timestamp(self):
+        assert _observation_window_start("2024-06-15T09:30:00Z") == "2022-06-15"
+
+    def test_leap_day_does_not_blow_up(self):
+        """29 Feb has no counterpart two years back."""
+        assert _observation_window_start("2024-02-29") == "2022-02-28"
+
+    def test_defaults_to_today_without_a_reference(self):
+        expected = datetime.date.today().replace(
+            year=datetime.date.today().year - OBSERVATION_CONTEXT_YEARS
+        )
+        assert _observation_window_start(None) == expected.isoformat()
+
+    def test_an_unparseable_date_falls_back_rather_than_raising(self, caplog):
+        """An unusable filter must not be able to empty the context."""
+        with caplog.at_level(logging.WARNING):
+            result = _observation_window_start("not-a-date")
+
+        assert result  # a usable window, not an exception
+        assert "Unparseable reference date" in caplog.text
+
+    def test_context_fetch_windows_on_the_document_date(self, fhir, httpx_mock):
+        """A 2015 backfill must not query a window two years behind today."""
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+        for resource_type in CONTEXT_RESOURCE_TYPES:
+            if resource_type in {"Observation", "CarePlan"}:
+                continue
+            param = _PATIENT_SEARCH_PARAM.get(resource_type, "subject")
+            httpx_mock.add_response(
+                method="GET",
+                url=(
+                    f"http://localhost:8080/fhir/{resource_type}"
+                    f"?{param}=pat-1&_count=500"
+                ),
+                json={"entry": []},
+            )
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/CarePlan?subject=pat-1&_count=500&status=active",
+            json={"entry": []},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
+            json={"entry": []},
+        )
+        # Registered EXACTLY: a today-anchored window would not match this.
+        httpx_mock.add_response(
+            method="GET",
+            url=(
+                f"http://localhost:8080/fhir/Observation?subject=pat-1"
+                f"&_count={MAX_CONTEXT_OBSERVATIONS}&date=ge2013-04-02&_sort=-date"
+            ),
+            json={"entry": []},
+        )
+
+        fhir.fetch_patient_context("pat-1", reference_date="2015-04-02")
+
+        observation_requests = [
+            str(r.url) for r in httpx_mock.get_requests() if "Observation" in str(r.url)
+        ]
+        assert observation_requests == [
+            "http://localhost:8080/fhir/Observation?subject=pat-1"
+            f"&_count={MAX_CONTEXT_OBSERVATIONS}&date=ge2013-04-02&_sort=-date"
+        ]
+
+    def test_count_cap_still_applies_inside_the_window(self, fhir, httpx_mock):
+        """A dense two years is still trimmed to MAX_CONTEXT_OBSERVATIONS."""
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url_prefix="http://localhost:8080/fhir/Observation?subject=pat-1",
+            json={
+                "entry": [
+                    {"resource": {"resourceType": "Observation", "id": f"o{i}"}}
+                    for i in range(200)
+                ]
+            },
+        )
+
+        results = fhir.search_patient_resources(
+            "pat-1",
+            "Observation",
+            params={"date": "ge2022-06-15", "_sort": "-date"},
+            max_results=MAX_CONTEXT_OBSERVATIONS,
+        )
+
+        assert len(results) == MAX_CONTEXT_OBSERVATIONS
+
+
+class TestContextResourceTypeCoverage:
+    """The context list and its search params must stay in step."""
+
+    def test_r4_types_without_a_subject_param_are_mapped(self):
+        """NutritionOrder and FamilyMemberHistory 400 on ``subject`` in R4."""
+        for resource_type in ("NutritionOrder", "FamilyMemberHistory"):
+            assert resource_type in CONTEXT_RESOURCE_TYPES
+            assert _PATIENT_SEARCH_PARAM[resource_type] == "patient"
+
+    def test_types_the_api_reads_are_all_requested(self):
+        """Mirrors prism's CONTEXT_SLOTS, minus the non-patient-scoped study."""
+        assert set(CONTEXT_RESOURCE_TYPES) == {
+            "AllergyIntolerance",
+            "CarePlan",
+            "Condition",
+            "FamilyMemberHistory",
+            "MedicationAdministration",
+            "MedicationRequest",
+            "NutritionOrder",
+            "Observation",
+            "Procedure",
+            "ResearchSubject",
+        }
+
+    def test_identity_resources_are_never_context(self):
+        """Patient/Organization/Practitioner travel as reference IDs instead."""
+        for resource_type in ("Patient", "Organization", "Practitioner", "Encounter"):
+            assert resource_type not in CONTEXT_RESOURCE_TYPES
 
 
 class TestObservationSignature:
@@ -1426,7 +1637,8 @@ class TestFilterStaleRefs:
 class TestSearchResearchStudies:
     """Test search_research_studies."""
 
-    def test_filters_by_active_status(self, fhir, httpx_mock):
+    @staticmethod
+    def _mock_studies(httpx_mock, studies):
         httpx_mock.add_response(
             method="POST",
             url="http://localhost:8080/auth/token",
@@ -1434,17 +1646,80 @@ class TestSearchResearchStudies:
         )
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/ResearchStudy?status=active&_count=500",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
             json={
                 "resourceType": "Bundle",
                 "entry": [
-                    {"resource": {"resourceType": "ResearchStudy", "id": "rs-1"}},
-                    {"resource": {"resourceType": "ResearchStudy", "id": "rs-2"}},
+                    {
+                        "resource": {
+                            "resourceType": "ResearchStudy",
+                            "id": study_id,
+                            "status": status,
+                        }
+                    }
+                    for study_id, status in studies
                 ],
             },
         )
 
+    def test_returns_studies_regardless_of_status(self, fhir, httpx_mock):
+        """A study that has left ``active`` is still the study a note names.
+
+        Filtering to ``status=active`` dropped it from the context exactly when
+        it moved on, and the extractor — which matches studies by title and
+        embedding similarity — re-created it under a fresh id.
+        """
+        self._mock_studies(
+            httpx_mock,
+            [
+                ("rs-1", "active"),
+                ("rs-2", "completed"),
+                ("rs-3", "closed-to-accrual"),
+            ],
+        )
+
         results = fhir.search_research_studies()
+        assert [r["id"] for r in results] == ["rs-1", "rs-2", "rs-3"]
+
+    def test_drops_the_statuses_that_carry_no_signal(self, fhir, httpx_mock):
+        self._mock_studies(
+            httpx_mock,
+            [
+                ("rs-1", "active"),
+                ("rs-2", "entered-in-error"),
+                ("rs-3", "withdrawn"),
+            ],
+        )
+
+        results = fhir.search_research_studies()
+        assert [r["id"] for r in results] == ["rs-1"]
+
+    def test_a_study_without_a_status_is_kept(self, fhir, httpx_mock):
+        """Absent status is not an excluded status — keep it rather than guess."""
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
+            json={
+                "resourceType": "Bundle",
+                "entry": [
+                    {"resource": {"resourceType": "ResearchStudy", "id": "rs-1"}}
+                ],
+            },
+        )
+
+        assert [r["id"] for r in fhir.search_research_studies()] == ["rs-1"]
+
+    def test_exclusions_are_overridable(self, fhir, httpx_mock):
+        self._mock_studies(
+            httpx_mock, [("rs-1", "active"), ("rs-2", "entered-in-error")]
+        )
+
+        results = fhir.search_research_studies(exclude_statuses=())
         assert [r["id"] for r in results] == ["rs-1", "rs-2"]
 
 
