@@ -26,7 +26,12 @@ from cavell_client.ingestion import (
     _dedupe_documents_by_content,
     _Phase,
 )
-from tests.helpers import mock_api_preflight, mock_fhir_auth, mock_watermark
+from tests.helpers import (
+    mock_api_preflight,
+    mock_fhir_auth,
+    mock_related_documents,
+    mock_watermark,
+)
 
 IDENTIFIER_SYSTEM_ENCODED = quote(IDENTIFIER_SYSTEM, safe="")
 ORG_SYSTEM_ENCODED = quote(ORGANIZATION_IDENTIFIER_SYSTEM, safe="")
@@ -83,7 +88,7 @@ def mock_context_empty(httpx_mock, patient_fhir_id, repeat=False):
     )
     httpx_mock.add_response(
         method="GET",
-        url="http://localhost:8080/fhir/ResearchStudy?_count=500",
+        url="http://localhost:8080/fhir/ResearchStudy?_count=500&_sort=-_lastUpdated",
         json={"entry": []},
         repeat=True,
     )
@@ -95,6 +100,38 @@ def mock_context_empty(httpx_mock, patient_fhir_id, repeat=False):
         ),
         json={"entry": []},
         repeat=repeat,
+    )
+
+
+def _extract_body(httpx_mock):
+    """Decode the body of the most recent POST /extract/text."""
+    extract_request = [
+        r
+        for r in httpx_mock.get_requests()
+        if r.method == "POST" and "extract/text" in str(r.url)
+    ][-1]
+    return json.loads(extract_request.content)
+
+
+def mock_context_split_empty(httpx_mock, patient_fhir_id, repeat=False):
+    """Mock the split-context fetches an out-of-order document makes.
+
+    Everything ``mock_context_empty`` covers, plus the provenance query that
+    classifies each resource and the second (future-side) Observation query.
+    The Observation prefix in ``mock_context_empty`` does not match the future
+    query — that one sorts ascending and bounds with ``gt`` — so it is
+    registered here rather than inherited.
+    """
+    mock_context_empty(httpx_mock, patient_fhir_id, repeat=repeat)
+    mock_related_documents(httpx_mock, patient_fhir_id)
+    httpx_mock.add_response(
+        method="GET",
+        url_prefix=(
+            f"http://localhost:8080/fhir/Observation?subject={patient_fhir_id}"
+            f"&_count=50&date=gt"
+        ),
+        json={"entry": []},
+        repeat=True,
     )
 
 
@@ -755,11 +792,7 @@ class TestExtract:
         assert pipeline.documents_processed == 1
 
     def _extract_body(self, httpx_mock):
-        requests = httpx_mock.get_requests()
-        extract_request = [
-            r for r in requests if r.method == "POST" and "extract/text" in str(r.url)
-        ][-1]
-        return json.loads(extract_request.content)
+        return _extract_body(httpx_mock)
 
     def test_document_date_sent_as_its_own_field(self, client, httpx_mock):
         """Document.date is a payload field, not prose inside meta."""
@@ -4181,22 +4214,14 @@ class TestExtractAll(_PipelineHarness):
         ]
 
 
-class TestOutOfOrderRejection(_PipelineHarness):
-    """Documents older than the patient's newest persisted one are refused.
+class TestOutOfOrderExtraction(_PipelineHarness):
+    """Documents older than the patient's newest persisted one are extracted.
 
-    Refusal is scoped to the offending document. A backdated note must not take
-    down the rest of the call — not other patients' documents, and not the same
-    patient's forward-dated ones.
+    They take the split-context path: the extraction API is shown the record as
+    of the document's own date, and everything newer travels separately as
+    ``future_context``. Nothing is refused — this replaces the refusal that
+    0.5.0 shipped.
     """
-
-    @staticmethod
-    def _no_extraction(pipeline, monkeypatch):
-        """Make any extraction attempt a hard test failure."""
-
-        def boom(*a, **kw):
-            raise AssertionError("extraction must not run for a refused document")
-
-        monkeypatch.setattr(pipeline, "_process_single_document", boom)
 
     @staticmethod
     def _record(pipeline, monkeypatch, transient_ids=()):
@@ -4219,45 +4244,92 @@ class TestOutOfOrderRejection(_PipelineHarness):
         monkeypatch.setattr(pipeline, "_process_single_document", fake)
         return seen
 
-    def test_older_document_is_refused_without_raising(
-        self, client, httpx_mock, monkeypatch
-    ):
+    def test_older_document_is_extracted(self, client, httpx_mock):
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1")
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
-        self._no_extraction(pipeline, monkeypatch)
+        mock_context_split_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
 
         (outcome,) = pipeline.extract([_note("MRN-1", "2024-05-01", "older")])
 
-        assert outcome.success is False
+        assert outcome.success is True
         assert outcome.out_of_order is True
-        assert outcome.patient_identifier == "MRN-1"
         assert outcome.document_id == "older"
-        assert outcome.error == (
-            "older (patient MRN-1) dated 2024-05-01 is older than 2024-06-01"
-        )
-        assert "[out-of-order]" in str(outcome)
+        assert pipeline.documents_processed == 1
+        assert pipeline.documents_failed == 0
 
-    def test_nothing_is_persisted_for_a_refused_document(
-        self, client, httpx_mock, monkeypatch
-    ):
-        """No extract call, no bundle POST — the refusal costs nothing."""
+    def test_payload_carries_the_out_of_order_flag(self, client, httpx_mock):
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1")
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
-        self._no_extraction(pipeline, monkeypatch)
+        mock_context_split_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
 
         pipeline.extract([_note("MRN-1", "2024-05-01", "older")])
 
-        assert not any(
-            str(r.url).endswith("/api/extract/text") for r in httpx_mock.get_requests()
-        )
-        assert pipeline.documents_processed == 0
-        assert pipeline.documents_failed == 1
-        assert pipeline.total_cost == 0.0
+        body = _extract_body(httpx_mock)
+        assert body["out_of_order"] is True
+        assert body["document_date"] == "2024-05-01"
 
-    def test_other_patients_still_extract(self, client, httpx_mock, monkeypatch):
-        """The reported bug: one patient's backdated note aborted the whole run."""
+    def test_payload_splits_context_around_the_document_date(self, client, httpx_mock):
+        """The past side reaches `context`, the newer side `future_context`."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        mock_context_split_empty(httpx_mock, "pat-1")
+        # Two Conditions on record: one known before the backdated note, one
+        # that only a later note introduced.
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/Condition?subject=pat-1&_count=500",
+            json={
+                "entry": [
+                    {"resource": {"resourceType": "Condition", "id": "old"}},
+                    {"resource": {"resourceType": "Condition", "id": "new"}},
+                ]
+            },
+            replace=True,
+            repeat=True,
+        )
+        mock_related_documents(
+            httpx_mock,
+            "pat-1",
+            provenance=[
+                ("2024-01-01", ["Condition/old"]),
+                ("2024-06-01", ["Condition/new"]),
+            ],
+        )
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        pipeline.extract([_note("MRN-1", "2024-05-01", "older")])
+
+        body = _extract_body(httpx_mock)
+        assert [r["id"] for r in body["context"]] == ["old"]
+        assert [r["id"] for r in body["future_context"]] == ["new"]
+
+    def test_in_order_document_sends_neither_new_field(self, client, httpx_mock):
+        """The forward path is untouched: no split, no provenance query."""
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-01-01T00:00:00Z")
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        pipeline.extract([_note("MRN-1", "2024-05-01", "newer")])
+
+        body = _extract_body(httpx_mock)
+        assert "out_of_order" not in body
+        assert "future_context" not in body
+        assert not any(
+            "_elements=date%2Ccontext" in str(r.url) for r in httpx_mock.get_requests()
+        )
+
+    def test_other_patients_are_unaffected(self, client, httpx_mock, monkeypatch):
         pipeline = self._seed(client, httpx_mock, num_patients=3)
         mock_patient_exists(httpx_mock, ["pat-1", "pat-2", "pat-3"], repeat=True)
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
@@ -4271,36 +4343,18 @@ class TestOutOfOrderRejection(_PipelineHarness):
 
         outcomes = pipeline.extract(docs)
 
-        assert [d.document_id for d in seen] == ["b-ok", "c-ok"]
-        assert {o.document_id for o in outcomes if o.success} == {"b-ok", "c-ok"}
-        assert [o.document_id for o in outcomes if o.out_of_order] == ["a-old"]
-        assert pipeline.documents_processed == 2
-        assert pipeline.documents_failed == 1
+        assert {d.document_id for d in seen} == {"a-old", "b-ok", "c-ok"}
+        assert {o.document_id for o in outcomes if o.success} == {
+            "a-old",
+            "b-ok",
+            "c-ok",
+        }
+        assert pipeline.documents_processed == 3
+        assert pipeline.documents_failed == 0
 
-    def test_same_patient_forward_documents_still_extract(
+    def test_document_index_points_at_the_callers_document(
         self, client, httpx_mock, monkeypatch
     ):
-        """Refusal is per document, so the patient's newer notes still run."""
-        pipeline = self._seed(client, httpx_mock)
-        mock_patient_exists(httpx_mock, "pat-1")
-        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
-        seen = self._record(pipeline, monkeypatch)
-
-        docs = [
-            _note("MRN-1", "2024-07-01", "newer"),
-            _note("MRN-1", "2024-05-01", "older"),
-        ]
-
-        outcomes = pipeline.extract(docs)
-
-        assert [d.document_id for d in seen] == ["newer"]
-        assert [o.document_id for o in outcomes if o.out_of_order] == ["older"]
-        assert [o.document_id for o in outcomes if o.success] == ["newer"]
-
-    def test_refused_document_index_survives_filtering(
-        self, client, httpx_mock, monkeypatch
-    ):
-        """document_index still points at the caller's document."""
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1")
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
@@ -4317,60 +4371,46 @@ class TestOutOfOrderRejection(_PipelineHarness):
         assert docs[by_id["older"].document_index].document_id == "older"
         assert docs[by_id["newer"].document_index].document_id == "newer"
 
-    def test_every_document_refused_returns_outcomes(
+    def test_out_of_order_document_is_deferred_retried(
         self, client, httpx_mock, monkeypatch
     ):
-        """Nothing to extract is not an error — it is a list of refusals."""
-        pipeline = self._seed(client, httpx_mock)
-        mock_patient_exists(httpx_mock, "pat-1")
-        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
-        self._no_extraction(pipeline, monkeypatch)
-
-        docs = [
-            _note("MRN-1", "2024-05-01", "old-1"),
-            _note("MRN-1", "2024-04-01", "old-2"),
-        ]
-
-        outcomes = pipeline.extract(docs)
-
-        assert {o.document_id for o in outcomes} == {"old-1", "old-2"}
-        assert all(o.out_of_order and not o.success for o in outcomes)
-        assert pipeline.documents_failed == 2
-
-    def test_refused_document_is_not_deferred_retried(
-        self, client, httpx_mock, monkeypatch
-    ):
-        """A transient failure for the patient must not resurrect the refusal."""
+        """A transient failure retries like any other — refusals used to not."""
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1", repeat=True)
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
-        seen = self._record(pipeline, monkeypatch, transient_ids={"flaky"})
+        seen = self._record(pipeline, monkeypatch, transient_ids={"older"})
 
-        docs = [
-            _note("MRN-1", "2024-05-01", "older"),
-            _note("MRN-1", "2024-07-01", "flaky"),
-        ]
+        outcomes = pipeline.extract([_note("MRN-1", "2024-05-01", "older")])
 
-        outcomes = pipeline.extract(docs)
+        assert [d.document_id for d in seen] == ["older", "older"]
+        assert len(outcomes) == 1
 
-        # The deferred pass re-ran "flaky"; "older" never reached extraction.
-        assert [d.document_id for d in seen] == ["flaky", "flaky"]
-        assert [o.document_id for o in outcomes if o.out_of_order] == ["older"]
-
-    def test_reports_every_violation(self, client, httpx_mock, monkeypatch):
+    def test_marks_every_out_of_order_document(self, client, httpx_mock, monkeypatch):
         pipeline = self._seed(client, httpx_mock, num_patients=2)
         mock_patient_exists(httpx_mock, ["pat-1", "pat-2"], repeat=True)
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
         mock_watermark(httpx_mock, "pat-2", date="2025-01-01T00:00:00Z")
-        self._no_extraction(pipeline, monkeypatch)
+        watermarks = {}
 
-        docs = [
-            _note("MRN-1", "2024-05-01", "a-old"),
-            _note("MRN-2", "2024-12-01", "b-old"),
-            _note("MRN-1", "2024-04-01", "a-older"),
-        ]
+        def fake(doc, doc_index, organization_identifier, watermark=None, **kw):
+            watermarks[doc.document_id] = watermark
+            return IngestionOutcome(
+                success=True,
+                patient_identifier=doc.patient_identifier,
+                document_index=doc_index,
+                document_id=doc.document_id,
+                out_of_order=watermark is not None and str(doc.date) < watermark,
+            )
 
-        outcomes = pipeline.extract(docs)
+        monkeypatch.setattr(pipeline, "_process_single_document", fake)
+
+        outcomes = pipeline.extract(
+            [
+                _note("MRN-1", "2024-05-01", "a-old"),
+                _note("MRN-2", "2024-12-01", "b-old"),
+                _note("MRN-1", "2024-04-01", "a-older"),
+            ]
+        )
 
         assert {o.document_id for o in outcomes if o.out_of_order} == {
             "a-old",
@@ -4378,14 +4418,16 @@ class TestOutOfOrderRejection(_PipelineHarness):
             "a-older",
         }
 
-    def test_logs_the_refusal(self, client, httpx_mock, caplog, monkeypatch):
+    def test_logs_the_out_of_order_documents(
+        self, client, httpx_mock, caplog, monkeypatch
+    ):
         pipeline = self._seed(client, httpx_mock, num_patients=2)
         mock_patient_exists(httpx_mock, ["pat-1", "pat-2"], repeat=True)
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
         mock_watermark(httpx_mock, "pat-2", date="2025-01-01T00:00:00Z")
-        self._no_extraction(pipeline, monkeypatch)
+        self._record(pipeline, monkeypatch)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             pipeline.extract(
                 [
                     _note("MRN-1", "2024-05-01", "a-old"),
@@ -4394,8 +4436,7 @@ class TestOutOfOrderRejection(_PipelineHarness):
             )
 
         assert any(
-            "Refusing 2 reverse-chronological document(s) across 2 patient(s)"
-            in r.message
+            "2 reverse-chronological document(s) across 2 patient(s)" in r.message
             for r in caplog.records
         )
 
@@ -4443,13 +4484,11 @@ class TestOutOfOrderRejection(_PipelineHarness):
         assert outcomes[0].success
         assert any("chronology check skipped" in r.message for r in caplog.records)
 
-    def test_extract_all_continues_past_a_refused_batch(
-        self, client, httpx_mock, monkeypatch
-    ):
-        """A batch whose every document is refused must not end the walk.
+    def test_extract_all_extracts_every_batch(self, client, httpx_mock, monkeypatch):
+        """The global ascending sort puts the backdated note in batch 1.
 
-        The global ascending sort puts the offender in batch 1, so this is the
-        case where the old behaviour lost the entire dataset.
+        It is extracted there, ahead of the newer ones, so by the time the
+        later batches run nothing is out of order at all.
         """
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1", repeat=True)
@@ -4461,14 +4500,17 @@ class TestOutOfOrderRejection(_PipelineHarness):
 
         outcomes = pipeline.extract_all(docs, batch_size=1)
 
-        assert [d.document_id for d in seen] == ["ok-1", "ok-2"]
-        assert [o.document_id for o in outcomes if o.out_of_order] == ["older"]
-        assert {o.document_id for o in outcomes if o.success} == {"ok-1", "ok-2"}
-        assert pipeline.documents_processed == 2
-        assert pipeline.documents_failed == 1
+        assert [d.document_id for d in seen] == ["older", "ok-1", "ok-2"]
+        assert {o.document_id for o in outcomes if o.success} == {
+            "older",
+            "ok-1",
+            "ok-2",
+        }
+        assert pipeline.documents_processed == 3
+        assert pipeline.documents_failed == 0
 
-    def test_skipped_documents_are_not_violations(self, client, httpx_mock):
-        """An already-processed older document is filtered out, not refused."""
+    def test_skipped_documents_are_never_out_of_order(self, client, httpx_mock):
+        """An already-processed older document is filtered out before the check."""
         pipeline = self._seed(client, httpx_mock)
         mock_patient_exists(httpx_mock, "pat-1")
         mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")

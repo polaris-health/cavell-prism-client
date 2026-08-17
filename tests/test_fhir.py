@@ -649,7 +649,7 @@ class TestContextFetching:
         # ResearchStudy search (not patient-scoped, not status-filtered)
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500&_sort=-_lastUpdated",
             json={
                 "entry": [
                     {
@@ -1322,7 +1322,7 @@ class TestFetchContextEdgeCases:
         # ResearchStudy succeeds
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500&_sort=-_lastUpdated",
             json={"entry": []},
         )
 
@@ -1395,7 +1395,7 @@ class TestObservationWindow:
         )
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500&_sort=-_lastUpdated",
             json={"entry": []},
         )
         # Registered EXACTLY: a today-anchored window would not match this.
@@ -1646,7 +1646,7 @@ class TestSearchResearchStudies:
         )
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500&_sort=-_lastUpdated",
             json={
                 "resourceType": "Bundle",
                 "entry": [
@@ -1703,7 +1703,7 @@ class TestSearchResearchStudies:
         )
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/ResearchStudy?_count=500",
+            url="http://localhost:8080/fhir/ResearchStudy?_count=500&_sort=-_lastUpdated",
             json={
                 "resourceType": "Bundle",
                 "entry": [
@@ -1721,6 +1721,357 @@ class TestSearchResearchStudies:
 
         results = fhir.search_research_studies(exclude_statuses=())
         assert [r["id"] for r in results] == ["rs-1", "rs-2"]
+
+    def test_never_filtered_by_date(self, fhir, httpx_mock):
+        """A ResearchStudy carries no date, so any date filter matches nothing.
+
+        R4's ``date`` search param maps to ``ResearchStudy.period``, which the
+        extraction API never writes — a date-bounded query would return an
+        empty registry and the extractor would re-create every study.
+        """
+        self._mock_studies(httpx_mock, [("rs-1", "active")])
+
+        fhir.search_research_studies()
+
+        url = str(httpx_mock.get_requests()[-1].url)
+        assert "date=" not in url
+        assert "_lastUpdated=" not in url
+
+    def test_caps_the_registry(self, fhir, httpx_mock):
+        self._mock_studies(httpx_mock, [(f"rs-{i}", "active") for i in range(10)])
+
+        results = fhir.search_research_studies(max_results=4)
+        assert [r["id"] for r in results] == ["rs-0", "rs-1", "rs-2", "rs-3"]
+
+    def test_cap_counts_studies_that_survive_the_status_filter(self, fhir, httpx_mock):
+        """The cap bounds the payload, not the fetch.
+
+        Counting before the status filter would let a run of withdrawn studies
+        eat the budget and deliver fewer than asked for.
+        """
+        self._mock_studies(
+            httpx_mock,
+            [("rs-0", "withdrawn"), ("rs-1", "withdrawn"), ("rs-2", "active")]
+            + [(f"rs-{i}", "active") for i in range(3, 8)],
+        )
+
+        results = fhir.search_research_studies(max_results=3)
+        assert [r["id"] for r in results] == ["rs-2", "rs-3", "rs-4"]
+
+    def test_uncapped_when_max_results_is_none(self, fhir, httpx_mock):
+        self._mock_studies(httpx_mock, [(f"rs-{i}", "active") for i in range(6)])
+
+        results = fhir.search_research_studies(max_results=None)
+        assert len(results) == 6
+
+
+class TestFetchSplitPatientContext:
+    """Context split into what a backdated document could know, and what it could not.
+
+    Assignment is by provenance — the newest already-processed document that
+    touched a resource — not by the resource's own clinical dates.
+    """
+
+    PATIENT = "pat-1"
+    REFERENCE = "2020-06-01"
+
+    def _mock_context(
+        self,
+        httpx_mock,
+        *,
+        by_type=None,
+        provenance=(),
+        past_observations=(),
+        studies=(),
+    ):
+        """Register every request the split fetch makes.
+
+        by_type: {resource_type: [resources]} for the plain patient-scoped
+        searches; anything unlisted comes back empty.
+        provenance: (document_date, [refs]) pairs for the DocumentReference
+        query that dates each resource.
+        """
+        by_type = by_type or {}
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=(
+                f"http://localhost:8080/fhir/DocumentReference?patient={self.PATIENT}"
+                f"&identifier={DOCUMENT_IDENTIFIER_SYSTEM_ENCODED}%7C"
+                f"&_elements=date%2Ccontext&_count=1000"
+            ),
+            json={
+                "resourceType": "Bundle",
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "DocumentReference",
+                            "date": date,
+                            "context": {
+                                "related": [{"reference": ref} for ref in refs]
+                            },
+                        }
+                    }
+                    for date, refs in provenance
+                ],
+            },
+            repeat=True,
+        )
+        for rt in CONTEXT_RESOURCE_TYPES:
+            if rt == "Observation":
+                continue
+            param = _PATIENT_SEARCH_PARAM.get(rt, "subject")
+            url = f"http://localhost:8080/fhir/{rt}?{param}={self.PATIENT}&_count=500"
+            if rt == "CarePlan":
+                url += "&status=active"
+            httpx_mock.add_response(
+                method="GET",
+                url=url,
+                json={"entry": [{"resource": r} for r in by_type.get(rt, [])]},
+                repeat=True,
+            )
+        # Past side: window lower bound plus the closing le{reference}.
+        httpx_mock.add_response(
+            method="GET",
+            url_prefix=(
+                f"http://localhost:8080/fhir/Observation?subject={self.PATIENT}"
+                f"&_count={MAX_CONTEXT_OBSERVATIONS}&date=ge"
+            ),
+            json={"entry": [{"resource": r} for r in past_observations]},
+            repeat=True,
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=(
+                "http://localhost:8080/fhir/ResearchStudy?_count=500"
+                "&_sort=-_lastUpdated"
+            ),
+            json={"entry": [{"resource": r} for r in studies]},
+            repeat=True,
+        )
+
+    def _split(self, fhir):
+        return fhir.fetch_split_patient_context(
+            self.PATIENT, reference_date=self.REFERENCE
+        )
+
+    def test_splits_on_the_newest_touching_document(self, fhir, httpx_mock):
+        """Last-touch, not first-touch.
+
+        A condition first recorded in 2019 but edited by a 2025 note carries
+        that later edit in its body — clinicalStatus, stage, whatever the
+        newer note changed — so handing it back as history the 2020 author
+        could have seen would leak exactly what the split exists to withhold.
+        """
+        self._mock_context(
+            httpx_mock,
+            by_type={
+                "Condition": [
+                    {"resourceType": "Condition", "id": "old"},
+                    {"resourceType": "Condition", "id": "edited"},
+                ]
+            },
+            provenance=[
+                ("2019-01-01", ["Condition/old"]),
+                ("2019-01-01", ["Condition/edited"]),
+                ("2025-03-02", ["Condition/edited"]),
+            ],
+        )
+
+        past, future = self._split(fhir)
+
+        assert [r["id"] for r in past] == ["old"]
+        assert [r["id"] for r in future] == ["edited"]
+
+    def test_same_day_provenance_counts_as_past(self, fhir, httpx_mock):
+        """Dates are day-resolution, so equal dates have no defined order."""
+        self._mock_context(
+            httpx_mock,
+            by_type={"Condition": [{"resourceType": "Condition", "id": "c-1"}]},
+            provenance=[(self.REFERENCE, ["Condition/c-1"])],
+        )
+
+        past, future = self._split(fhir)
+
+        assert [r["id"] for r in past] == ["c-1"]
+        assert future == []
+
+    def test_unknown_provenance_is_past(self, fhir, httpx_mock):
+        """Resources loaded outside the pipeline still reach the extractor."""
+        self._mock_context(
+            httpx_mock,
+            by_type={"Condition": [{"resourceType": "Condition", "id": "seeded"}]},
+            provenance=[],
+        )
+
+        past, future = self._split(fhir)
+
+        assert [r["id"] for r in past] == ["seeded"]
+        assert future == []
+
+    def test_observation_query_is_closed_at_the_reference_date(self, fhir, httpx_mock):
+        """The regression this split exists for.
+
+        A single ``ge{window_start}`` search sorted newest-first spends its
+        whole 50-result cap on the newest observations. For a backdated
+        document those are all *after* it, so without the closing ``le`` bound
+        the past side would come back empty.
+        """
+        self._mock_context(
+            httpx_mock,
+            past_observations=[{"resourceType": "Observation", "id": "before"}],
+            provenance=[("2019-05-01", ["Observation/before"])],
+        )
+
+        past, future = self._split(fhir)
+
+        assert [r["id"] for r in past] == ["before"]
+        assert future == []
+
+        (url,) = [
+            str(r.url) for r in httpx_mock.get_requests() if "Observation" in str(r.url)
+        ]
+        assert f"date=le{self.REFERENCE}" in url
+        assert "date=ge" in url
+        assert "_sort=-date" in url
+
+    def test_no_forward_observation_query_is_issued(self, fhir, httpx_mock):
+        """Observations dated after the document can never match its proposals.
+
+        The extraction API matches on an exact ``(date, code, value)``, and a
+        document only reports results at or before its own date — so a forward
+        query would add up to 50 resources to every payload that nothing could
+        ever use.
+        """
+        self._mock_context(
+            httpx_mock,
+            past_observations=[{"resourceType": "Observation", "id": "before"}],
+            provenance=[("2019-05-01", ["Observation/before"])],
+        )
+
+        self._split(fhir)
+
+        urls = [
+            str(r.url) for r in httpx_mock.get_requests() if "Observation" in str(r.url)
+        ]
+        assert len(urls) == 1, f"expected one Observation query, got {urls}"
+        assert "date=gt" not in urls[0]
+
+    def test_observation_recorded_later_still_lands_in_future(self, fhir, httpx_mock):
+        """The case the forward query was never needed for.
+
+        A result measured before the document but only written into the record
+        by a later note comes back from the closed query, and provenance — not
+        its clinical date — puts it on the future side.
+        """
+        self._mock_context(
+            httpx_mock,
+            past_observations=[
+                {"resourceType": "Observation", "id": "measured-then-recorded-later"}
+            ],
+            provenance=[
+                ("2025-05-01", ["Observation/measured-then-recorded-later"]),
+            ],
+        )
+
+        past, future = self._split(fhir)
+
+        assert past == []
+        assert [r["id"] for r in future] == ["measured-then-recorded-later"]
+
+    def test_studies_are_always_past(self, fhir, httpx_mock):
+        """Studies are exempt: undatable, and duplicating one is worse."""
+        self._mock_context(
+            httpx_mock,
+            studies=[{"resourceType": "ResearchStudy", "id": "rs-1"}],
+            provenance=[("2025-01-01", ["ResearchStudy/rs-1"])],
+        )
+
+        past, future = self._split(fhir)
+
+        assert [r["id"] for r in past] == ["rs-1"]
+        assert future == []
+
+    def test_strips_meta_and_text_from_both_sides(self, fhir, httpx_mock):
+        self._mock_context(
+            httpx_mock,
+            by_type={
+                "Condition": [
+                    {
+                        "resourceType": "Condition",
+                        "id": "old",
+                        "meta": {"versionId": "2"},
+                        "text": {"status": "generated", "div": "<div>…</div>"},
+                    },
+                    {
+                        "resourceType": "Condition",
+                        "id": "new",
+                        "meta": {"versionId": "5"},
+                        "text": {"status": "generated", "div": "<div>…</div>"},
+                    },
+                ]
+            },
+            provenance=[
+                ("2019-01-01", ["Condition/old"]),
+                ("2025-01-01", ["Condition/new"]),
+            ],
+        )
+
+        past, future = self._split(fhir)
+
+        for resource in (*past, *future):
+            assert "meta" not in resource
+            assert "text" not in resource
+
+    def test_a_failing_type_does_not_lose_the_others(self, fhir, httpx_mock):
+        self._mock_context(
+            httpx_mock,
+            by_type={"Condition": [{"resourceType": "Condition", "id": "c-1"}]},
+            provenance=[("2019-01-01", ["Condition/c-1"])],
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=f"http://localhost:8080/fhir/Procedure?subject={self.PATIENT}&_count=500",
+            status_code=500,
+            json={},
+            replace=True,
+            repeat=True,
+        )
+
+        past, future = self._split(fhir)
+
+        assert [r["id"] for r in past] == ["c-1"]
+        assert future == []
+
+    def test_provenance_failure_leaves_everything_past(self, fhir, httpx_mock, caplog):
+        """Fail open: unsplit context is the behaviour this replaced."""
+        self._mock_context(
+            httpx_mock,
+            by_type={"Condition": [{"resourceType": "Condition", "id": "c-1"}]},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=(
+                f"http://localhost:8080/fhir/DocumentReference?patient={self.PATIENT}"
+                f"&identifier={DOCUMENT_IDENTIFIER_SYSTEM_ENCODED}%7C"
+                f"&_elements=date%2Ccontext&_count=1000"
+            ),
+            status_code=500,
+            json={},
+            replace=True,
+            repeat=True,
+        )
+
+        with caplog.at_level(logging.WARNING):
+            past, future = self._split(fhir)
+
+        assert [r["id"] for r in past] == ["c-1"]
+        assert future == []
+        assert any("context will not be split" in r.message for r in caplog.records)
 
 
 class TestSearchPatientResourcesWithParams:

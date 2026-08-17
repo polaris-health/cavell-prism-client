@@ -32,6 +32,45 @@ def mock_fhir_preflight(httpx_mock, base_url="http://localhost:8080/fhir"):
     )
 
 
+def mock_related_documents(
+    httpx_mock, patient_fhir_id, provenance=(), repeat=True, status_code=200
+):
+    """Mock the document-provenance query that classifies split context.
+
+    provenance: (date, [refs...]) pairs, one per already-processed document —
+    e.g. ``[("2024-06-01", ["Condition/c-1"])]`` marks Condition/c-1 as
+    knowledge that only arrived on 2024-06-01. An empty list means the patient
+    has no processed documents, so nothing is dated and everything reads as
+    past.
+    """
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            f"http://localhost:8080/fhir/DocumentReference?patient={patient_fhir_id}"
+            f"&identifier=urn%3Acavell%3Adocument%7C&_elements=date%2Ccontext"
+            f"&_count=1000"
+        ),
+        json={
+            "resourceType": "Bundle",
+            "entry": [
+                {
+                    "resource": {
+                        "resourceType": "DocumentReference",
+                        "date": date,
+                        "context": {
+                            "related": [{"reference": ref} for ref in refs],
+                        },
+                    }
+                }
+                for date, refs in provenance
+            ],
+        },
+        status_code=status_code,
+        replace=True,
+        repeat=repeat,
+    )
+
+
 def mock_watermark(
     httpx_mock, patient_fhir_id, date=None, repeat=True, status_code=200
 ):

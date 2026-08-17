@@ -288,73 +288,82 @@ you call `extract()` yourself — if you batch by hand with `extract(..., limit=
 ordering across those calls is yours to get right. Use `extract_all()` and it
 is handled.
 
-### Out-of-order documents are refused
+### Out-of-order documents get split context
 
-Sorting only orders the documents *within one run*. If a document is older
-than data already persisted for that patient (from an earlier run), you are
-going backwards in time — and the pipeline **refuses to extract it**.
+Sorting only orders the documents *within one run*. If a document is older than
+data already persisted for that patient (from an earlier run), you are going
+backwards in time. The pipeline extracts it anyway, but it changes what the
+document is shown.
 
-The check runs before anything in the call is extracted. It compares each
-document against **its own patient's** watermark (the date of the newest
-already-processed document for that patient) and drops the ones that are
-older. Nothing is extracted or persisted for a refused document and no tokens
-are spent on it, but it still gets an outcome — no exception is raised, and
-refusal is scoped to the offending document.
+Each document is compared against **its own patient's** watermark — the date of
+the newest already-processed document for that patient. A document older than
+that watermark takes the **split-context path**:
+
+- `context` holds the patient's record **as it stood on that document's date**,
+  so the API can treat the note as the latest one and reason the way its author
+  did.
+- `future_context` holds everything already on record that the document could
+  not have known, sent separately rather than mixed in.
+- `out_of_order: true` tells the API which of the two it is looking at.
+
+Resources are assigned by **provenance, not clinical date**: each is dated by
+the newest already-processed document that created or updated it, read from that
+document's `DocumentReference.context.related`. What matters is when a fact
+entered the record, not when it happened — a Condition recorded last year with a
+1998 onset is still knowledge this document's author could not have had. A
+resource counts as past only when *every* document that touched it is at or
+before the document's date; anything a newer document has since modified carries
+that newer knowledge in its body and goes to `future_context`.
 
 ```python
 outcomes = pipeline.extract_all(documents, batch_size=500)
 
-for o in outcomes:
-    if o.out_of_order:
-        print(o.error)
-        # note-9001 (patient MRN-20002) dated 2023-09-12 is older than 2024-04-09
+n_split = sum(1 for o in outcomes if o.out_of_order)
+print(f"{n_split} document(s) extracted against split context")
 ```
 
-Everything else in the call is extracted as normal — other patients' documents,
-and the *same* patient's forward-dated documents. A single backdated note
-therefore costs exactly that note.
-
-**Why refuse rather than merge?** Extraction is context-aware: each note is
-read against the resources its predecessors produced (see [Meta
-Assembly](#meta-assembly)). Context is always the patient's *current* state
-with no date filtering, so an older note would be interpreted against a
-clinical picture from its own future — and anything it created would carry
-that contamination. Refusing is the conservative position while that is true.
-
-**To ingest documents you have out of order**, either:
-
-- Leave them refused, if the newer data already supersedes them — you no
-  longer have to pull them out of the batch by hand; or
-- Delete the patient's data with `client.delete_patient_resources(...)`,
-  re-seed, and re-extract the whole timeline in date order. `extract_all()`
-  handles the ordering.
+`IngestionOutcome.out_of_order` records **how** a document was processed, not
+whether it worked — it pairs with `success=True` on a normal run.
 
 Caveats:
 
 - Dates are truncated to the day, so two same-day documents have no defined
-  order and are **not** a violation. Process same-day documents in one run
-  (the input order is preserved for equal dates).
+  order and neither is out of order. Process same-day documents in one run (the
+  input order is preserved for equal dates).
 - The check **fails open per patient**: if the watermark query errors, that
-  patient is left unchecked with a warning rather than failing the run. A
-  transient FHIR error should not block ingestion.
-- Documents already processed are filtered out by `skip_processed` *before*
-  the check, so re-running a completed batch never trips it.
-- Refusals count toward `pipeline.documents_failed`, not `documents_processed`,
-  and contribute nothing to `pipeline.total_cost`.
+  patient's documents are all treated as in-order with a warning rather than
+  failing the run.
+- Documents already processed are filtered out by `skip_processed` *before* the
+  check.
+- The split costs one extra FHIR query per document, for provenance. Sorting your
+  dataset first avoids paying it at all, which is what `extract_all()` does.
+- **Observations are bounded at the document's date**, and none dated after it
+  are sent. The API matches an observation on an exact `(date, code, value)`,
+  and a document only reports results at or before its own date, so a later one
+  could never match anything it proposes. A result measured before the document
+  but only recorded by a later note still reaches `future_context` — provenance
+  puts it there, not its clinical date.
+- **ResearchStudy is exempt** and always travels as ordinary context. Studies
+  carry no date to split on (the API writes only identifier, status, title and
+  arms), and a study the extractor cannot see is one it re-creates under a fresh
+  id — wrong for every patient on the server. Studies are capped at
+  `MAX_CONTEXT_STUDIES` (200) instead.
 
-Step 10 of `docs/notebooks/hospitalization_extraction_demo.ipynb` demonstrates
-this end-to-end: it holds back five notes — three from an earlier admission for
-one patient, two from a later readmission for another — extracts the rest, then
-submits all five in one call and shows the three older ones refused while the
-two newer ones are extracted.
+!!! warning "Requires matching API support"
 
-!!! note "Provisional"
+    `future_context` and `out_of_order` must be understood by the extraction
+    API you are pointed at. An older deployment ignores unknown fields
+    silently, which would leave a backdated document extracting against
+    past-only context with nothing to reconcile against.
 
-    Refusing is a deliberate interim position. An earlier design extracted the
-    older document anyway behind an **update guard** that dropped updates to
-    resources sourced from newer documents. That code is retained but disabled
-    (`_apply_update_guard`, and the commented-out block in
-    `_process_single_document`) in case the policy is revisited.
+!!! note "Update guard"
+
+    An earlier design guarded the *persist* step instead, dropping updates to
+    resources sourced from newer documents. That is now the API's decision —
+    it is told which resources postdate the document and reconciles them
+    itself, and a blanket guard would veto exactly that. The code is retained
+    but disabled (`_apply_update_guard`, and the commented-out block in
+    `_process_single_document`) as a fallback.
 
 ## Meta Assembly
 

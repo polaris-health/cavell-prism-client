@@ -161,14 +161,15 @@ def _apply_update_guard(
     """Drop updates to resources whose current version came from a newer document.
 
     .. note::
-       **Currently unwired.** Reverse-chronological documents are refused
-       outright by :meth:`IngestionPipeline._check_chronology`, so nothing
-       reaches the persist step out of order and this guard has no work to do.
-       It is kept — defined and unit-tested — because the decision to reject
-       rather than guard is explicitly provisional; re-enabling it means
-       restoring the commented-out block in
-       :meth:`IngestionPipeline._process_single_document` and relaxing the
-       pre-flight check. See CHANGELOG 0.2.0.
+       **Currently unwired.** Reverse-chronological documents now reach the
+       persist step, but the extraction API is told which resources postdate
+       them (``future_context``) and decides for itself what to update. Every
+       resource on that side has provenance newer than the document, so this
+       guard would drop *every* PUT against them — vetoing the reconciliation
+       the API was asked to make rather than protecting anything. It is kept —
+       defined and unit-tested — as the fallback if the API turns out to emit
+       unsafe updates: re-enable the commented-out block in
+       :meth:`IngestionPipeline._process_single_document`.
 
 
     When a document is processed out of chronological order, its bundle may
@@ -569,10 +570,9 @@ class IngestionOutcome:
     # transient failure (timeout/5xx) — eligible for the deferred retry pass
     transient: bool = False
     # Document was older than the patient's newest already-persisted document,
-    # so IngestionPipeline._check_chronology() refused it: nothing was
-    # extracted or persisted for it and no tokens were spent. Always paired
-    # with success=False. Refusal is per document — other documents in the same
-    # call, including the same patient's forward-dated ones, are unaffected.
+    # so it was extracted against context split at its own date, with anything
+    # newer sent separately as future_context. Independent of `success` — this
+    # marks how the document was processed, not whether it worked.
     out_of_order: bool = False
 
     def __str__(self) -> str:
@@ -885,27 +885,30 @@ class IngestionPipeline:
     ) -> "tuple[dict[str, str | None], list[OutOfOrderDocument]]":
         """Find documents older than their patient's newest persisted document.
 
-        Extraction is context-aware and only moves forward in time, so a
-        reverse-chronological document is refused. The refusal is scoped to
-        that document: the caller drops it before extracting and reports it as
-        a failed outcome, leaving every other document in the call — including
-        the same patient's forward-dated ones — to be extracted normally.
+        These are still extracted — they take the split-context path, where the
+        extraction API is shown the patient as of the document's own date and
+        receives everything newer as separate ``future_context``. This method
+        only identifies them, so the run can be logged and the watermarks
+        reused; the decision is made per document in
+        :meth:`_process_single_document`.
 
         Fails **open** per patient: if the watermark cannot be fetched, that
-        patient is left unchecked with a warning rather than taking the run
-        down. A transient FHIR error should not block ingestion.
+        patient's documents are all treated as in-order with a warning rather
+        than taking the run down. A transient FHIR error should not block
+        ingestion, and unsplit context is the behaviour they would have had
+        anyway.
 
         Args:
             documents: Documents about to be extracted.
 
         Returns:
-            ``(watermarks, violations)``. ``watermarks`` maps patient
+            ``(watermarks, out_of_order)``. ``watermarks`` maps patient
             identifier -> watermark (``None`` where unknown) so the caller can
-            reuse it instead of re-querying per patient. ``violations`` lists
-            one :class:`~cavell_client.models.OutOfOrderDocument` per offending
+            reuse it instead of re-querying per patient. ``out_of_order`` lists
+            one :class:`~cavell_client.models.OutOfOrderDocument` per backdated
             document, whose ``document_index`` is that document's position in
-            ``documents``. Equal dates pass — dates are day-resolution, so
-            same-day documents have no defined order.
+            ``documents``. Equal dates count as in-order — dates are
+            day-resolution, so same-day documents have no defined order.
         """
         watermarks: dict[str, str | None] = {}
         for patient_id in {d.patient_identifier for d in documents}:
@@ -921,11 +924,11 @@ class IngestionPipeline:
                 )
                 watermarks[patient_id] = None
 
-        violations: list[OutOfOrderDocument] = []
+        out_of_order: list[OutOfOrderDocument] = []
         for index, doc in enumerate(documents):
             watermark = watermarks.get(doc.patient_identifier)
             if watermark is not None and str(doc.date) < watermark:
-                violations.append(
+                out_of_order.append(
                     OutOfOrderDocument(
                         patient_identifier=doc.patient_identifier,
                         document_id=doc.document_id,
@@ -934,15 +937,15 @@ class IngestionPipeline:
                         watermark=watermark,
                     )
                 )
-        if violations:
-            patients = {v.patient_identifier for v in violations}
-            logger.warning(
-                f"Refusing {len(violations)} reverse-chronological document(s) "
-                f"across {len(patients)} patient(s); the rest of the call is "
-                f"extracted as normal"
+        if out_of_order:
+            patients = {v.patient_identifier for v in out_of_order}
+            logger.info(
+                f"{len(out_of_order)} reverse-chronological document(s) across "
+                f"{len(patients)} patient(s) will be extracted against context "
+                f"split at their own date"
             )
 
-        return watermarks, violations
+        return watermarks, out_of_order
 
     def extract_all(
         self,
@@ -960,13 +963,15 @@ class IngestionPipeline:
         the full list, calling :meth:`extract` once per batch.
 
         Documents are sorted by ascending date across the **entire** dataset
-        before batching, which is what makes batching chronologically safe.
-        Batching an unsorted list splits it by input order, so a later batch
-        could carry documents older than what an earlier batch already
-        persisted — and those are refused outright, failing the run partway
-        through. Sorting first puts every batch boundary on a clean
+        before batching. Batching an unsorted list splits it by input order, so
+        a later batch could carry documents older than what an earlier batch
+        already persisted; those are still extracted, but on the slower
+        split-context path — an extra provenance query each, plus the
+        reconciliation the API runs on them. Sorting first puts every batch
+        boundary on a clean
         chronological cut, so each patient's documents reach the API
-        oldest-first even when they span several batches.
+        oldest-first even when they span several batches, and none of them pay
+        for a split that a plain forward pass never needs.
 
         Batches are cut by index, so the walk always terminates. It does not
         depend on ``skip_processed`` to advance, which means it works with
@@ -1216,55 +1221,26 @@ class IngestionPipeline:
                     f"on the FHIR server — re-run seed() to restore it"
                 ) from None
 
-        # Refuse reverse-chronological documents before any spend, and reuse the
-        # watermarks it fetched for the per-patient chronology bookkeeping below.
-        watermarks, violations = self._check_chronology(documents)
-
-        # Refusal is per document, not per call: drop only the offenders and
-        # report each as a failed outcome. Note this filters `by_patient`, not
-        # `documents` — `doc_indices` and the deferred-retry lookup below both
-        # index `documents`, so shrinking it would corrupt every outcome index.
-        refused_indices = {v.document_index for v in violations}
-        refused_outcomes = [
-            IngestionOutcome(
-                success=False,
-                patient_identifier=v.patient_identifier,
-                document_index=v.document_index,
-                error=str(v),
-                document_id=v.document_id,
-                out_of_order=True,
-            )
-            for v in violations
-        ]
-        if refused_indices:
-            kept_by_patient: dict[str, list[Document]] = {}
-            for pid, docs in by_patient.items():
-                kept = [d for d in docs if doc_indices[id(d)] not in refused_indices]
-                if kept:
-                    kept_by_patient[pid] = kept
-            by_patient = kept_by_patient
+        # Identify reverse-chronological documents so the run can be logged,
+        # and reuse the watermarks fetched here for the per-patient chronology
+        # bookkeeping below. They are extracted like any other document — the
+        # watermark is what routes each one onto the split-context path.
+        watermarks, out_of_order = self._check_chronology(documents)
 
         n_patients = len(by_patient)
         patient_label = "patient" if n_patients == 1 else "patients"
-        n_extracting = len(documents) - len(refused_indices)
         parts = [
-            f"Extracting {n_extracting} documents across {n_patients} {patient_label}"
+            f"Extracting {len(documents)} documents across {n_patients} {patient_label}"
         ]
         if skipped:
             parts.append(f"{skipped} skipped")
-        if refused_indices:
-            parts.append(f"{len(refused_indices)} refused as out-of-order")
+        if out_of_order:
+            parts.append(f"{len(out_of_order)} out-of-order")
         if limit is not None:
             parts.append(f"limit={limit}")
         logger.info(" | ".join(parts))
 
         self._phase = _Phase.EXTRACTING
-
-        # Nothing survived the chronology check — no pool, no spend, but every
-        # refusal still gets an outcome and still counts as a failure.
-        if refused_outcomes and not by_patient:
-            self._documents_failed += len(refused_outcomes)
-            return refused_outcomes
 
         # A 401 (bad/expired key) or an exhausted 503 (LLM Gateway down) is a
         # run-global condition: every remaining document would fail the same
@@ -1345,7 +1321,7 @@ class IngestionPipeline:
                     results.extend(future.result())
             return results
 
-        all_outcomes = refused_outcomes + run_batches(by_patient)
+        all_outcomes = run_batches(by_patient)
 
         if abort_event.is_set():
             # Count what did complete, then surface the run-global failure.
@@ -1368,11 +1344,6 @@ class IngestionPipeline:
         if transient_patients:
             deferred: dict[str, list[Document]] = defaultdict(list)
             for o in all_outcomes:
-                # Never re-run a refused document: it would only be refused
-                # again, and the merge below would replace its outcome with a
-                # duplicate of itself.
-                if o.out_of_order:
-                    continue
                 if not o.success and o.patient_identifier in transient_patients:
                     deferred[o.patient_identifier].append(documents[o.document_index])
             for pid in deferred:
@@ -1429,27 +1400,21 @@ class IngestionPipeline:
         doesn't cascade-skip the rest of the patient. Deterministic failures (a rejected
         bundle, a 4xx) fail fast without retrying.
 
-        ``watermark`` is the patient's newest already-persisted document date,
-        used only as a backstop assertion — reverse-chronological documents are
-        refused by :meth:`_check_chronology` before extraction begins, so one
-        should never arrive here. ``on_fatal`` is invoked with the exception
-        when the failure is run-global (401, or 503 after exhausted retries).
+        ``watermark`` is the patient's newest already-persisted document date.
+        A document older than it is extracted against *split* context: the
+        record as of its own date, plus everything newer passed separately as
+        ``future_context``. ``on_fatal`` is invoked with the exception when the
+        failure is run-global (401, or 503 after exhausted retries).
         """
         patient_fhir_id = self._resolve_id(IDENTIFIER_SYSTEM, doc.patient_identifier)
         label = doc.document_id
 
-        # Should be unreachable: _check_chronology() refuses older documents
-        # before extraction starts, and within a call the watermark only advances
-        # to the date of the document just processed (documents arrive
-        # oldest-first), so it never overtakes the current one. Kept as a
-        # backstop — if it ever fires, the pre-flight check was bypassed.
         out_of_order = watermark is not None and str(doc.date) < watermark
         if out_of_order:
-            logger.error(
-                f"{label} dated {doc.date} is older than the newest persisted "
-                f"document ({watermark}) for patient '{doc.patient_identifier}' "
-                f"— this should have been refused before extraction; proceeding "
-                f"without an update guard"
+            logger.info(
+                f"{label} dated {doc.date} predates the newest persisted document "
+                f"({watermark}) for patient '{doc.patient_identifier}' — extracting "
+                f"against context split at {doc.date}"
             )
 
         for attempt in range(1, _DOC_MAX_ATTEMPTS + 1):
@@ -1492,9 +1457,19 @@ class IngestionPipeline:
                 # document date anchors the Observation window, so backfilling
                 # old documents sees the observations around them rather than
                 # an empty window two years behind today.
-                context = self._fhir.fetch_patient_context(
-                    patient_fhir_id, reference_date=doc.date
-                )
+                future_context: list[dict] | None = None
+                if out_of_order:
+                    # Split so the API can treat this document as the latest
+                    # one: `context` is the record as of its date, and what
+                    # came after travels separately rather than masquerading
+                    # as history the author could have known.
+                    context, future_context = self._fhir.fetch_split_patient_context(
+                        patient_fhir_id, reference_date=doc.date
+                    )
+                else:
+                    context = self._fhir.fetch_patient_context(
+                        patient_fhir_id, reference_date=doc.date
+                    )
 
                 # Build meta — the date is no longer part of it, it travels as
                 # its own payload field. Only the attending practitioner is
@@ -1523,6 +1498,8 @@ class IngestionPipeline:
                     practitioner_id=practitioner_fhir_id,
                     document_identifier=doc.document_id,
                     visit_identifier=doc.visit_id,
+                    future_context=future_context,
+                    out_of_order=out_of_order,
                 )
                 bundle = response.get("bundle", {})
                 count = response.get("count", 0)
@@ -1541,11 +1518,13 @@ class IngestionPipeline:
                 # Deduplicate and persist to FHIR
                 entries = bundle.get("entry", [])
                 entries = self._fhir.deduplicate_observations(entries, patient_fhir_id)
-                # DISABLED — reverse-chronological documents are now refused up
-                # front by _check_chronology(), so nothing reaches this point out
-                # of order and the guard has no work to do. Kept (not deleted)
-                # because rejecting rather than guarding is provisional: restore
-                # this block and relax the pre-flight check to bring it back.
+                # DISABLED — the extraction API is now told which resources
+                # postdate this document (future_context) and decides for
+                # itself what to update. Under the split rule every one of
+                # those has provenance newer than the document, so enabling
+                # this guard would drop every PUT against them and silently
+                # veto exactly the reconciliation the API was asked to make.
+                # Kept (not deleted) as the fallback if it emits unsafe PUTs.
                 # if out_of_order:
                 #     related_dates = self._fhir.get_related_document_dates(
                 #         patient_fhir_id

@@ -97,7 +97,11 @@ class PatientNotFoundError(CavellError):
 
 
 class OutOfOrderDocument(NamedTuple):
-    """One document that predates its patient's newest persisted document."""
+    """One document that predates its patient's newest persisted document.
+
+    A reporting record, not a rejection: these documents are extracted against
+    context split at their own date. See ``IngestionOutcome.out_of_order``.
+    """
 
     patient_identifier: str
     document_id: str | None

@@ -21,6 +21,20 @@ adheres to [Semantic Versioning](https://semver.org/).
   for `FamilyMemberHistory`**; the other two work against any current server.
   `NutritionOrder` and `FamilyMemberHistory` are searched by `patient` — R4
   defines no `subject` search parameter for either.
+- **`FHIRClient.fetch_split_patient_context()`** returns `(past, future)` for a
+  document being processed out of chronological order — the same context
+  `fetch_patient_context()` builds, sorted by which side of the document's date
+  each resource's provenance falls on. The Observation query is closed at the
+  document's date rather than partitioned afterwards: a single newest-first
+  search spends its whole 50-result cap on the newest observations, so for a
+  backdated document every one of them would postdate it and the past half
+  would come back empty. Observations dated *after* the document are not sent
+  at all — the API matches on an exact `(date, code, value)` and a document
+  only reports results at or before its own date, so a later one could never
+  match anything it proposes.
+- **`CavellAPI.extract()` and `.extract_raw()` take `future_context` and
+  `out_of_order`.** Both are omitted from the payload when unset, so ordinary
+  forward extraction sends exactly the payload it did before.
 
 ### Changed
 
@@ -68,24 +82,43 @@ adheres to [Semantic Versioning](https://semver.org/).
   costs not even one request. Field contents are unchanged and still validated
   in one place, by `Document` itself.
 
-- **The chronology guard now refuses individual documents instead of the whole
-  call.** One backdated document for one patient used to abort the entire run:
-  `_check_chronology` collected violations across every patient and raised
-  `OutOfOrderDocumentError` before anything was extracted, so a single bad row
-  threw away every other patient's valid work. The offending documents are now
-  dropped and everything else — including the same patient's forward-dated
-  documents — is extracted as normal.
+- **Reverse-chronological documents are now extracted against split context
+  instead of aborting the run** (breaking). A single backdated document for one
+  patient used to raise `OutOfOrderDocumentError` before anything was
+  extracted, throwing away every other patient's valid work. Such a document is
+  now extracted, but is shown the record **as it stood on its own date** —
+  `context` holds only what was already known then, everything newer travels
+  separately as `future_context`, and `out_of_order: true` tells the API which
+  it is looking at. Resources are sorted between the two by **provenance**: the
+  newest already-processed document that created or updated each one, read from
+  that document's `DocumentReference.context.related`. What matters is when a
+  fact entered the record, not when it happened — a Condition recorded last
+  year with a 1998 onset is still knowledge the older note's author could not
+  have had.
+
+  **Requires the matching Prism-side fields.** A server that predates them
+  ignores unknown fields silently, which would leave a backdated document
+  extracting against past-only context with nothing to reconcile against.
 - **`extract()` and `extract_all()` no longer raise `OutOfOrderDocumentError`**
-  (breaking). A refused document comes back as
-  `IngestionOutcome(success=False, out_of_order=True)` with the same message
-  text in `error`, and counts toward `documents_failed`. Replace
-  `except OutOfOrderDocumentError` with a filter on `outcome.out_of_order`.
-  This also makes a repeated call idempotent: previously the second run of a
-  mixed batch raised once its valid documents had been processed and filtered.
+  (breaking). Replace `except OutOfOrderDocumentError` with a filter on
+  `outcome.out_of_order`, which now marks *how* a document was processed rather
+  than that it was rejected — it pairs with `success=True` on a normal run. A
+  repeated call is also idempotent now: previously the second run of a mixed
+  batch raised once its valid documents had been processed and filtered.
 - `extract_all()` no longer runs a whole-dataset chronology check before the
   first batch. It existed so a late violation could not surface after earlier
-  batches had spent; a violation no longer aborts anything, and dropping it
-  saves one FHIR watermark query per patient per run.
+  batches had spent; nothing aborts anymore, and dropping it saves one FHIR
+  watermark query per patient per run. Global date-sorting is still worth it —
+  an in-order document skips the provenance and future-Observation queries the
+  split needs.
+- **`ResearchStudy` context is capped at 200 studies.** The registry is global,
+  fetched for every patient, and grows without limit. It is deliberately *not*
+  date-filtered and never split: a study carries no clinical date to filter on
+  (the API writes only identifier, status, title and arms), `meta.lastUpdated`
+  records when the row was written rather than when the trial became known — a
+  backfill stamps every study with today — and a study the extractor cannot see
+  is one it re-creates under a fresh id, which is wrong for every patient on the
+  server. `search_research_studies()` takes a new `max_results`.
 
 ### Deprecated
 
