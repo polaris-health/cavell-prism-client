@@ -1,5 +1,7 @@
 """Tests for Cavell API client."""
 
+import json
+
 import pytest
 
 from cavell_client.api import CavellAPI
@@ -116,7 +118,8 @@ class TestCavellAPIExtract:
         api.extract(
             text="Patient has diabetes",
             context=[{"resourceType": "Condition", "id": "123"}],
-            meta="Document date: 2024-01-15",
+            meta="Department: Cardiology",
+            document_date="2024-01-15",
             tier="medium",
             allowed_resources=["Condition", "MedicationRequest"],
         )
@@ -128,9 +131,24 @@ class TestCavellAPIExtract:
         assert body["text"] == "Patient has diabetes"
         assert "persist" not in body
         assert body["context"] == [{"resourceType": "Condition", "id": "123"}]
-        assert body["meta"] == "Document date: 2024-01-15"
+        assert body["meta"] == "Department: Cardiology"
+        assert body["document_date"] == "2024-01-15"
         assert body["tier"] == "medium"
         assert body["allowed_resources"] == ["Condition", "MedicationRequest"]
+
+    def test_document_date_omitted_when_unset(self, api, httpx_mock):
+        """Optional like every other param — absent rather than null."""
+        httpx_mock.add_response(
+            method="POST",
+            url="https://qa.prism.cavell.app/api/extract/text",
+            json={"bundle": {"entry": []}, "count": 0},
+        )
+
+        api.extract(text="Patient has diabetes")
+
+        import json
+
+        assert "document_date" not in json.loads(httpx_mock.get_request().content)
 
     def test_extract_api_error(self, api, httpx_mock):
         """Test extraction API error handling."""
@@ -260,7 +278,8 @@ class TestExtractRaw:
         api.extract_raw(
             text="Patient has diabetes",
             context=[{"resourceType": "Condition", "id": "123"}],
-            meta="Document date: 2024-01-15",
+            meta="Department: Cardiology",
+            document_date="2024-01-15",
             tier="medium",
             patient_id="pat-1",
             visit_identifier="V-001",
@@ -268,7 +287,8 @@ class TestExtractRaw:
 
         body = json.loads(httpx_mock.get_request().content)
         assert body["context"] == [{"resourceType": "Condition", "id": "123"}]
-        assert body["meta"] == "Document date: 2024-01-15"
+        assert body["meta"] == "Department: Cardiology"
+        assert body["document_date"] == "2024-01-15"
         assert body["tier"] == "medium"
         assert body["patient_id"] == "pat-1"
         assert body["visit_identifier"] == "V-001"
@@ -386,6 +406,87 @@ class TestExtractNewParams:
         assert "practitioner_id" not in body
         assert "document_identifier" not in body
         assert "visit_identifier" not in body
+
+
+class TestOutOfOrderParams:
+    """future_context / out_of_order reach the payload.
+
+    Both are omitted when unset, so a forward-chronological extraction sends
+    exactly the payload it sent before these existed.
+    """
+
+    @staticmethod
+    def _body(httpx_mock):
+        return json.loads(httpx_mock.get_request().content)
+
+    @staticmethod
+    def _ok(httpx_mock):
+        httpx_mock.add_response(
+            method="POST",
+            url="https://qa.prism.cavell.app/api/extract/text",
+            json={"bundle": {"entry": []}, "count": 0},
+        )
+
+    def test_sends_both_fields(self, api, httpx_mock):
+        self._ok(httpx_mock)
+        future = [{"resourceType": "Condition", "id": "c-1"}]
+
+        api.extract_raw(
+            text="Patient has diabetes",
+            context=[{"resourceType": "Condition", "id": "c-0"}],
+            future_context=future,
+            out_of_order=True,
+        )
+
+        body = self._body(httpx_mock)
+        assert body["out_of_order"] is True
+        assert body["future_context"] == future
+        # The past side still travels under the original key, so a server that
+        # ignores the new fields degrades to context-as-of-the-document-date
+        # rather than to no context at all.
+        assert body["context"] == [{"resourceType": "Condition", "id": "c-0"}]
+
+    def test_omitted_when_unset(self, api, httpx_mock):
+        self._ok(httpx_mock)
+
+        api.extract_raw(text="Patient has diabetes")
+
+        body = self._body(httpx_mock)
+        assert "out_of_order" not in body
+        assert "future_context" not in body
+
+    def test_false_flag_stays_off_the_wire(self, api, httpx_mock):
+        """out_of_order=False is the server default, so it is not sent."""
+        self._ok(httpx_mock)
+
+        api.extract_raw(text="Patient has diabetes", out_of_order=False)
+
+        assert "out_of_order" not in self._body(httpx_mock)
+
+    def test_empty_future_context_is_not_sent(self, api, httpx_mock):
+        """A patient with nothing newer sends no key, not an empty list."""
+        self._ok(httpx_mock)
+
+        api.extract_raw(
+            text="Patient has diabetes", future_context=[], out_of_order=True
+        )
+
+        body = self._body(httpx_mock)
+        assert "future_context" not in body
+        assert body["out_of_order"] is True
+
+    def test_extract_forwards_both(self, api, httpx_mock):
+        """The typed wrapper carries them through to extract_raw."""
+        self._ok(httpx_mock)
+        future = [{"resourceType": "Condition", "id": "c-1"}]
+
+        api.extract(
+            text="Patient has diabetes", future_context=future, out_of_order=True
+        )
+
+        body = self._body(httpx_mock)
+        assert body["out_of_order"] is True
+        assert body["future_context"] == future
 
 
 class TestListTiers:

@@ -1,5 +1,6 @@
 """Local FHIR server operations with OAuth2 authentication."""
 
+import datetime
 import json
 import logging
 import threading
@@ -25,26 +26,115 @@ ORGANIZATION_IDENTIFIER_SYSTEM = "urn:cavell:organization"
 PRACTITIONER_IDENTIFIER_SYSTEM = "urn:cavell:practitioner"
 PRACTITIONER_ROLE_IDENTIFIER_SYSTEM = "urn:cavell:practitioner-role"
 
-# Default resource types to fetch for context
+# Default resource types to fetch for context. Every entry here must be a type
+# the extraction API actually reads (its ``CONTEXT_SLOTS`` map) — anything else
+# is accepted by the API and silently ignored, so it would only inflate the
+# payload. Identity resources are deliberately absent: Patient, Organization
+# and Practitioner travel as explicit reference IDs instead.
 CONTEXT_RESOURCE_TYPES: tuple[str, ...] = (
     "Condition",
     "AllergyIntolerance",
     "Procedure",
     "MedicationRequest",
+    "MedicationAdministration",
+    "NutritionOrder",
     "Observation",
+    "FamilyMemberHistory",
     "ResearchSubject",
     "CarePlan",
 )
 
 # FHIR search parameter that scopes a resource to a patient. Most resources use
-# "subject"; a few use a different reference field.
+# "subject"; a few use a different reference field. R4 defines no "subject"
+# search param at all for NutritionOrder or FamilyMemberHistory — searching
+# those by "subject" is a 400, not an empty result.
 _PATIENT_SEARCH_PARAM: dict[str, str] = {
     "AllergyIntolerance": "patient",
+    "FamilyMemberHistory": "patient",
+    "NutritionOrder": "patient",
     "ResearchSubject": "individual",
 }
 
-# Observations can be voluminous; only the most recent ones are sent as context.
+# Observations can be voluminous, so the context is bounded twice over: to a
+# recent window, and then to a count within it. See _observation_window_start.
 MAX_CONTEXT_OBSERVATIONS = 50
+OBSERVATION_CONTEXT_YEARS = 2
+
+# Studies get no date bound — they carry no usable date (see
+# search_research_studies) — so the count is the only guard on a registry that
+# grows without limit and is fetched for every patient.
+MAX_CONTEXT_STUDIES = 200
+
+# ResearchStudy statuses that carry no extraction signal. Everything else —
+# active, completed, closed-to-accrual, and the rest — stays in the context:
+# a study the patient was enrolled in years ago is still the study a new note
+# refers to, and dropping it once it leaves "active" makes the extractor
+# re-create it under a fresh id.
+_EXCLUDED_STUDY_STATUSES: tuple[str, ...] = ("entered-in-error", "withdrawn")
+
+
+def _as_reference_date(
+    reference_date: str | datetime.date | None,
+) -> datetime.date:
+    """Normalize a caller-supplied reference date to a ``datetime.date``.
+
+    Accepts what callers actually hold: a ``date``, a ``datetime``, or an ISO
+    string (possibly with a time part). Falls back to today when there is no
+    date to offer or the one given is unparseable — an unusable reference
+    should degrade the context window, not empty it or raise.
+    """
+    if isinstance(reference_date, datetime.datetime):
+        return reference_date.date()
+    if isinstance(reference_date, datetime.date):
+        return reference_date
+    if reference_date:
+        try:
+            return datetime.date.fromisoformat(str(reference_date)[:10])
+        except ValueError:
+            logger.warning(
+                f"Unparseable reference date {reference_date!r} for the extraction "
+                f"context; falling back to today"
+            )
+    return datetime.date.today()
+
+
+def _as_iso_day(reference_date: str | datetime.date | None) -> str:
+    """Normalize a reference date to a ``YYYY-MM-DD`` string.
+
+    The provenance dates the split-context classifier compares against are
+    day-resolution strings, so the reference has to be one too.
+    """
+    return _as_reference_date(reference_date).isoformat()
+
+
+def _observation_window_start(reference_date: str | datetime.date | None) -> str:
+    """First day of the Observation context window, as ``YYYY-MM-DD``.
+
+    The window is anchored on the *document* being processed, not on today.
+    Backfilling an archive of 2015 notes with a today-anchored window would put
+    every stored observation outside it and hand the extractor nothing.
+    """
+    reference = _as_reference_date(reference_date)
+
+    try:
+        start = reference.replace(year=reference.year - OBSERVATION_CONTEXT_YEARS)
+    except ValueError:
+        # 29 February has no counterpart in a non-leap year.
+        start = reference.replace(
+            year=reference.year - OBSERVATION_CONTEXT_YEARS, day=28
+        )
+    return start.isoformat()
+
+
+def _strip_context_noise(resources: list[dict]) -> None:
+    """Drop server bookkeeping and generated narrative from context resources.
+
+    ``meta`` and ``text`` carry no extraction signal, so stripping them keeps
+    the context payload small. Mutates in place.
+    """
+    for resource in resources:
+        resource.pop("meta", None)
+        resource.pop("text", None)
 
 
 def _observation_signature(obs: dict) -> tuple[str, str, str] | None:
@@ -523,7 +613,7 @@ class FHIRClient:
         self,
         patient_id: str,
         resource_type: str,
-        params: dict[str, str] | None = None,
+        params: "dict[str, str | list[str]] | None" = None,
         max_results: int | None = None,
     ) -> list[dict]:
         """Search for FHIR resources belonging to a patient.
@@ -531,7 +621,10 @@ class FHIRClient:
         Args:
             patient_id: The patient ID to search for
             resource_type: FHIR resource type (e.g., "Condition")
-            params: Additional query parameters (e.g., {"date": "2023-03-15"})
+            params: Additional query parameters (e.g., {"date": "2023-03-15"}).
+                A list value repeats the parameter, which is how FHIR bounds a
+                search on both sides: ``{"date": ["ge2018-06-01",
+                "le2020-06-01"]}``.
             max_results: Stop after collecting this many resources, without
                 fetching further pages (None = fetch all pages)
 
@@ -540,7 +633,10 @@ class FHIRClient:
         """
         param_name = _PATIENT_SEARCH_PARAM.get(resource_type, "subject")
         page_size = min(max_results, 500) if max_results else 500
-        query = {param_name: patient_id, "_count": str(page_size)}
+        query: dict[str, str | list[str]] = {
+            param_name: patient_id,
+            "_count": str(page_size),
+        }
         if params:
             query.update(params)
 
@@ -553,25 +649,67 @@ class FHIRClient:
                 break
         return results
 
-    def search_research_studies(self, status: str = "active") -> list[dict]:
-        """Search for ResearchStudy resources by status.
+    def search_research_studies(
+        self,
+        exclude_statuses: Sequence[str] = _EXCLUDED_STUDY_STATUSES,
+        max_results: int | None = MAX_CONTEXT_STUDIES,
+    ) -> list[dict]:
+        """Search for ResearchStudy resources, minus the excluded statuses.
 
-        ResearchStudy resources are not patient-scoped: every study with the
-        given status applies to all patients, so they are always included in
-        the extraction context for deduplication.
+        ResearchStudy resources are not patient-scoped: a study applies to all
+        patients, so they are always included in the extraction context for
+        deduplication.
+
+        Never filtered by date, and never split into past and future context
+        for a reverse-chronological document. A ResearchStudy carries no
+        clinical date to filter on — the extraction API writes only identifier,
+        status, title and arms — and ``meta.lastUpdated`` is no substitute: it
+        records when the row was written, so a backfill stamps every study with
+        today and a window anchored on a historical document would exclude the
+        lot. Every study therefore travels as ordinary context, which is the
+        safe direction: a study the extractor cannot see is one it re-creates
+        under a fresh id, and a duplicated study is wrong for every patient on
+        the server. ``max_results`` is the only bound.
+
+        Deliberately *not* filtered to ``status=active``. A study the patient
+        joined two years ago is still the study a new note names, but its
+        status moves on — to ``completed``, ``closed-to-accrual`` and the rest
+        — and an active-only filter drops it from the context exactly then.
+        The extractor matches studies by title and embedding similarity, so a
+        study it cannot see is a study it re-creates under a fresh id.
+
+        Excluded statuses are filtered client-side rather than with a
+        ``status:not`` query: the multi-value semantics of ``:not`` differ
+        between FHIR servers, and the excluded statuses are rare enough that
+        fetching and dropping them costs nothing.
 
         Args:
-            status: ResearchStudy.status to filter by (default "active")
+            exclude_statuses: ResearchStudy.status values to leave out. The
+                default drops only the two that carry no signal.
+            max_results: Stop after collecting this many studies (None = all).
+                Counted *after* the status filter, so the cap bounds what
+                actually reaches the payload rather than what was fetched.
 
         Returns:
             List of matching ResearchStudy resources
         """
-        return [
-            entry["resource"]
-            for entry in self._iter_bundle_entries(
-                "GET", "/ResearchStudy", params={"status": status, "_count": "500"}
-            )
-        ]
+        excluded = set(exclude_statuses)
+        results: list[dict] = []
+        # -_lastUpdated orders, it does not filter: it only decides which
+        # studies survive the cap on a server holding more than the limit,
+        # making that recently-touched rather than whatever order the server
+        # happened to return.
+        for entry in self._iter_bundle_entries(
+            "GET",
+            "/ResearchStudy",
+            params={"_count": "500", "_sort": "-_lastUpdated"},
+        ):
+            if (resource := entry["resource"]).get("status") in excluded:
+                continue
+            results.append(resource)
+            if max_results is not None and len(results) >= max_results:
+                break
+        return results
 
     def search_practitioners(
         self,
@@ -613,16 +751,20 @@ class FHIRClient:
         self,
         patient_id: str,
         resource_types: Sequence[str] = CONTEXT_RESOURCE_TYPES,
+        reference_date: str | datetime.date | None = None,
     ) -> list[dict]:
         """Fetch existing FHIR resources to use as extraction context.
 
-        Includes the patient-scoped ``resource_types`` plus all active
-        ResearchStudy resources, which are not patient-scoped but always
-        provided as context for deduplication.
+        Includes the patient-scoped ``resource_types`` plus ResearchStudy
+        resources, which are not patient-scoped but always provided as context
+        for deduplication.
 
         Args:
             patient_id: The patient ID to fetch context for
             resource_types: Patient-scoped resource types to fetch
+            reference_date: Date of the document being processed, used to
+                anchor the Observation window. Defaults to today, which is only
+                right when the documents being ingested are current.
 
         Returns:
             List of FHIR resources to use as context
@@ -631,23 +773,13 @@ class FHIRClient:
         for resource_type in resource_types:
             try:
                 if resource_type == "Observation":
-                    # Cap to the most recent observations, sorted newest-first.
-                    results = self.search_patient_resources(
-                        patient_id,
-                        resource_type,
-                        params={"_sort": "-date"},
-                        max_results=MAX_CONTEXT_OBSERVATIONS,
-                    )
-                elif resource_type == "CarePlan":
-                    # Only active plans can be meaningfully updated; ended
-                    # plans would grow the context forever for no benefit.
-                    results = self.search_patient_resources(
-                        patient_id,
-                        resource_type,
-                        params={"status": "active"},
-                    )
+                    # Bounded twice: to a window ending at the document date,
+                    # and to the newest MAX_CONTEXT_OBSERVATIONS within it. A
+                    # patient with dense labs would otherwise spend the whole
+                    # budget on a fortnight of bloods.
+                    results = self._search_observations(patient_id, reference_date)
                 else:
-                    results = self.search_patient_resources(patient_id, resource_type)
+                    results = self._search_context_type(patient_id, resource_type)
                 logger.debug(
                     f"Fetched {len(results)} {resource_type} for patient {patient_id}"
                 )
@@ -657,21 +789,159 @@ class FHIRClient:
                     f"Failed to fetch {resource_type} for patient {patient_id}: {e}"
                 )
 
-        # Active studies apply to all patients, so always include them.
+        # Studies apply to all patients, so always include them.
         try:
-            studies = self.search_research_studies(status="active")
-            logger.debug(f"Fetched {len(studies)} active ResearchStudy for context")
+            studies = self.search_research_studies()
+            logger.debug(f"Fetched {len(studies)} ResearchStudy for context")
             all_resources.extend(studies)
         except Exception as e:
-            logger.warning(f"Failed to fetch active ResearchStudy: {e}")
+            logger.warning(f"Failed to fetch ResearchStudy: {e}")
 
-        # Server bookkeeping (meta) and generated narrative (text) carry no
-        # extraction signal; stripping them keeps the context payload small.
-        for resource in all_resources:
-            resource.pop("meta", None)
-            resource.pop("text", None)
-
+        _strip_context_noise(all_resources)
         return all_resources
+
+    def _search_context_type(self, patient_id: str, resource_type: str) -> list[dict]:
+        """Fetch one patient-scoped context resource type, unbounded by date."""
+        if resource_type == "CarePlan":
+            # Only active plans can be meaningfully updated; ended plans would
+            # grow the context forever for no benefit.
+            return self.search_patient_resources(
+                patient_id, resource_type, params={"status": "active"}
+            )
+        return self.search_patient_resources(patient_id, resource_type)
+
+    def _search_observations(
+        self,
+        patient_id: str,
+        reference_date: str | datetime.date | None,
+        *,
+        closed: bool = False,
+    ) -> list[dict]:
+        """Fetch up to MAX_CONTEXT_OBSERVATIONS ending at the reference date.
+
+        The window runs from ``reference - OBSERVATION_CONTEXT_YEARS``, newest
+        first. ``closed=True`` also bounds it at the reference date, which the
+        split path needs: a single unbounded-above search spends its whole cap
+        on the newest observations, so for a backdated document every one of
+        them would postdate it and the past side would come back empty.
+
+        There is deliberately no forward query. The extraction API matches an
+        observation on ``(date, code, value)`` with an exact date, and a
+        document can only report results at or before its own date — so an
+        observation dated *after* the document could never match anything it
+        proposes. The ones that matter, measured before the document but only
+        recorded by a later one, come back from this query and are separated by
+        provenance.
+        """
+        date_bounds = [f"ge{_observation_window_start(reference_date)}"]
+        if closed:
+            date_bounds.append(f"le{_as_iso_day(reference_date)}")
+        return self.search_patient_resources(
+            patient_id,
+            "Observation",
+            # A single bound stays a plain string so the in-order path's query
+            # is byte-identical to what it sent before the split existed.
+            params={
+                "date": date_bounds[0] if len(date_bounds) == 1 else date_bounds,
+                "_sort": "-date",
+            },
+            max_results=MAX_CONTEXT_OBSERVATIONS,
+        )
+
+    def fetch_split_patient_context(
+        self,
+        patient_id: str,
+        reference_date: str | datetime.date | None = None,
+        resource_types: Sequence[str] = CONTEXT_RESOURCE_TYPES,
+    ) -> tuple[list[dict], list[dict]]:
+        """Fetch context split into what predates a document and what follows it.
+
+        For a document processed out of chronological order, the extraction API
+        must be shown the patient as they were *at that document's date* — not
+        as they are now — or knowledge from later notes leaks backwards and the
+        extractor reasons about a future it should not be able to see.
+
+        Resources are assigned by **provenance, not clinical date**: each is
+        dated by the newest already-processed document that created or updated
+        it (:meth:`get_related_document_dates`). What matters is when a fact
+        entered the record, not when it happened — a Condition recorded last
+        year with a 1998 onset is knowledge this document's author could not
+        have had. A resource counts as past only when *every* document that
+        touched it is at or before the reference date; anything a newer
+        document has since modified carries that newer knowledge in its body
+        and belongs to the future side.
+
+        Resources with no provenance are treated as past. The extraction API
+        lists every resource a document touched in its DocumentReference's
+        ``context.related``, so this covers resources loaded outside the
+        pipeline rather than any path the pipeline itself produces.
+
+        ResearchStudy is exempt and always lands in the past side — see
+        :meth:`search_research_studies` for why it cannot be dated.
+
+        Args:
+            patient_id: The patient ID to fetch context for
+            resource_types: Patient-scoped resource types to fetch
+            reference_date: Date of the document being processed. Everything is
+                split around it.
+
+        Returns:
+            ``(past, future)`` — both in the shape :meth:`fetch_patient_context`
+            returns, so either can be sent as a context payload as-is.
+        """
+        reference = _as_iso_day(reference_date)
+        try:
+            related_dates = self.get_related_document_dates(patient_id)
+        except Exception as e:
+            # Fail open, as the chronology check does: without provenance
+            # every resource reads as past, which is exactly the unsplit
+            # context this method replaces.
+            logger.warning(
+                f"Failed to fetch document provenance for patient {patient_id} "
+                f"(context will not be split): {e}"
+            )
+            related_dates = {}
+
+        past: list[dict] = []
+        future: list[dict] = []
+
+        def assign(resources: list[dict], resource_type: str) -> None:
+            for resource in resources:
+                key = f"{resource_type}/{resource.get('id')}"
+                if related_dates.get(key, "") > reference:
+                    future.append(resource)
+                else:
+                    past.append(resource)
+
+        for resource_type in resource_types:
+            try:
+                if resource_type == "Observation":
+                    assign(
+                        self._search_observations(patient_id, reference, closed=True),
+                        resource_type,
+                    )
+                else:
+                    assign(
+                        self._search_context_type(patient_id, resource_type),
+                        resource_type,
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to fetch {resource_type} for patient {patient_id}: {e}"
+                )
+
+        try:
+            past.extend(self.search_research_studies())
+        except Exception as e:
+            logger.warning(f"Failed to fetch ResearchStudy: {e}")
+
+        logger.debug(
+            f"Split context for patient {patient_id} around {reference}: "
+            f"{len(past)} past, {len(future)} future"
+        )
+        _strip_context_noise(past)
+        _strip_context_noise(future)
+        return past, future
 
     def find_patient_by_identifier(self, identifier: str) -> tuple[str, dict] | None:
         """Search for Patient by identifier, return (id, resource) if found.

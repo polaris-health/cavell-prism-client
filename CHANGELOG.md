@@ -6,6 +6,126 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Three more resource types are now sent as extraction context:
+  `MedicationAdministration`, `NutritionOrder` and `FamilyMemberHistory`.** The
+  extraction API has read the first two for months, with prompts and
+  update-builders behind them, but nothing ever filled those slots — so their
+  UPDATE branches were unreachable and every note re-created the resource. Most
+  visibly, a diet order could not be *discontinued*: stopping one means updating
+  the order that started it, and the extractor was never shown it.
+  `FamilyMemberHistory` is new on the server side too; conditions are merged
+  onto the relative already on record instead of adding another entry for the
+  same father at every visit. **Requires the matching Prism-side context slot
+  for `FamilyMemberHistory`**; the other two work against any current server.
+  `NutritionOrder` and `FamilyMemberHistory` are searched by `patient` — R4
+  defines no `subject` search parameter for either.
+- **`FHIRClient.fetch_split_patient_context()`** returns `(past, future)` for a
+  document being processed out of chronological order — the same context
+  `fetch_patient_context()` builds, sorted by which side of the document's date
+  each resource's provenance falls on. The Observation query is closed at the
+  document's date rather than partitioned afterwards: a single newest-first
+  search spends its whole 50-result cap on the newest observations, so for a
+  backdated document every one of them would postdate it and the past half
+  would come back empty. Observations dated *after* the document are not sent
+  at all — the API matches on an exact `(date, code, value)` and a document
+  only reports results at or before its own date, so a later one could never
+  match anything it proposes.
+- **`CavellAPI.extract()` and `.extract_raw()` take `future_context` and
+  `out_of_order`.** Both are omitted from the payload when unset, so ordinary
+  forward extraction sends exactly the payload it did before.
+
+### Changed
+
+- **The Observation context is now a 2-year window ending at the document's own
+  date, capped at the 50 most recent within it** (previously: the 50 most
+  recent overall, with no window). The window is anchored on the document
+  rather than on today, so backfilling an archive of older notes still sees the
+  observations around each one instead of an empty window two years behind the
+  present. `FHIRClient.fetch_patient_context()` takes a new optional
+  `reference_date`; the ingestion pipeline passes each document's date
+  automatically.
+- **`ResearchStudy` context is no longer filtered to `status=active`.** Only
+  `entered-in-error` and `withdrawn` are dropped now. A study the patient
+  joined two years ago is still the study a new note names, but its status
+  moves on to `completed` or `closed-to-accrual` — and the active-only filter
+  removed it from the context exactly then, so the extractor, which matches
+  studies by title and embedding similarity, re-created it under a fresh id.
+  `search_research_studies()` takes `exclude_statuses` in place of `status`
+  (breaking for direct callers of that method; the pipeline is unaffected).
+- **`Document.document_id` is now required** (breaking). It is keyword-only, so
+  the positional arguments around it are unchanged, and omitting it raises
+  `TypeError` at construction. Everything that makes ingestion safe to re-run
+  keys on it: the `skip_processed` resume filter, the chronology watermark
+  (read off persisted document identifiers), and failure reporting. A document
+  without one was silently re-extracted and re-persisted on every run,
+  invisible to the chronology guard, and reported only by a batch-relative
+  `doc[N]` index. `Document.from_rows()` now requires a `document_id` column,
+  and a blank value in that column raises instead of becoming `None`.
+- **The document date is now sent as its own `document_date` payload field**
+  (breaking), as an ISO `YYYY-MM-DD` string, instead of being prepended to
+  `meta` as the prose line `Document date: 2024-01-15`. `meta` now carries only
+  what it is for — your supplementary context plus the injected attending
+  practitioner — and is omitted from the payload entirely when both are absent.
+  `CavellAPI.extract()` and `.extract_raw()` take a new optional
+  `document_date` argument, keyword-compatible with existing calls.
+
+  **Requires the matching Prism-side field.** Until the server reads
+  `document_date`, the extraction model no longer receives the document date
+  at all, since it is no longer in `meta`.
+- **`extract()` and `extract_all()` check that they were handed `Document`
+  objects.** Passing anything else — a raw CSV row dict is the usual slip —
+  now raises `TypeError` naming the offending positions, instead of an
+  `AttributeError` from inside a worker thread partway through a run. The
+  check runs over the whole list before the API pre-flight, so a bad item
+  costs not even one request. Field contents are unchanged and still validated
+  in one place, by `Document` itself.
+
+- **Reverse-chronological documents are now extracted against split context
+  instead of aborting the run** (breaking). A single backdated document for one
+  patient used to raise `OutOfOrderDocumentError` before anything was
+  extracted, throwing away every other patient's valid work. Such a document is
+  now extracted, but is shown the record **as it stood on its own date** —
+  `context` holds only what was already known then, everything newer travels
+  separately as `future_context`, and `out_of_order: true` tells the API which
+  it is looking at. Resources are sorted between the two by **provenance**: the
+  newest already-processed document that created or updated each one, read from
+  that document's `DocumentReference.context.related`. What matters is when a
+  fact entered the record, not when it happened — a Condition recorded last
+  year with a 1998 onset is still knowledge the older note's author could not
+  have had.
+
+  **Requires the matching Prism-side fields.** A server that predates them
+  ignores unknown fields silently, which would leave a backdated document
+  extracting against past-only context with nothing to reconcile against.
+- **`extract()` and `extract_all()` no longer raise `OutOfOrderDocumentError`**
+  (breaking). Replace `except OutOfOrderDocumentError` with a filter on
+  `outcome.out_of_order`, which now marks *how* a document was processed rather
+  than that it was rejected — it pairs with `success=True` on a normal run. A
+  repeated call is also idempotent now: previously the second run of a mixed
+  batch raised once its valid documents had been processed and filtered.
+- `extract_all()` no longer runs a whole-dataset chronology check before the
+  first batch. It existed so a late violation could not surface after earlier
+  batches had spent; nothing aborts anymore, and dropping it saves one FHIR
+  watermark query per patient per run. Global date-sorting is still worth it —
+  an in-order document skips the provenance and future-Observation queries the
+  split needs.
+- **`ResearchStudy` context is capped at 200 studies.** The registry is global,
+  fetched for every patient, and grows without limit. It is deliberately *not*
+  date-filtered and never split: a study carries no clinical date to filter on
+  (the API writes only identifier, status, title and arms), `meta.lastUpdated`
+  records when the row was written rather than when the trial became known — a
+  backfill stamps every study with today — and a study the extractor cannot see
+  is one it re-creates under a fresh id, which is wrong for every patient on the
+  server. `search_research_studies()` takes a new `max_results`.
+
+### Deprecated
+
+- **`OutOfOrderDocumentError`** is no longer raised anywhere. It remains
+  exported so existing `except` clauses keep importing, and will be removed in
+  a future release. `OutOfOrderDocument` is unaffected.
+
 ## [0.4.0] - 2026-08-10
 
 ### Added

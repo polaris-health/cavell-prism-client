@@ -108,7 +108,8 @@ from cavell_client.api import CavellAPI
 api = CavellAPI("https://prd.prism.cavell.app/api", api_key="...")
 bundle, count, usage = api.extract(
     text=note_text,
-    meta="Document date: 2024-01-15",
+    document_date="2024-01-15",  # ISO YYYY-MM-DD; its own field, not meta prose
+    meta="Department: Cardiology",
     tier="high",
     allowed_resources=["Condition", "MedicationRequest"],  # restrict output types
 )
@@ -117,6 +118,46 @@ bundle, count, usage = api.extract(
 `allowed_resources` restricts extraction to the listed FHIR resource types.
 It is not available through the pipeline, which assumes full extraction for
 its context and deduplication behavior.
+
+#### Extracting a document out of chronological order
+
+If you are extracting a note that predates data already on record, pass the
+record as it stood on that note's date as `context`, everything newer as
+`future_context`, and set `out_of_order`:
+
+```python
+from cavell_client.fhir import FHIRClient
+
+fhir = FHIRClient(base_url="...", client_id="...", client_secret="...")
+past, future = fhir.fetch_split_patient_context(
+    patient_fhir_id, reference_date="2023-09-12"
+)
+
+bundle, count, usage = api.extract(
+    text=note_text,
+    document_date="2023-09-12",
+    patient_id=patient_fhir_id,
+    context=past,
+    future_context=future,
+    out_of_order=True,
+)
+```
+
+`fetch_split_patient_context` sorts each resource by **provenance** — the newest
+already-processed document that created or updated it — so `past` is what was
+genuinely on record on that date, not merely what carries an older clinical date.
+
+Without this, the note is read against a clinical picture from its own future
+and anything it creates carries that contamination backwards. Both fields are
+omitted from the payload when unset, so ordinary forward extraction is
+unchanged. The pipeline does all of this for you — see
+[Out-of-order documents](ingestion.md#out-of-order-documents-get-split-context).
+
+!!! warning "Requires matching API support"
+
+    An extraction API that predates these fields ignores them silently, which
+    would leave the note extracting against past-only context with nothing to
+    reconcile against.
 
 ## Response Types
 
