@@ -66,6 +66,7 @@ with CavellClient(
                 text="Patient presents with...",
                 patient_identifier="MRN-12345",
                 date="2024-01-15",
+                document_id="note-001",
             ),
         ]
     ):

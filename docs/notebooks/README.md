@@ -17,7 +17,7 @@ table.
 | `extraction_demo.ipynb` | End-to-end CSV → FHIR extraction with the ingestion pipeline |
 | `hospitalization_extraction_demo.ipynb` | Hospital stays grouped per visit under FHIR Encounters, plus a walkthrough of the chronology check |
 | `notes.csv` | 1,758 synthetic clinical notes across 104 patients |
-| `hospitalizations.csv` | 104 synthetic documents across 17 hospital stays (16 patients), plus 3 backdated notes for `MRN-20002` used to demonstrate that out-of-order documents are refused |
+| `hospitalizations.csv` | 104 synthetic documents across 17 hospital stays (16 patients), plus 5 held-back notes — 3 backdated for `MRN-20002` and 2 forward-dated for `MRN-20017` (`V-018`) — submitted together to demonstrate that only the out-of-order notes are refused |
 
 ## Running
 

@@ -154,6 +154,7 @@ class CavellAPI:
         text: str,
         context: list[dict] | None = None,
         meta: str | None = None,
+        document_date: str | None = None,
         tier: str | None = None,
         allowed_resources: list[str] | None = None,
         patient_id: str | None = None,
@@ -161,6 +162,8 @@ class CavellAPI:
         practitioner_id: str | None = None,
         document_identifier: str | None = None,
         visit_identifier: str | None = None,
+        future_context: list[dict] | None = None,
+        out_of_order: bool = False,
     ) -> dict:
         """Extract FHIR resources and return the response body verbatim.
 
@@ -170,6 +173,19 @@ class CavellAPI:
         and the nested ``usage.breakdown``. Use this when you need fields the
         typed :class:`~cavell_client.models.ExtractResult` does not surface, or
         when you want to persist the raw response.
+
+        Args:
+            document_date: When the document was written, as an ISO
+                ``YYYY-MM-DD`` string. Sent as its own payload field rather
+                than buried in ``meta`` prose.
+            future_context: Resources already on record that postdate this
+                document — only meaningful alongside ``out_of_order``. Sent
+                separately from ``context`` so the API can reason about the
+                document as the latest one while still seeing what follows it,
+                rather than being handed a mix it cannot tell apart.
+            out_of_order: Marks this document as older than others already
+                processed for the patient, so ``context`` is the record as of
+                ``document_date`` rather than as of now.
 
         Returns:
             The decoded JSON response body.
@@ -184,6 +200,8 @@ class CavellAPI:
             payload["context"] = context
         if meta:
             payload["meta"] = meta
+        if document_date:
+            payload["document_date"] = document_date
         if tier:
             payload["tier"] = tier
         if allowed_resources:
@@ -198,6 +216,10 @@ class CavellAPI:
             payload["document_identifier"] = document_identifier
         if visit_identifier:
             payload["visit_identifier"] = visit_identifier
+        if future_context:
+            payload["future_context"] = future_context
+        if out_of_order:
+            payload["out_of_order"] = out_of_order
 
         response = client.post("/extract/text", json=payload)
         for attempt in range(1, _MAX_RETRIES + 1):
@@ -228,6 +250,7 @@ class CavellAPI:
         text: str,
         context: list[dict] | None = None,
         meta: str | None = None,
+        document_date: str | None = None,
         tier: str | None = None,
         allowed_resources: list[str] | None = None,
         patient_id: str | None = None,
@@ -235,6 +258,8 @@ class CavellAPI:
         practitioner_id: str | None = None,
         document_identifier: str | None = None,
         visit_identifier: str | None = None,
+        future_context: list[dict] | None = None,
+        out_of_order: bool = False,
     ) -> tuple[dict, int, UsageStats | None]:
         """Extract FHIR resources from clinical text.
 
@@ -246,7 +271,11 @@ class CavellAPI:
         Args:
             text: Clinical text to extract from
             context: Existing FHIR resources for context-aware extraction
-            meta: Supplementary context (demographics, document date)
+            meta: Supplementary free-text context (department, ward, attending
+                practitioner). The document date is not part of this — pass it
+                as ``document_date``
+            document_date: When the document was written, as an ISO
+                ``YYYY-MM-DD`` string
             tier: Model tier to use for extraction (low/medium/high)
             allowed_resources: Restrict extraction to these FHIR resource types
                 (allowlist); omit to extract all types
@@ -255,6 +284,12 @@ class CavellAPI:
             practitioner_id: FHIR Practitioner ID of attending practitioner
             document_identifier: Identifier stamped on the DocumentReference
             visit_identifier: Visit/admission identifier stamped on the Encounter
+            future_context: Existing resources that postdate this document, for
+                a document being processed out of chronological order. Only
+                meaningful alongside ``out_of_order``
+            out_of_order: Marks this document as older than others already
+                processed for the patient, so ``context`` is the record as of
+                ``document_date`` rather than as of now
 
         Returns:
             Tuple of (bundle, count, usage_stats)
@@ -266,6 +301,7 @@ class CavellAPI:
             text,
             context=context,
             meta=meta,
+            document_date=document_date,
             tier=tier,
             allowed_resources=allowed_resources,
             patient_id=patient_id,
@@ -273,6 +309,8 @@ class CavellAPI:
             practitioner_id=practitioner_id,
             document_identifier=document_identifier,
             visit_identifier=visit_identifier,
+            future_context=future_context,
+            out_of_order=out_of_order,
         )
         return data.get("bundle", {}), data.get("count", 0), parse_usage(data)
 

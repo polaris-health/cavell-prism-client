@@ -11,7 +11,7 @@ uv sync                # installs the package + dev dependencies
 uv run pytest          # 250+ hermetic tests, sub-second
 uv run ruff check && uv run ruff format --check
 uv run ty check
-uv run pre-commit install   # ruff, ty, detect-secrets, commitlint on every commit
+uv run pre-commit install   # ruff, ty, detect-secrets on every commit
 ```
 
 The test suite is fully hermetic (no network) and guarded by
@@ -23,8 +23,9 @@ server on `http://localhost:8090`.
 
 ## Commits and branches
 
-- Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, ...) — enforced
-  by commitlint via pre-commit.
+- Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, ...) — a review
+  convention, not an automated check. `commitlint.config.js` records the rules
+  if you want to run it by hand (`npx commitlint --from HEAD~1`).
 - `develop` is the default branch; all PRs target it.
 - `main` is release-only: promotion PRs `develop → main` merge with a merge
   commit (enforced by ruleset + the `branch-guard` check).
