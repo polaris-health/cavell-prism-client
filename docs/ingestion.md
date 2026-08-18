@@ -244,12 +244,12 @@ Returned by `pipeline.extract()` for each document.
 |-------|------|-------------|
 | `success` | `bool` | Whether extraction and persistence succeeded |
 | `patient_identifier` | `str` | Patient identifier from the document |
-| `document_index` | `int` | Position in the original input list |
-| `document_id` | `str` or `None` | The `document_id` from the source `Document`, if set — useful for correlating failures back to source records |
+| `document_index` | `int` | Position in the list `extract()` actually processed — i.e. *after* `skip_processed` filtering and the `limit` truncation, not in the list you passed. Under `extract_all()` it is relative to the document's own batch |
+| `document_id` | `str` | The `document_id` from the source `Document` — the stable way to correlate an outcome back to a source record |
 | `extract_result` | `ExtractResult` or `None` | Result if successful |
 | `error` | `str` or `None` | Error message if failed |
 | `transient` | `bool` | The failure was transient (timeout, connection drop, server 5xx/429) — the deferred retry pass re-ran or will re-run it (see [Document extraction failures](#document-extraction-failures)) |
-| `out_of_order` | `bool` | The document was [refused](#out-of-order-documents-are-refused) for predating its patient's newest already-persisted document. Always paired with `success=False`; nothing was extracted or persisted for it and no tokens were spent |
+| `out_of_order` | `bool` | The document predated its patient's newest already-persisted document, so it was extracted against [split context](#out-of-order-documents-get-split-context). This records *how* the document was processed, not whether it worked — it pairs with `success=True` on a normal run |
 
 Note on naming: `Document.meta` is the SDK's free-text supplementary context
 for the extraction model. It is unrelated to FHIR `Resource.meta`, the
@@ -503,18 +503,28 @@ Every resource the extraction API emits carries an `unvalidated` meta tag
 the server contract, any update to a resource re-adds the tag — validation
 applies to a specific version.
 
-Two client-side behaviors soften this in practice:
+One client-side behavior softens this in practice:
 
 - **Duplicate suppression**: observations that already exist (same date,
   code, and value) are dropped client-side before persisting, so
   re-extracting the same data does not touch validated resources.
-- **Chronological refusal**: an out-of-order document cannot overwrite (and
-  thus cannot un-validate) anything, because it is [never extracted in the
-  first place](#out-of-order-documents-are-refused).
 
 An in-order update with genuinely new information *does* replace the resource
 and re-marks it `unvalidated` — by design, since a clinician has not seen the
 new version.
+
+**Backdated documents are not exempt from this.** An out-of-order document is
+extracted like any other (see [Out-of-order documents get split
+context](#out-of-order-documents-get-split-context)), and the bundle it produces
+can update a resource that a *newer* document created — which re-adds
+`unvalidated` to it. The client does not veto those updates: it tells the API
+which resources postdate the document (`future_context`) and the API's
+reconciliation decides what to merge, drop or create. A client-side update guard
+that dropped every PUT against a newer-sourced resource is retained but disabled
+in `_process_single_document`, because under the split rule every such resource
+postdates the document by definition, so the guard would veto exactly the
+reconciliation the API was asked to make. If you need the stricter behaviour,
+that is the block to re-enable.
 
 ## Connection Check
 
@@ -593,13 +603,14 @@ outcomes = pipeline.extract_all(
 | `skip_processed` | `True` | Passed to `extract()`, which applies it per batch. |
 | `on_batch` | `None` | Called with each batch's outcomes as that batch finishes. Use it for progress output or to persist partial results — a large run otherwise holds every outcome, including extracted bundles, in memory until it returns. |
 
-The global sort is what makes batching safe. Batching an *unsorted* list splits
+The global sort is what makes batching cheap. Batching an *unsorted* list splits
 it by input order, so a later batch could carry documents older than what an
-earlier batch already persisted — and those would be
-[refused](#out-of-order-documents-are-refused) rather than extracted, silently
-losing them. Sorting first puts every batch boundary on a clean chronological
-cut, which also means each patient's backdated documents are checked in an
-earlier batch than their forward-dated ones.
+earlier batch already persisted. Those are still extracted, but on the slower
+[split-context path](#out-of-order-documents-get-split-context) — an extra
+provenance query each, plus the reconciliation the API runs on them. Sorting
+first puts every batch boundary on a clean chronological cut, so each patient's
+documents reach the API oldest-first even when they span several batches, and
+none of them pay for a split a plain forward pass never needs.
 
 Batches are cut by index, so the walk always terminates — it does not rely on
 `skip_processed` to advance, and works with `skip_processed=False` too.

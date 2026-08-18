@@ -3477,11 +3477,11 @@ class TestRunAbort(_PipelineHarness):
 class TestChronologyGuard(_PipelineHarness):
     """Chronology handling: in-order documents pass, watermark failures fail open.
 
-    The update-guard behaviour (extract an older document anyway, dropping
-    updates sourced from newer ones) is disabled — older documents are refused
-    per document instead, see TestOutOfOrderRejection. The one test covering it
-    is skipped rather than deleted, because refusing instead of guarding is
-    provisional.
+    The update-guard behaviour (drop updates sourced from newer documents) is
+    disabled: an older document is extracted against split context instead, and
+    the API decides what to reconcile — see TestOutOfOrderExtraction. The one
+    test covering the guard is skipped rather than deleted, because letting the
+    API decide is provisional.
     """
 
     RELATED_URL = (
@@ -3519,10 +3519,11 @@ class TestChronologyGuard(_PipelineHarness):
         }
 
     @pytest.mark.skip(
-        reason="Update guard is disabled: older documents are refused before "
-        "extraction (see TestOutOfOrderRejection). Kept for the provisional "
-        "revert to guard-instead-of-reject — re-enable together with the "
-        "commented-out block in _process_single_document."
+        reason="Update guard is disabled: older documents are extracted "
+        "against split context and the API reconciles (see "
+        "TestOutOfOrderExtraction). Kept for the provisional revert to "
+        "guarding client-side — re-enable together with the commented-out "
+        "block in _process_single_document."
     )
     def test_out_of_order_drops_updates_from_newer_documents(
         self, client, httpx_mock, caplog
