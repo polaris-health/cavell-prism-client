@@ -6,6 +6,35 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-18
+
+### Fixed
+
+- **Documentation that still described reverse-chronological documents as
+  refused.** 0.5.0 changed them to be extracted against split context, but the
+  `IngestionOutcome.out_of_order` reference, the `extract()`/`extract_all()`
+  docstrings, the `OutOfOrderDocumentError` deprecation note, the README and
+  the notebook dataset table all still said such a document was dropped before
+  extraction and came back as a failed outcome with nothing persisted and no
+  tokens spent. Three in-page links pointed at a heading that no longer exists.
+  No code changed.
+
+  The correction worth reading: "How Updates Work" claimed a backdated document
+  "cannot overwrite (and thus cannot un-validate) anything, because it is never
+  extracted in the first place". It **is** extracted, and the bundle it produces
+  can update a resource that a *newer* document created — which re-adds
+  `unvalidated` to that resource. The client deliberately does not veto those
+  updates: it sends `future_context` and the API's reconciliation decides what to
+  merge, drop or create. The client-side update guard that would have dropped
+  them is retained but disabled in `_process_single_document`.
+- `IngestionOutcome.document_index` was documented as the position in the
+  original input list. It is the position *after* `skip_processed` filtering and
+  the `limit` truncation, and is batch-relative under `extract_all()`.
+  `document_id` was still marked optional, having become required in 0.5.0.
+- The notebook dataset table undercounted the held-back notes in
+  `hospitalizations.csv` as 5 (3 backdated); there are 8 — 6 backdated for
+  `MRN-20002` and 2 forward-dated for `MRN-20017`.
+
 ## [0.5.0] - 2026-08-18
 
 ### Added

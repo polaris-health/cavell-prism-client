@@ -118,15 +118,16 @@ class OutOfOrderDocument(NamedTuple):
 
 
 class OutOfOrderDocumentError(CavellError):
-    """Deprecated: no longer raised. Refusal is now per document.
+    """Deprecated: no longer raised. Nothing is refused for being backdated.
 
     .. deprecated::
         The pipeline used to abort a whole ``extract()``/``extract_all()`` call
         with this exception as soon as any one document predated its patient's
-        watermark, which threw away every other patient's valid work. Refusal
-        is now scoped to the offending documents: they come back as
-        ``IngestionOutcome(success=False, out_of_order=True)`` with the same
-        message text, and everything else in the call is extracted normally.
+        watermark, which threw away every other patient's valid work. Such a
+        document is now extracted against context split at its own date and
+        comes back as ``IngestionOutcome(success=True, out_of_order=True)``,
+        where the flag records how it was processed rather than that it was
+        rejected.
 
         Filter outcomes on ``out_of_order`` instead. Retained only so existing
         ``except`` clauses keep importing; it will be removed in a future
