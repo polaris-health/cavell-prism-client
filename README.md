@@ -67,11 +67,12 @@ with CavellClient(
 ```
 
 Extraction is resume-safe (`skip_processed=True` by default), retries
-transient failures, and aborts cleanly on auth/gateway outages. A document
-older than the patient's newest already-extracted note is refused — extraction
-is context-aware and only moves forward in time. Refusal is per document: the
-offender comes back as a failed outcome with `out_of_order=True` having spent
-nothing, and the rest of the call is extracted as normal.
+transient failures, and aborts cleanly on auth/gateway outages. A note older
+than the patient's newest already-extracted one is extracted against **split
+context**: it is shown the record as it stood on its own date, with everything
+newer sent separately so the model cannot read its own future as history. Such
+a note comes back with `out_of_order=True` — a record of how it was processed,
+not a failure — and the rest of the call is unaffected.
 
 For a whole dataset, use `pipeline.extract_all(documents, batch_size=500)`: it
 sorts every document by ascending date before splitting it into batches, so

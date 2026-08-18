@@ -1000,9 +1000,9 @@ class IngestionPipeline:
             Outcomes for every document processed, in batch order. Note that
             ``IngestionOutcome.document_index`` is relative to the document's
             own batch, not to ``documents``. A document older than its
-            patient's newest already-persisted document is refused rather than
-            extracted, and comes back as a failed outcome with
-            ``out_of_order=True``; the rest of the run is unaffected.
+            patient's newest already-persisted document is extracted against
+            split context and comes back with ``out_of_order=True``, which
+            records how it was processed rather than that it failed.
 
         Raises:
             TypeError: If any element is not a :class:`Document`.
@@ -1107,12 +1107,13 @@ class IngestionPipeline:
         out so re-running is always safe.
 
         A document older than its patient's newest already-persisted document
-        is **refused**: it is dropped before extraction, so no tokens are spent
-        and nothing is persisted for it, and it comes back as a failed outcome
-        with ``out_of_order=True``. Extraction is context-aware and only moves
-        forward in time. Refusal is per document — every other document in the
-        call, including the same patient's forward-dated ones, is extracted as
-        normal.
+        is extracted against **split context**: ``context`` holds the record as
+        it stood on that document's own date, and everything newer travels
+        separately as ``future_context`` rather than masquerading as history the
+        author could have known. Such a document comes back with
+        ``out_of_order=True``, which records *how* it was processed, not that it
+        failed — it pairs with ``success=True`` on a normal run. The routing is
+        per document; every other document in the call is unaffected.
 
         Args:
             documents: Documents to extract from
@@ -1125,8 +1126,8 @@ class IngestionPipeline:
         Returns:
             List of IngestionOutcome, one per document processed (which is
             fewer than ``documents`` when filtering or ``limit`` applies).
-            Refused out-of-order documents get an outcome too, so they are
-            never silently dropped.
+            Documents taken off the split-context path are marked
+            ``out_of_order=True`` rather than singled out.
 
         Raises:
             TypeError: If any element is not a :class:`Document`. Checked
