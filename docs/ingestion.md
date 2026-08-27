@@ -424,8 +424,14 @@ pipeline.seed(
 When extraction fails for a document, the pipeline:
 
 1. Returns a failed `IngestionOutcome` for that document.
-2. Skips remaining documents for that patient, because subsequent context would be incomplete.
+2. Continues with the patient's remaining documents — a failed document
+   persists nothing, so the record they extract against stays consistent.
 3. Continues processing other patients.
+
+Re-ingest the failed document later (a re-run with `skip_processed=True`
+picks it up automatically): by then it is older than the patient's newest
+persisted document, so it takes the [split-context path](#out-of-order-documents-get-split-context)
+and is reconciled against everything recorded after it.
 
 ```python
 for outcome in pipeline.extract(documents):
@@ -437,10 +443,12 @@ for outcome in pipeline.extract(documents):
 **Transient failures are retried.** Timeouts, connection drops, and server
 5xx/429 responses are retried in place (3 attempts with backoff). If a
 document still fails transiently, its outcome is marked `transient=True` and,
-after all patients finish, a **deferred pass** re-runs every failed document
-of the affected patients once, in date order. Context is re-fetched fresh, so
-this is safe — a failed document persists nothing. Deterministic failures
-(rejected bundles, 4xx content errors) are not retried.
+after all patients finish, a **deferred pass** re-runs each transiently
+failed document once, in date order. Context is re-fetched fresh, so this is
+safe — a failed document persists nothing — and a document whose successors
+persisted in the meantime takes the split-context path. Deterministic
+failures (rejected bundles, 4xx content errors) are not retried: re-running
+reproduces them.
 
 ### Run aborts
 
@@ -460,7 +468,7 @@ stopped.
 
 ### Persistence failures
 
-The pipeline treats these the same as extraction failures: it skips remaining documents for that patient.
+The pipeline treats these the same as extraction failures: the document gets a failed outcome and the patient's remaining documents continue.
 
 ## How Updates Work
 

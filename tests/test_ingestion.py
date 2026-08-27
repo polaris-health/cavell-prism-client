@@ -1027,15 +1027,18 @@ class TestExtract:
         # Both should succeed (sorted by date internally)
         assert all(o.success for o in outcomes)
 
-    def test_extraction_failure_skips_remaining(self, client, httpx_mock):
-        """A deterministic failure (4xx) skips remaining docs for that patient.
+    def test_extraction_failure_continues_with_remaining(self, client, httpx_mock):
+        """A deterministic failure (4xx) fails that document alone.
 
-        (Transient failures are retried instead — see the retry tests below.)
+        A failed document persists nothing, so the patient's remaining
+        documents still extract against a consistent record; the failed one is
+        re-ingested later on the split-context path. (Transient failures are
+        retried instead — see the retry tests below.)
         """
         pipeline = self._setup_pipeline(client, httpx_mock)
 
         # First doc: context fetch succeeds but extract API returns a 400 (content
-        # error) — not transient, so it fails fast and cascades without retrying.
+        # error) — not transient, so it fails fast without retrying.
         mock_context_empty(httpx_mock, "pat-1")
         httpx_mock.add_response(
             method="POST",
@@ -1043,6 +1046,10 @@ class TestExtract:
             status_code=400,
             json={"detail": "Bad request"},
         )
+        # Second doc processes normally.
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
 
         docs = [
             Document(
@@ -1067,8 +1074,7 @@ class TestExtract:
 
         assert len(outcomes) == 2
         assert not outcomes[0].success
-        assert not outcomes[1].success
-        assert "Skipped" in outcomes[1].error
+        assert outcomes[1].success
 
     def test_persist_failure_yields_error(self, client, httpx_mock):
         """Test that persist failure returns error outcome."""
@@ -1140,14 +1146,19 @@ class TestExtract:
         assert len(outcomes) == 1
         assert outcomes[0].success
 
-    def test_deferred_retry_recovers_skipped_docs(
+    def test_deferred_retry_recovers_transient_failure(
         self, client, httpx_mock, monkeypatch
     ):
-        """A transient failure that skips a follower is recovered in a deferred pass."""
+        """A transient failure is recovered in a deferred pass after the run.
+
+        The follower is no longer skipped: it processes (and persists) in the
+        main pass, so the deferred re-run of the older document lands on the
+        split-context path — the run's published watermark has advanced past it.
+        """
         monkeypatch.setattr("cavell_client.ingestion.time.sleep", lambda *_: None)
         pipeline = self._setup_pipeline(client, httpx_mock)
 
-        # Main pass: doc1 exhausts all in-place attempts (all 500) -> doc2 skipped.
+        # Main pass: doc1 exhausts all in-place attempts (all 500).
         # Each attempt re-fetches context, so register context + a 500 per attempt.
         for _ in range(_DOC_MAX_ATTEMPTS):
             mock_context_empty(httpx_mock, "pat-1")
@@ -1157,11 +1168,15 @@ class TestExtract:
                 status_code=500,
                 json={"detail": "transient"},
             )
-        # Deferred pass: doc1 then doc2, each one attempt that succeeds.
-        for _ in range(2):
-            mock_context_empty(httpx_mock, "pat-1")
-            mock_extract_response(httpx_mock, count=1)
-            mock_persist_response(httpx_mock, created=1)
+        # Main pass: doc2 processes normally.
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+        # Deferred pass: doc1 alone, now older than the persisted doc2, so it
+        # fetches split context (provenance query + context) and succeeds.
+        mock_context_split_empty(httpx_mock, "pat-1")
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
 
         docs = [
             Document(
@@ -1183,6 +1198,9 @@ class TestExtract:
 
         assert len(outcomes) == 2
         assert all(o.success for o in outcomes), [o.error for o in outcomes]
+        # The re-run was routed as out-of-order; the follower was not.
+        assert outcomes[0].out_of_order is True
+        assert outcomes[1].out_of_order is False
 
     def test_extract_callable_multiple_times(self, client, httpx_mock):
         """Test that extract() can be called multiple times."""
@@ -4547,6 +4565,112 @@ class TestOutOfOrderExtraction(_PipelineHarness):
         outcomes = pipeline.extract([_note("MRN-1", "2024-05-01", "already-done")])
 
         assert outcomes == []
+
+
+class TestContinueOnFailure(_PipelineHarness):
+    """One document's failure no longer costs the patient's remaining documents.
+
+    A failed document persists nothing, so the record its followers extract
+    against stays consistent; re-ingesting it later takes the split-context
+    path. Cascade-skipping the rest of the timeline predates that path.
+    """
+
+    @staticmethod
+    def _record(pipeline, monkeypatch, failed_ids=(), transient_ids=()):
+        """Replace real extraction with a recorder. Returns (doc_id, watermark)."""
+        seen: list[tuple[str, str | None]] = []
+
+        def fake(
+            doc, doc_index, organization_identifier, watermark=None, on_fatal=None
+        ):
+            seen.append((doc.document_id, watermark))
+            ok = doc.document_id not in failed_ids and doc.document_id not in (
+                transient_ids
+            )
+            return IngestionOutcome(
+                success=ok,
+                patient_identifier=doc.patient_identifier,
+                document_index=doc_index,
+                document_id=doc.document_id,
+                error=None if ok else "failed",
+                transient=doc.document_id in transient_ids,
+            )
+
+        monkeypatch.setattr(pipeline, "_process_single_document", fake)
+        return seen
+
+    def test_deterministic_failure_continues_with_remaining(
+        self, client, httpx_mock, monkeypatch
+    ):
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1", repeat=True)
+        mock_watermark(httpx_mock, "pat-1", date=None)
+        seen = self._record(pipeline, monkeypatch, failed_ids={"bad"})
+
+        outcomes = pipeline.extract(
+            [
+                _note("MRN-1", "2024-01-01", "ok-1"),
+                _note("MRN-1", "2024-02-01", "bad"),
+                _note("MRN-1", "2024-03-01", "ok-2"),
+            ]
+        )
+
+        # Every document was attempted; nothing re-ran (deterministic failures
+        # are not retried — re-running reproduces them).
+        assert [d for d, _ in seen] == ["ok-1", "bad", "ok-2"]
+        by_id = {o.document_id: o for o in outcomes}
+        assert by_id["ok-1"].success and by_id["ok-2"].success
+        assert not by_id["bad"].success
+        assert pipeline.documents_processed == 2
+        assert pipeline.documents_failed == 1
+
+    def test_deferred_pass_reruns_only_transient_failures(
+        self, client, httpx_mock, monkeypatch
+    ):
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1", repeat=True)
+        mock_watermark(httpx_mock, "pat-1", date=None)
+        seen = self._record(
+            pipeline, monkeypatch, failed_ids={"bad"}, transient_ids={"blip"}
+        )
+
+        pipeline.extract(
+            [
+                _note("MRN-1", "2024-01-01", "bad"),
+                _note("MRN-1", "2024-02-01", "blip"),
+                _note("MRN-1", "2024-03-01", "ok"),
+            ]
+        )
+
+        # Main pass attempts everything; the deferred pass re-runs the
+        # transient failure alone — not the deterministic one.
+        assert [d for d, _ in seen] == ["bad", "blip", "ok", "blip"]
+
+    def test_deferred_rerun_sees_the_advanced_watermark(
+        self, client, httpx_mock, monkeypatch
+    ):
+        """A re-run older than what persisted after it must route as out-of-order.
+
+        The main pass publishes each patient's advanced watermark, so the
+        deferred pass hands _process_single_document a watermark newer than the
+        re-run document — which is what routes it onto the split-context path.
+        """
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1", repeat=True)
+        mock_watermark(httpx_mock, "pat-1", date=None)
+        seen = self._record(pipeline, monkeypatch, transient_ids={"older"})
+
+        pipeline.extract(
+            [
+                _note("MRN-1", "2024-01-01", "older"),
+                _note("MRN-1", "2024-02-01", "newer"),
+            ]
+        )
+
+        assert [d for d, _ in seen] == ["older", "newer", "older"]
+        # Main pass: no watermark yet. Deferred re-run: the follower persisted.
+        assert seen[0][1] is None
+        assert seen[2][1] == "2024-02-01"
 
 
 class TestPartialExtractionPassthrough:

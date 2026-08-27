@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # Per-document in-place retry for transient failures (timeouts, 5xx, connection
 # errors). A fresh extract call after a slow one is usually fast, so retrying keeps
-# one blip from cascade-skipping the rest of a patient's timeline.
+# one blip from failing a document that would otherwise have succeeded.
 _DOC_MAX_ATTEMPTS = 3
 _DOC_RETRY_BACKOFF = 2.0  # seconds, exponential
 
@@ -1269,7 +1269,7 @@ class IngestionPipeline:
             # it could not be determined (fail-open) or the patient has no
             # processed documents yet.
             watermark = watermarks.get(patient_identifier)
-            for i, doc in enumerate(docs):
+            for doc in docs:
                 if abort_event.is_set():
                     break
                 outcome = self._process_single_document(
@@ -1282,29 +1282,24 @@ class IngestionPipeline:
                 outcomes.append(outcome)
                 if outcome.success:
                     watermark = max(watermark or "", str(doc.date)) or None
-                else:
-                    if abort_event.is_set():
-                        # The run is over; no cascade outcomes for this patient.
-                        break
-                    remaining = len(docs) - i - 1
-                    if remaining:
-                        logger.warning(
-                            f"Skipping {remaining} remaining document(s) for "
-                            f"patient '{patient_identifier}' due to failure"
-                        )
-                    # Skip remaining docs for this patient
-                    for remaining_doc in docs[i + 1 :]:
-                        skip_msg = f"Skipped due to earlier failure: {outcome.error}"
-                        outcomes.append(
-                            IngestionOutcome(
-                                success=False,
-                                patient_identifier=patient_identifier,
-                                document_index=doc_indices[id(remaining_doc)],
-                                error=skip_msg,
-                                document_id=remaining_doc.document_id,
-                            )
-                        )
-                    break
+                elif not abort_event.is_set():
+                    # A failed document persists nothing, so the patient's
+                    # remaining documents still extract against a consistent
+                    # record. The failed one is re-ingested later — a re-run
+                    # lands on the split-context path, which reconciles it
+                    # against whatever was recorded after it. (Skipping the
+                    # rest of the timeline predates that path.)
+                    logger.warning(
+                        f"Document {outcome.document_id or '<no id>'} failed for "
+                        f"patient '{patient_identifier}'; continuing with the "
+                        f"remaining document(s)"
+                    )
+            # Newer documents may have persisted after a failure. Publish the
+            # advanced watermark so the deferred retry below routes any re-run
+            # of an older failure onto the split-context path. Safe unlocked:
+            # one worker per patient, and the deferred pass starts only after
+            # every worker has returned.
+            watermarks[patient_identifier] = watermark
             return outcomes
 
         def run_batches(
@@ -1337,16 +1332,16 @@ class IngestionPipeline:
             raise abort_exc[0]
 
         # Deferred retry: a transient failure (timeout/5xx) shouldn't permanently lose a
-        # patient's remaining docs. Re-run every failed doc of any patient that hit a
-        # transient failure, once, in date order — context is re-fetched fresh, so this
-        # is safe (a failed document persists nothing). Deterministic failures (rejected
-        # bundles) are not retried.
-        transient_patients = {o.patient_identifier for o in all_outcomes if o.transient}
-        if transient_patients:
+        # document. Re-run each transiently failed doc once, in date order — context is
+        # re-fetched fresh, so this is safe (a failed document persists nothing), and
+        # the published post-run watermark routes docs now older than what persisted
+        # after them onto the split-context path. Deterministic failures (rejected
+        # bundles) are not retried: re-running reproduces them.
+        transient_failures = [o for o in all_outcomes if o.transient]
+        if transient_failures:
             deferred: dict[str, list[Document]] = defaultdict(list)
-            for o in all_outcomes:
-                if not o.success and o.patient_identifier in transient_patients:
-                    deferred[o.patient_identifier].append(documents[o.document_index])
+            for o in transient_failures:
+                deferred[o.patient_identifier].append(documents[o.document_index])
             for pid in deferred:
                 deferred[pid] = sorted(deferred[pid], key=lambda d: d.date)
             n_docs = sum(len(v) for v in deferred.values())
@@ -1398,8 +1393,8 @@ class IngestionPipeline:
 
         Transient failures (timeouts, connection drops, server 5xx) are retried in
         place with backoff — a fresh call after a slow one is usually fast, so one blip
-        doesn't cascade-skip the rest of the patient. Deterministic failures (a rejected
-        bundle, a 4xx) fail fast without retrying.
+        doesn't cost the document its slot in the run. Deterministic failures (a
+        rejected bundle, a 4xx) fail fast without retrying.
 
         ``watermark`` is the patient's newest already-persisted document date.
         A document older than it is extracted against *split* context: the
