@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-27
+
 ### Changed
 
 - **A document's failure no longer skips the patient's remaining documents.**
