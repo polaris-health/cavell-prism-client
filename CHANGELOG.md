@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [0.6.0] - 2026-08-27
+
+### Changed
+
+- **A document's failure no longer skips the patient's remaining documents.**
+  The cascade-skip existed to preserve chronology back when a backdated
+  document could never be extracted; since 0.5.0 a re-ingested document that
+  is older than the patient's newest persisted one takes the split-context
+  path and is reconciled against everything recorded after it. So a failed
+  document now gets its failed `IngestionOutcome` and the run moves on — a
+  failed document persists nothing, so the record its followers extract
+  against stays consistent. Re-ingest it later (a re-run with
+  `skip_processed=True` picks it up automatically). Outcomes with
+  `error="Skipped due to earlier failure: ..."` are no longer produced.
+- **The deferred retry pass re-runs only the transiently failed documents
+  themselves.** It used to re-run every failed document of an affected
+  patient, because cascade-skipped followers needed a second chance; now the
+  followers already ran. Deterministic failures are still never retried. Each
+  patient's advanced watermark is published after the main pass, so a deferred
+  re-run that is now older than what persisted after it is routed onto the
+  split-context path instead of reading its successors as plain history.
+
 ## [0.5.1] - 2026-08-18
 
 ### Fixed
