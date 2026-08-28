@@ -167,11 +167,40 @@ def _observation_signature(obs: dict) -> tuple[str, str, str] | None:
     return (date, code, value)
 
 
+def _rewrite_refs(entries: list[dict], mapping: dict[str, str]) -> None:
+    """Rewrite ``reference`` values in every entry's resource, in place.
+
+    ``mapping`` maps a removed entry's ``fullUrl`` placeholder to the server
+    reference that satisfies it (``Observation/{id}``). A single recursive walk
+    covers every reference field at any depth — ``Observation.hasMember``,
+    ``partOf``, ``DocumentReference.context.related``,
+    ``Encounter.reasonReference``, and any future shape.
+    """
+    if not mapping:
+        return
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            ref = node.get("reference")
+            if isinstance(ref, str) and (new_ref := mapping.get(ref)) is not None:
+                node["reference"] = new_ref
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    for entry in entries:
+        walk(entry.get("resource", {}))
+
+
 def _filter_stale_refs(entries: list[dict]) -> list[dict]:
     """Remove references to resources no longer in the bundle.
 
     After deduplication, DocumentReference and Encounter entries may reference
     observations that were removed. This filters those dangling references.
+    Since ``_rewrite_refs`` repoints dropped duplicates to their server
+    survivors, this is a backstop and normally finds nothing.
     """
     valid_refs = {e["fullUrl"] for e in entries if "fullUrl" in e}
 
@@ -1261,15 +1290,22 @@ class FHIRClient:
 
         Queries FHIR per unique date in the batch (typically 1-2 queries),
         builds (date, code, value) signatures, and filters out matches.
-        Also cleans up stale references from DocumentReference and Encounter
-        entries that pointed to removed observations.
+
+        Every reference to a removed entry — ``Observation.hasMember`` (a TNM
+        stage group's members), ``partOf``, ``DocumentReference.context.related``,
+        ``Encounter.reasonReference`` — is **repointed to the existing server
+        observation** (``Observation/{id}``). Dropping without repointing left
+        placeholders nothing in the bundle satisfies, which HAPI rejects with
+        HAPI-0541, failing the whole document. An existing match without an
+        ``id`` cannot be referenced, so its duplicate entry is kept rather
+        than stranding referrers.
 
         Args:
             entries: Bundle entries from extraction
             patient_id: FHIR Patient.id for querying existing observations
 
         Returns:
-            Filtered entries with duplicates removed
+            Filtered entries with duplicates removed and referrers repointed
         """
         obs_entries = [
             e
@@ -1287,35 +1323,42 @@ class FHIRClient:
         if not dates:
             return entries
 
-        # Fetch existing observation signatures per date
-        existing_sigs: set[tuple[str, str, str]] = set()
+        # Existing signature -> the server reference that satisfies it. Only
+        # id-carrying matches count: without an id there is nothing referrers
+        # could be repointed to.
+        existing_by_sig: dict[tuple[str, str, str], str] = {}
         for date in dates:
             try:
                 existing = self.search_patient_resources(
                     patient_id, "Observation", params={"date": date}
                 )
                 for obs in existing:
-                    if sig := _observation_signature(obs):
-                        existing_sigs.add(sig)
+                    if (sig := _observation_signature(obs)) and (oid := obs.get("id")):
+                        existing_by_sig.setdefault(sig, f"Observation/{oid}")
             except Exception as e:
                 logger.warning(f"Failed to fetch observations for dedup on {date}: {e}")
 
-        if not existing_sigs:
+        if not existing_by_sig:
             return entries
 
-        # Filter out duplicates
+        # Filter out duplicates, mapping each dropped entry's placeholder to
+        # its server survivor.
         other_entries = [
             e
             for e in entries
             if e.get("resource", {}).get("resourceType") != "Observation"
         ]
         kept: list[dict] = []
+        repoint: dict[str, str] = {}
         skipped = 0
         for entry in obs_entries:
             sig = _observation_signature(entry["resource"])
-            if sig and sig in existing_sigs:
+            survivor = existing_by_sig.get(sig) if sig else None
+            if survivor is not None:
                 skipped += 1
                 logger.debug(f"Skipping duplicate observation: {sig}")
+                if full_url := entry.get("fullUrl"):
+                    repoint[full_url] = survivor
             else:
                 kept.append(entry)
 
@@ -1323,6 +1366,8 @@ class FHIRClient:
             logger.info(f"Deduplicated {skipped} observation(s)")
 
         result = other_entries + kept
+        _rewrite_refs(result, repoint)
+        # Backstop only: the repointing above should leave nothing dangling.
         return _filter_stale_refs(result)
 
     @staticmethod
