@@ -2330,6 +2330,7 @@ class TestDeduplicateObservations:
                     {
                         "resource": {
                             "resourceType": "Observation",
+                            "id": "srv-obs-1",
                             "effectiveDateTime": "2023-03-15T10:00:00Z",
                             "code": {
                                 "coding": [
@@ -2429,8 +2430,7 @@ class TestDeduplicateObservations:
         result = fhir.deduplicate_observations(entries, "pat-1")
         assert result == entries
 
-    def test_cleans_stale_refs_after_dedup(self, fhir, httpx_mock):
-        """DocumentReference refs to removed observations are cleaned up."""
+    def _mock_existing(self, httpx_mock, resources, date="2023-03-15"):
         httpx_mock.add_response(
             method="POST",
             url="http://localhost:8080/auth/token",
@@ -2438,24 +2438,35 @@ class TestDeduplicateObservations:
         )
         httpx_mock.add_response(
             method="GET",
-            url="http://localhost:8080/fhir/Observation?subject=pat-1&_count=500&date=2023-03-15",
+            url=(
+                "http://localhost:8080/fhir/Observation"
+                f"?subject=pat-1&_count=500&date={date}"
+            ),
             json={
                 "resourceType": "Bundle",
-                "entry": [
-                    {
-                        "resource": {
-                            "resourceType": "Observation",
-                            "effectiveDateTime": "2023-03-15",
-                            "code": {
-                                "coding": [
-                                    {"system": "http://loinc.org", "code": "8480-6"}
-                                ]
-                            },
-                            "valueQuantity": {"value": 120, "unit": "mmHg"},
-                        }
-                    }
-                ],
+                "entry": [{"resource": r} for r in resources],
             },
+        )
+
+    def test_repoints_refs_to_the_server_survivor(self, fhir, httpx_mock):
+        """Refs to removed observations land on the existing server resource.
+
+        Removing them (the old behaviour) kept the bundle valid but lost the
+        link; the survivor is known, so referrers keep their provenance.
+        """
+        self._mock_existing(
+            httpx_mock,
+            [
+                {
+                    "resourceType": "Observation",
+                    "id": "srv-obs-1",
+                    "effectiveDateTime": "2023-03-15",
+                    "code": {
+                        "coding": [{"system": "http://loinc.org", "code": "8480-6"}]
+                    },
+                    "valueQuantity": {"value": 120, "unit": "mmHg"},
+                }
+            ],
         )
 
         entries = [
@@ -2485,7 +2496,95 @@ class TestDeduplicateObservations:
         doc = [
             e for e in result if e["resource"]["resourceType"] == "DocumentReference"
         ][0]
-        assert "context" not in doc["resource"]
+        assert doc["resource"]["context"]["related"] == [
+            {"reference": "Observation/srv-obs-1"}
+        ]
+
+    def test_repoints_has_member_of_a_stage_group(self, fhir, httpx_mock):
+        """A TNM stage group keeps a valid hasMember when its member is deduped.
+
+        Regression: the member entry was dropped while the group still carried
+        ``hasMember: urn:uuid:{...}-t`` — HAPI rejected the whole transaction
+        (HAPI-0541 'Unable to satisfy placeholder ID ... hasMember').
+        """
+        self._mock_existing(
+            httpx_mock,
+            [
+                {
+                    "resourceType": "Observation",
+                    "id": "srv-t-1",
+                    "effectiveDateTime": "2023-03-15",
+                    "code": {
+                        "coding": [{"system": "http://loinc.org", "code": "21905-5"}]
+                    },
+                    "valueCodeableConcept": {"text": "cT3"},
+                }
+            ],
+        )
+
+        member = {
+            "fullUrl": "urn:uuid:staging-1-t",
+            "resource": {
+                "resourceType": "Observation",
+                "effectiveDateTime": "2023-03-15",
+                "code": {"coding": [{"system": "http://loinc.org", "code": "21905-5"}]},
+                "valueCodeableConcept": {"text": "cT3"},
+            },
+            "request": {"method": "POST", "url": "Observation"},
+        }
+        group = {
+            "fullUrl": "urn:uuid:staging-1",
+            "resource": {
+                "resourceType": "Observation",
+                "effectiveDateTime": "2023-03-15",
+                "code": {"coding": [{"system": "http://loinc.org", "code": "21908-9"}]},
+                "valueCodeableConcept": {"text": "IIIA"},
+                "hasMember": [{"reference": "urn:uuid:staging-1-t"}],
+            },
+            "request": {"method": "POST", "url": "Observation"},
+        }
+
+        result = fhir.deduplicate_observations([member, group], "pat-1")
+
+        full_urls = [e.get("fullUrl") for e in result]
+        assert full_urls == ["urn:uuid:staging-1"]  # member deduped, group kept
+        assert result[0]["resource"]["hasMember"] == [
+            {"reference": "Observation/srv-t-1"}
+        ]
+
+    def test_keeps_duplicate_when_existing_match_has_no_id(self, fhir, httpx_mock):
+        """An id-less existing match cannot be referenced, so nothing is dropped."""
+        self._mock_existing(
+            httpx_mock,
+            [
+                {
+                    "resourceType": "Observation",
+                    "effectiveDateTime": "2023-03-15",
+                    "code": {
+                        "coding": [{"system": "http://loinc.org", "code": "8480-6"}]
+                    },
+                    "valueQuantity": {"value": 120, "unit": "mmHg"},
+                }
+            ],
+        )
+
+        entries = [
+            {
+                "fullUrl": "urn:uuid:obs-dup",
+                "resource": {
+                    "resourceType": "Observation",
+                    "effectiveDateTime": "2023-03-15",
+                    "code": {
+                        "coding": [{"system": "http://loinc.org", "code": "8480-6"}]
+                    },
+                    "valueQuantity": {"value": 120, "unit": "mmHg"},
+                },
+                "request": {"method": "POST", "url": "Observation"},
+            },
+        ]
+
+        result = fhir.deduplicate_observations(entries, "pat-1")
+        assert len(result) == 1
 
 
 def _docref_with_identifier(system: str, value: str) -> dict:
