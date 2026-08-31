@@ -1,0 +1,2323 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python client for Cavell FHIR extraction API">
+      
+      
+      
+        <link rel="canonical" href="https://polaris-health.github.io/cavell-prism-client/ingestion/">
+      
+      
+        <link rel="prev" href="../extract/">
+      
+      
+        <link rel="next" href="../notebooks/extraction_demo/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Pipeline - Cavell Prism Client</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Pipeline - Cavell Prism Client" />
+<meta property="og:description" content="Python client for Cavell FHIR extraction API" />
+<meta property="og:image" content="https://polaris-health.github.io/cavell-prism-client/assets/images/social/ingestion.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://polaris-health.github.io/cavell-prism-client/ingestion/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Pipeline - Cavell Prism Client" />
+<meta property="twitter:description" content="Python client for Cavell FHIR extraction API" />
+<meta property="twitter:image" content="https://polaris-health.github.io/cavell-prism-client/assets/images/social/ingestion.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#pipeline" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cavell Prism Client" class="md-header__button md-logo" aria-label="Cavell Prism Client" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cavell Prism Client
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Pipeline
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/polaris-health/cavell-prism-client" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    polaris-health/cavell-prism-client
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cavell Prism Client" class="md-nav__button md-logo" aria-label="Cavell Prism Client" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cavell Prism Client
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/polaris-health/cavell-prism-client" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    polaris-health/cavell-prism-client
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-walkthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Walkthrough
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-from-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading from CSV
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#helper-dataclasses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helper Dataclasses
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Helper Dataclasses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#organization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Organization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#practitioner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practitioner
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#patient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patient
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#document" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Document
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingestionoutcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IngestionOutcome
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#practitioner-matching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practitioner Matching
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ordering-and-dates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ordering and Dates
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ordering and Dates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#out-of-order-documents-get-split-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out-of-order documents get split context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#meta-assembly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Meta Assembly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#seed-failures-fail-fast" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Seed failures (fail-fast)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-validation-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-validation failures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#document-extraction-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Document extraction failures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-aborts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run aborts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#persistence-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistence failures
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-updates-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Updates Work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How Updates Work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#validation-tags-and-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation tags and updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connection-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Check
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extract-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extract Options
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Extract Options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#extract_all-the-whole-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_all() — the whole dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extract-a-single-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract() — a single pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cumulative-statistics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cumulative statistics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeouts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Timeouts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deleted-patient-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleted patient detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-and-redoing-a-patient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting and Redoing a Patient
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-organization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Organization
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/extraction_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/hospitalization_extraction_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hospitalization Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-walkthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Walkthrough
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-from-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading from CSV
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#helper-dataclasses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helper Dataclasses
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Helper Dataclasses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#organization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Organization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#practitioner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practitioner
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#patient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patient
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#document" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Document
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingestionoutcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IngestionOutcome
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#practitioner-matching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practitioner Matching
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ordering-and-dates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ordering and Dates
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ordering and Dates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#out-of-order-documents-get-split-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out-of-order documents get split context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#meta-assembly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Meta Assembly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#seed-failures-fail-fast" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Seed failures (fail-fast)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-validation-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-validation failures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#document-extraction-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Document extraction failures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-aborts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run aborts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#persistence-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistence failures
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-updates-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Updates Work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How Updates Work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#validation-tags-and-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation tags and updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connection-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Check
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extract-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extract Options
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Extract Options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#extract_all-the-whole-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_all() — the whole dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extract-a-single-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract() — a single pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cumulative-statistics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cumulative statistics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeouts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Timeouts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deleted-patient-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleted patient detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-and-redoing-a-patient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting and Redoing a Patient
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-organization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Organization
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="pipeline">Pipeline</h1>
+<h2 id="overview">Overview</h2>
+<p>The ingestion pipeline loads data in two steps between a hospital's FHIR server and the Cavell extraction API:</p>
+<ol>
+<li><strong>Seed</strong> — organizations, practitioners, and patients into FHIR (enforces correct reference ordering internally)</li>
+<li><strong>Extract</strong> — clinical documents, processed per patient in chronological order. Use <code>extract_all()</code> for a whole dataset (globally date-sorted, batched) or <code>extract()</code> for a single pass; see <a href="#extract-options">Extract Options</a>.</li>
+</ol>
+<p>The pipeline resolves identifiers to IDs, so you work with business identifiers (patient IDs, facility codes, staff IDs) rather than FHIR server-assigned IDs.</p>
+<p>Before each extraction, the SDK passes the patient, organization, and practitioner FHIR IDs as explicit API params, alongside any existing clinical resources as context. The API uses these real FHIR references on all extracted resources — no reference rewriting needed.</p>
+<p>Practitioners are matched by the SDK after extraction — the Cavell API extracts practitioner names from text, and the SDK links them to seeded practitioners in FHIR.</p>
+<h2 id="data-flow">Data Flow</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Seed: organizations + practitioners + patients → FHIR server
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Extract: For each document:
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>         1. Fetch existing clinical resources from FHIR
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>         2. Send text + clinical context + reference IDs as params → Cavell API
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>         3. Match extracted practitioners to seeded ones
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>         4. Persist clinical resources with correct references → FHIR server
+</code></pre></div>
+<h2 id="full-walkthrough">Full Walkthrough</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cavell_client</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">CavellClient</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">IngestionPipeline</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">Organization</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">Practitioner</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">Patient</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">Document</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="k">with</span> <span class="n">CavellClient</span><span class="p">(</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">api_url</span><span class="o">=</span><span class="s2">&quot;https://prd.prism.cavell.app/api&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;your-llm-gateway-key&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">fhir_base_url</span><span class="o">=</span><span class="s2">&quot;http://localhost:8090&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="n">fhir_client_id</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>  <span class="c1"># optional; provide together with fhir_client_secret</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="n">fhir_client_secret</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>  <span class="c1"># optional; omit both for unauthenticated FHIR servers</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>    <span class="c1"># Connectivity is already verified: construction raises if the key is</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    <span class="c1"># rejected or either endpoint is unreachable.</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    <span class="c1"># Create pipeline with optional tier selection and concurrency</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    <span class="n">pipeline</span> <span class="o">=</span> <span class="n">IngestionPipeline</span><span class="p">(</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>        <span class="n">client</span><span class="p">,</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>        <span class="n">tier</span><span class="o">=</span><span class="s2">&quot;low&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>        <span class="n">max_concurrency</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>        <span class="n">default_organization</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>    <span class="p">)</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>    <span class="c1"># Seed organizations, practitioners, and patients</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>    <span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>        <span class="n">organizations</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>            <span class="n">Organization</span><span class="p">(</span><span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;City General Hospital&quot;</span><span class="p">),</span>
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>            <span class="n">Organization</span><span class="p">(</span><span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;SMH-002&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;St. Mary&#39;s Hospital&quot;</span><span class="p">),</span>
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>        <span class="p">],</span>
+<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>        <span class="n">patients</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a>            <span class="n">Patient</span><span class="p">(</span>
+<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a>                <span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;MRN-12345&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a>                <span class="n">name</span><span class="o">=</span><span class="s2">&quot;John Doe&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a>                <span class="n">birth_date</span><span class="o">=</span><span class="s2">&quot;1985-03-15&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a>                <span class="n">gender</span><span class="o">=</span><span class="s2">&quot;male&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a>                <span class="n">managing_organization</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a>                <span class="n">general_practitioners</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;DOC-001&quot;</span><span class="p">],</span>
+<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a>            <span class="p">),</span>
+<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a>            <span class="n">Patient</span><span class="p">(</span>
+<a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a>                <span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;MRN-67890&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a>                <span class="n">managing_organization</span><span class="o">=</span><span class="s2">&quot;SMH-002&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a>            <span class="p">),</span>
+<a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a>        <span class="p">],</span>
+<a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a>        <span class="n">practitioners</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-1-49" name="__codelineno-1-49" href="#__codelineno-1-49"></a>            <span class="n">Practitioner</span><span class="p">(</span>
+<a id="__codelineno-1-50" name="__codelineno-1-50" href="#__codelineno-1-50"></a>                <span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;DOC-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-51" name="__codelineno-1-51" href="#__codelineno-1-51"></a>                <span class="n">family_name</span><span class="o">=</span><span class="s2">&quot;Smith&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-52" name="__codelineno-1-52" href="#__codelineno-1-52"></a>                <span class="n">given_name</span><span class="o">=</span><span class="s2">&quot;Jane&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-53" name="__codelineno-1-53" href="#__codelineno-1-53"></a>                <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-54" name="__codelineno-1-54" href="#__codelineno-1-54"></a>            <span class="p">),</span>
+<a id="__codelineno-1-55" name="__codelineno-1-55" href="#__codelineno-1-55"></a>            <span class="n">Practitioner</span><span class="p">(</span>
+<a id="__codelineno-1-56" name="__codelineno-1-56" href="#__codelineno-1-56"></a>                <span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;DOC-002&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-57" name="__codelineno-1-57" href="#__codelineno-1-57"></a>                <span class="n">family_name</span><span class="o">=</span><span class="s2">&quot;Jones&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-58" name="__codelineno-1-58" href="#__codelineno-1-58"></a>                <span class="n">given_name</span><span class="o">=</span><span class="s2">&quot;Bob&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-59" name="__codelineno-1-59" href="#__codelineno-1-59"></a>                <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;SMH-002&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-60" name="__codelineno-1-60" href="#__codelineno-1-60"></a>            <span class="p">),</span>
+<a id="__codelineno-1-61" name="__codelineno-1-61" href="#__codelineno-1-61"></a>        <span class="p">],</span>
+<a id="__codelineno-1-62" name="__codelineno-1-62" href="#__codelineno-1-62"></a>    <span class="p">)</span>
+<a id="__codelineno-1-63" name="__codelineno-1-63" href="#__codelineno-1-63"></a>
+<a id="__codelineno-1-64" name="__codelineno-1-64" href="#__codelineno-1-64"></a>    <span class="c1"># Extract documents (skip_processed=True by default, so reruns are safe</span>
+<a id="__codelineno-1-65" name="__codelineno-1-65" href="#__codelineno-1-65"></a>    <span class="c1"># when documents have stable document_id values)</span>
+<a id="__codelineno-1-66" name="__codelineno-1-66" href="#__codelineno-1-66"></a>    <span class="n">outcomes</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span>
+<a id="__codelineno-1-67" name="__codelineno-1-67" href="#__codelineno-1-67"></a>        <span class="p">[</span>
+<a id="__codelineno-1-68" name="__codelineno-1-68" href="#__codelineno-1-68"></a>            <span class="n">Document</span><span class="p">(</span>
+<a id="__codelineno-1-69" name="__codelineno-1-69" href="#__codelineno-1-69"></a>                <span class="n">text</span><span class="o">=</span><span class="s2">&quot;Patient presents with type 2 diabetes...&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-70" name="__codelineno-1-70" href="#__codelineno-1-70"></a>                <span class="n">patient_identifier</span><span class="o">=</span><span class="s2">&quot;MRN-12345&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-71" name="__codelineno-1-71" href="#__codelineno-1-71"></a>                <span class="n">date</span><span class="o">=</span><span class="s2">&quot;2024-01-15&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-72" name="__codelineno-1-72" href="#__codelineno-1-72"></a>                <span class="n">practitioner_identifier</span><span class="o">=</span><span class="s2">&quot;DOC-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-73" name="__codelineno-1-73" href="#__codelineno-1-73"></a>                <span class="n">document_id</span><span class="o">=</span><span class="s2">&quot;note-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-74" name="__codelineno-1-74" href="#__codelineno-1-74"></a>            <span class="p">),</span>
+<a id="__codelineno-1-75" name="__codelineno-1-75" href="#__codelineno-1-75"></a>            <span class="n">Document</span><span class="p">(</span>
+<a id="__codelineno-1-76" name="__codelineno-1-76" href="#__codelineno-1-76"></a>                <span class="n">text</span><span class="o">=</span><span class="s2">&quot;Follow-up: diabetes well controlled on metformin...&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-77" name="__codelineno-1-77" href="#__codelineno-1-77"></a>                <span class="n">patient_identifier</span><span class="o">=</span><span class="s2">&quot;MRN-12345&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-78" name="__codelineno-1-78" href="#__codelineno-1-78"></a>                <span class="n">date</span><span class="o">=</span><span class="s2">&quot;2024-04-15&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-79" name="__codelineno-1-79" href="#__codelineno-1-79"></a>                <span class="n">document_id</span><span class="o">=</span><span class="s2">&quot;note-002&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-80" name="__codelineno-1-80" href="#__codelineno-1-80"></a>            <span class="p">),</span>
+<a id="__codelineno-1-81" name="__codelineno-1-81" href="#__codelineno-1-81"></a>            <span class="n">Document</span><span class="p">(</span>
+<a id="__codelineno-1-82" name="__codelineno-1-82" href="#__codelineno-1-82"></a>                <span class="n">text</span><span class="o">=</span><span class="s2">&quot;Patient reports chest pain...&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-83" name="__codelineno-1-83" href="#__codelineno-1-83"></a>                <span class="n">patient_identifier</span><span class="o">=</span><span class="s2">&quot;MRN-67890&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-84" name="__codelineno-1-84" href="#__codelineno-1-84"></a>                <span class="n">date</span><span class="o">=</span><span class="s2">&quot;2024-02-01&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-85" name="__codelineno-1-85" href="#__codelineno-1-85"></a>                <span class="n">document_id</span><span class="o">=</span><span class="s2">&quot;note-003&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-86" name="__codelineno-1-86" href="#__codelineno-1-86"></a>                <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;SMH-002&quot;</span><span class="p">,</span>  <span class="c1"># overrides default</span>
+<a id="__codelineno-1-87" name="__codelineno-1-87" href="#__codelineno-1-87"></a>            <span class="p">),</span>
+<a id="__codelineno-1-88" name="__codelineno-1-88" href="#__codelineno-1-88"></a>        <span class="p">]</span>
+<a id="__codelineno-1-89" name="__codelineno-1-89" href="#__codelineno-1-89"></a>    <span class="p">)</span>
+<a id="__codelineno-1-90" name="__codelineno-1-90" href="#__codelineno-1-90"></a>
+<a id="__codelineno-1-91" name="__codelineno-1-91" href="#__codelineno-1-91"></a>    <span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="n">outcomes</span><span class="p">:</span>
+<a id="__codelineno-1-92" name="__codelineno-1-92" href="#__codelineno-1-92"></a>        <span class="k">if</span> <span class="n">outcome</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+<a id="__codelineno-1-93" name="__codelineno-1-93" href="#__codelineno-1-93"></a>            <span class="nb">print</span><span class="p">(</span>
+<a id="__codelineno-1-94" name="__codelineno-1-94" href="#__codelineno-1-94"></a>                <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">outcome</span><span class="o">.</span><span class="n">patient_identifier</span><span class="si">}</span><span class="s2">] &quot;</span>
+<a id="__codelineno-1-95" name="__codelineno-1-95" href="#__codelineno-1-95"></a>                <span class="sa">f</span><span class="s2">&quot;Extracted </span><span class="si">{</span><span class="n">outcome</span><span class="o">.</span><span class="n">extract_result</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="s2"> resources&quot;</span>
+<a id="__codelineno-1-96" name="__codelineno-1-96" href="#__codelineno-1-96"></a>            <span class="p">)</span>
+<a id="__codelineno-1-97" name="__codelineno-1-97" href="#__codelineno-1-97"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-1-98" name="__codelineno-1-98" href="#__codelineno-1-98"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">outcome</span><span class="o">.</span><span class="n">patient_identifier</span><span class="si">}</span><span class="s2">] Error: </span><span class="si">{</span><span class="n">outcome</span><span class="o">.</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="loading-from-csv">Loading from CSV</h2>
+<p>All three data types provide a <code>from_rows()</code> classmethod that builds objects from CSV data (or any list of dicts). The <code>columns</code> dict maps SDK field names (left) to your CSV column headers (right). Keyword arguments are applied as literal defaults to every row.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cavell_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">Patient</span><span class="p">,</span> <span class="n">Practitioner</span><span class="p">,</span> <span class="n">Document</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;notes.csv&quot;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">rows</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">practitioners</span> <span class="o">=</span> <span class="n">Practitioner</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">rows</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_id&quot;</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_name&quot;</span><span class="p">},</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;DEMO-HOSPITAL&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="p">)</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">patients</span> <span class="o">=</span> <span class="n">Patient</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">rows</span><span class="p">,</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>        <span class="s2">&quot;identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>        <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_name&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>        <span class="s2">&quot;birth_date&quot;</span><span class="p">:</span> <span class="s2">&quot;birth_date&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>        <span class="s2">&quot;gender&quot;</span><span class="p">:</span> <span class="s2">&quot;gender&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>        <span class="s2">&quot;general_practitioners&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    <span class="p">},</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    <span class="n">managing_organization</span><span class="o">=</span><span class="s2">&quot;DEMO-HOSPITAL&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="p">)</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="n">documents</span> <span class="o">=</span> <span class="n">Document</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    <span class="n">rows</span><span class="p">,</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>        <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;note_text&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>        <span class="s2">&quot;patient_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>        <span class="s2">&quot;date&quot;</span><span class="p">:</span> <span class="s2">&quot;note_date&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>        <span class="s2">&quot;document_id&quot;</span><span class="p">:</span> <span class="s2">&quot;note_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a>        <span class="s2">&quot;visit_id&quot;</span><span class="p">:</span> <span class="s2">&quot;visit_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>        <span class="s2">&quot;practitioner_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>        <span class="s2">&quot;meta&quot;</span><span class="p">:</span> <span class="s2">&quot;department&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a>    <span class="p">},</span>
+<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>    <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;DEMO-HOSPITAL&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>Patient.from_rows()</code> and <code>Practitioner.from_rows()</code> deduplicate by identifier (first occurrence wins) and skip rows with empty identifiers. <code>Document.from_rows()</code> creates one document per row, validates that <code>document_id</code> values are unique, and warns on short text (<code>&lt; 20</code> characters). Its <code>columns</code> mapping must include <code>text</code>, <code>patient_identifier</code>, <code>date</code> and <code>document_id</code>; a row with a blank value for any of them raises rather than being silently coerced to <code>None</code>.</p>
+<p><code>Document.from_rows()</code> preserves CSV row order and does <strong>not</strong> sort by date. To
+ingest the whole file, hand the list to
+<a href="#extract_all-the-whole-dataset"><code>extract_all()</code></a>, which sorts globally by date
+before batching:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">organizations</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">patients</span><span class="o">=</span><span class="n">patients</span><span class="p">,</span> <span class="n">practitioners</span><span class="o">=</span><span class="n">practitioners</span><span class="p">)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">outcomes</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract_all</span><span class="p">(</span><span class="n">documents</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+</code></pre></div>
+<p><code>Practitioner.from_rows()</code> supports a virtual <code>"name"</code> column that auto-splits <code>"Given Family"</code> into <code>given_name</code> and <code>family_name</code>. Use either <code>"name"</code> or the individual <code>"given_name"</code>/<code>"family_name"</code> keys, not both.</p>
+<p>All three validate upfront — unknown field names, missing CSV columns, and missing required keys raise <code>ValueError</code> before any objects are built.</p>
+<h2 id="helper-dataclasses">Helper Dataclasses</h2>
+<h3 id="organization">Organization</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>identifier</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Facility code (e.g., <code>"CGH-001"</code>)</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Display name for the extraction API</td>
+</tr>
+</tbody>
+</table>
+<h3 id="practitioner">Practitioner</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>identifier</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Staff ID (e.g., <code>"DOC-001"</code>)</td>
+</tr>
+<tr>
+<td><code>family_name</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Family name</td>
+</tr>
+<tr>
+<td><code>given_name</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Given name</td>
+</tr>
+<tr>
+<td><code>organization_identifier</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Organization identifier (must match a seeded org)</td>
+</tr>
+<tr>
+<td><code>specialty</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>Clinical specialty (written to <code>PractitionerRole.specialty</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="patient">Patient</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>identifier</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Patient identifier (e.g., MRN)</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>Patient name</td>
+</tr>
+<tr>
+<td><code>birth_date</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>ISO date (e.g., <code>"1990-01-15"</code>)</td>
+</tr>
+<tr>
+<td><code>gender</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>FHIR gender code</td>
+</tr>
+<tr>
+<td><code>managing_organization</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>Organization identifier</td>
+</tr>
+<tr>
+<td><code>general_practitioners</code></td>
+<td><code>str</code> or <code>list[str]</code></td>
+<td>No</td>
+<td>Practitioner identifier(s); a single string is normalized to a list</td>
+</tr>
+</tbody>
+</table>
+<h3 id="document">Document</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Clinical text</td>
+</tr>
+<tr>
+<td><code>patient_identifier</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Patient identifier (e.g., MRN)</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>str</code> or <code>date</code></td>
+<td>Yes</td>
+<td>ISO date (<code>"2024-01-15"</code>) or <code>datetime.date</code>, normalized to <code>YYYY-MM-DD</code> on construction. Drives chronological ordering, and is sent to the API as the <code>document_date</code> payload field</td>
+</tr>
+<tr>
+<td><code>document_id</code></td>
+<td><code>str</code></td>
+<td>Yes</td>
+<td>Your identifier for this document, stamped on the DocumentReference. Keyword-only. Everything that makes re-running safe keys on it — the resume filter, the chronology watermark, and failure reporting</td>
+</tr>
+<tr>
+<td><code>organization_identifier</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>Org identifier — falls back to <code>default_organization</code> if omitted</td>
+</tr>
+<tr>
+<td><code>meta</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>Extra context for the extraction API (e.g. department, ward). <strong>Do not include the document date or practitioner</strong> — the date is sent as its own <code>document_date</code> payload field and the practitioner is injected automatically (see <a href="#meta-assembly">Meta Assembly</a>).</td>
+</tr>
+<tr>
+<td><code>practitioner_identifier</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>If provided, the SDK resolves this to a FHIR ID (passed as a param) and injects the practitioner's name into <code>meta</code>, improving matching precision</td>
+</tr>
+<tr>
+<td><code>visit_id</code></td>
+<td><code>str</code></td>
+<td>No</td>
+<td>Visit/admission identifier stamped on the Encounter resource — groups notes by hospital visit</td>
+</tr>
+</tbody>
+</table>
+<p>Field validation and normalization happen in one place: building a <code>Document</code>
+is what checks it. <code>extract()</code> and <code>extract_all()</code> add only a type check —
+passing raw CSV rows straight through raises <code>TypeError</code> naming the offending
+positions, rather than failing inside a worker thread mid-run. It runs before
+the API pre-flight, so a malformed list costs not even one request.</p>
+<h3 id="ingestionoutcome">IngestionOutcome</h3>
+<p>Returned by <code>pipeline.extract()</code> for each document.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>success</code></td>
+<td><code>bool</code></td>
+<td>Whether extraction and persistence succeeded</td>
+</tr>
+<tr>
+<td><code>patient_identifier</code></td>
+<td><code>str</code></td>
+<td>Patient identifier from the document</td>
+</tr>
+<tr>
+<td><code>document_index</code></td>
+<td><code>int</code></td>
+<td>Position in the list <code>extract()</code> actually processed — i.e. <em>after</em> <code>skip_processed</code> filtering and the <code>limit</code> truncation, not in the list you passed. Under <code>extract_all()</code> it is relative to the document's own batch</td>
+</tr>
+<tr>
+<td><code>document_id</code></td>
+<td><code>str</code></td>
+<td>The <code>document_id</code> from the source <code>Document</code> — the stable way to correlate an outcome back to a source record</td>
+</tr>
+<tr>
+<td><code>extract_result</code></td>
+<td><code>ExtractResult</code> or <code>None</code></td>
+<td>Result if successful</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td><code>str</code> or <code>None</code></td>
+<td>Error message if failed</td>
+</tr>
+<tr>
+<td><code>transient</code></td>
+<td><code>bool</code></td>
+<td>The failure was transient (timeout, connection drop, server 5xx/429) — the deferred retry pass re-ran or will re-run it (see <a href="#document-extraction-failures">Document extraction failures</a>)</td>
+</tr>
+<tr>
+<td><code>out_of_order</code></td>
+<td><code>bool</code></td>
+<td>The document predated its patient's newest already-persisted document, so it was extracted against <a href="#out-of-order-documents-get-split-context">split context</a>. This records <em>how</em> the document was processed, not whether it worked — it pairs with <code>success=True</code> on a normal run</td>
+</tr>
+</tbody>
+</table>
+<p>Note on naming: <code>Document.meta</code> is the SDK's free-text supplementary context
+for the extraction model. It is unrelated to FHIR <code>Resource.meta</code>, the
+server-side element that carries version, provenance, and validation tags.</p>
+<h2 id="practitioner-matching">Practitioner Matching</h2>
+<p>After extraction, the SDK matches practitioners found in the text to those seeded via <code>seed()</code>:</p>
+<ol>
+<li><strong>1 match</strong> — the reference is linked to the seeded practitioner.</li>
+<li><strong>0 matches</strong> — the reference is removed and a warning is logged.</li>
+<li><strong>&gt;1 matches</strong> — the match is treated as ambiguous, the reference is removed, and a warning is logged.</li>
+</ol>
+<p>Matching uses identifier first (exact match), then falls back to family name + given name scoped to the document's organization.</p>
+<p>Practitioner resources are always removed from the persisted bundle — only clinical resources (Conditions, MedicationRequests, etc.) are written to FHIR with correct practitioner references.</p>
+<h2 id="ordering-and-dates">Ordering and Dates</h2>
+<p>Every document requires a date, and documents reach the API in ascending date
+order per patient. This ordering determines correct behavior -- see <a href="#how-updates-work">How
+Updates Work</a>.</p>
+<p>Sorting happens at two levels:</p>
+<ul>
+<li><code>extract_all()</code> sorts the <strong>entire dataset</strong> by ascending date before
+  batching, so batch boundaries are chronologically clean.</li>
+<li><code>extract()</code> sorts <strong>within each patient</strong> in the pass it was given. This is
+  the safety net for calling <code>extract()</code> directly, and a no-op on input
+  <code>extract_all()</code> has already ordered.</li>
+</ul>
+<p>Both sorts are stable, so same-day documents keep the order you passed them in.</p>
+<p>Neither sorts your input list in place, and neither sorts the <em>dataset</em> when
+you call <code>extract()</code> yourself — if you batch by hand with <code>extract(..., limit=N)</code>,
+ordering across those calls is yours to get right. Use <code>extract_all()</code> and it
+is handled.</p>
+<h3 id="out-of-order-documents-get-split-context">Out-of-order documents get split context</h3>
+<p>Sorting only orders the documents <em>within one run</em>. If a document is older than
+data already persisted for that patient (from an earlier run), you are going
+backwards in time. The pipeline extracts it anyway, but it changes what the
+document is shown.</p>
+<p>Each document is compared against <strong>its own patient's</strong> watermark — the date of
+the newest already-processed document for that patient. A document older than
+that watermark takes the <strong>split-context path</strong>:</p>
+<ul>
+<li><code>context</code> holds the patient's record <strong>as it stood on that document's date</strong>,
+  so the API can treat the note as the latest one and reason the way its author
+  did.</li>
+<li><code>future_context</code> holds everything already on record that the document could
+  not have known, sent separately rather than mixed in.</li>
+<li><code>out_of_order: true</code> tells the API which of the two it is looking at.</li>
+</ul>
+<p>Resources are assigned by <strong>provenance, not clinical date</strong>: each is dated by
+the newest already-processed document that created or updated it, read from that
+document's <code>DocumentReference.context.related</code>. What matters is when a fact
+entered the record, not when it happened — a Condition recorded last year with a
+1998 onset is still knowledge this document's author could not have had. A
+resource counts as past only when <em>every</em> document that touched it is at or
+before the document's date; anything a newer document has since modified carries
+that newer knowledge in its body and goes to <code>future_context</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">outcomes</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract_all</span><span class="p">(</span><span class="n">documents</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">n_split</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">outcomes</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">out_of_order</span><span class="p">)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_split</span><span class="si">}</span><span class="s2"> document(s) extracted against split context&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><code>IngestionOutcome.out_of_order</code> records <strong>how</strong> a document was processed, not
+whether it worked — it pairs with <code>success=True</code> on a normal run.</p>
+<p>Caveats:</p>
+<ul>
+<li>Dates are truncated to the day, so two same-day documents have no defined
+  order and neither is out of order. Process same-day documents in one run (the
+  input order is preserved for equal dates).</li>
+<li>The check <strong>fails open per patient</strong>: if the watermark query errors, that
+  patient's documents are all treated as in-order with a warning rather than
+  failing the run.</li>
+<li>Documents already processed are filtered out by <code>skip_processed</code> <em>before</em> the
+  check.</li>
+<li>The split costs one extra FHIR query per document, for provenance. Sorting your
+  dataset first avoids paying it at all, which is what <code>extract_all()</code> does.</li>
+<li><strong>Observations are bounded at the document's date</strong>, and none dated after it
+  are sent. The API matches an observation on an exact <code>(date, code, value)</code>,
+  and a document only reports results at or before its own date, so a later one
+  could never match anything it proposes. A result measured before the document
+  but only recorded by a later note still reaches <code>future_context</code> — provenance
+  puts it there, not its clinical date.</li>
+<li><strong>ResearchStudy is exempt</strong> and always travels as ordinary context. Studies
+  carry no date to split on (the API writes only identifier, status, title and
+  arms), and a study the extractor cannot see is one it re-creates under a fresh
+  id — wrong for every patient on the server. Studies are capped at
+  <code>MAX_CONTEXT_STUDIES</code> (200) instead.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Requires matching API support</p>
+<p><code>future_context</code> and <code>out_of_order</code> must be understood by the extraction
+API you are pointed at. An older deployment ignores unknown fields
+silently, which would leave a backdated document extracting against
+past-only context with nothing to reconcile against.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Update guard</p>
+<p>An earlier design guarded the <em>persist</em> step instead, dropping updates to
+resources sourced from newer documents. That is now the API's decision —
+it is told which resources postdate the document and reconciles them
+itself, and a blanket guard would veto exactly that. The code is retained
+but disabled (<code>_apply_update_guard</code>, and the commented-out block in
+<code>_process_single_document</code>) as a fallback.</p>
+</div>
+<h2 id="meta-assembly">Meta Assembly</h2>
+<p>Before each extraction call, the pipeline builds the <code>meta</code> string sent to the API by combining up to two parts in order:</p>
+<ol>
+<li><strong>Your <code>meta</code> value</strong> (if set) — e.g. <code>Department: Cardiology</code></li>
+<li><strong>Attending practitioner</strong> (if <code>practitioner_identifier</code> is set) — e.g. <code>Attending: Jane Smith (DOC-001)</code></li>
+</ol>
+<p>For example, a document with <code>meta="Department: Cardiology"</code> and <code>practitioner_identifier="DOC-001"</code> produces:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Department: Cardiology
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>Attending: Jane Smith (DOC-001)
+</code></pre></div>
+<p>When there is nothing to say — no <code>meta</code>, no practitioner — the field is omitted from the payload entirely rather than sent empty.</p>
+<p>The <strong>document date is not part of <code>meta</code></strong>. It travels as its own <code>document_date</code> payload field, normalized to <code>YYYY-MM-DD</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;document_date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2024-01-15&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;meta&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Department: Cardiology\nAttending: Jane Smith (DOC-001)&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">&quot;document_identifier&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;note-001&quot;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>Because the pipeline sends the date separately and injects the practitioner, <strong>do not duplicate either</strong> in your <code>meta</code> field — that would confuse the extraction model.</p>
+<h2 id="error-handling">Error Handling</h2>
+<h3 id="seed-failures-fail-fast">Seed failures (fail-fast)</h3>
+<p>If seeding fails, the pipeline raises <code>RuntimeError</code> immediately. Resources already written to the FHIR server stay there, but re-running is safe — seeding uses upsert, so it picks up where it left off.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">organizations</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">patients</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">])</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Seeding failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="cross-validation-failures">Cross-validation failures</h3>
+<p>If you reference an unknown identifier, <code>seed()</code> raises <code>ValueError</code> before making any FHIR calls:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># This raises ValueError because &quot;UNKNOWN-ORG&quot; was never provided</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">organizations</span><span class="o">=</span><span class="p">[</span><span class="n">Organization</span><span class="p">(</span><span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;City General&quot;</span><span class="p">)],</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">patients</span><span class="o">=</span><span class="p">[</span><span class="n">Patient</span><span class="p">(</span><span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;MRN-1&quot;</span><span class="p">,</span> <span class="n">managing_organization</span><span class="o">=</span><span class="s2">&quot;UNKNOWN-ORG&quot;</span><span class="p">)],</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">)</span>
+</code></pre></div>
+<h3 id="document-extraction-failures">Document extraction failures</h3>
+<p>When extraction fails for a document, the pipeline:</p>
+<ol>
+<li>Returns a failed <code>IngestionOutcome</code> for that document.</li>
+<li>Continues with the patient's remaining documents — a failed document
+   persists nothing, so the record they extract against stays consistent.</li>
+<li>Continues processing other patients.</li>
+</ol>
+<p>Re-ingest the failed document later (a re-run with <code>skip_processed=True</code>
+picks it up automatically): by then it is older than the patient's newest
+persisted document, so it takes the <a href="#out-of-order-documents-get-split-context">split-context path</a>
+and is reconciled against everything recorded after it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">documents</span><span class="p">):</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">outcome</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed: </span><span class="si">{</span><span class="n">outcome</span><span class="o">.</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>        <span class="c1"># Other patients&#39; documents still process</span>
+</code></pre></div>
+<p><strong>Transient failures are retried.</strong> Timeouts, connection drops, and server
+5xx/429 responses are retried in place (3 attempts with backoff). If a
+document still fails transiently, its outcome is marked <code>transient=True</code> and,
+after all patients finish, a <strong>deferred pass</strong> re-runs each transiently
+failed document once, in date order. Context is re-fetched fresh, so this is
+safe — a failed document persists nothing — and a document whose successors
+persisted in the meantime takes the split-context path. Deterministic
+failures (rejected bundles, 4xx content errors) are not retried: re-running
+reproduces them.</p>
+<h3 id="run-aborts">Run aborts</h3>
+<p>Two failures are run-global — no document can succeed until they are fixed —
+so instead of failing every document one by one, <code>extract()</code> raises:</p>
+<ul>
+<li><strong><code>CavellAuthError</code> (401)</strong>: the key is missing, expired, or rejected.
+  Checked once cheaply before any processing; a mid-run 401 stops all
+  patients after the first failure.</li>
+<li><strong><code>CavellGatewayUnavailableError</code> (503)</strong>: the LLM Gateway is unreachable
+  from the server. In-place retries still run (a blip should not abort), but
+  if a document exhausts them the run stops.</li>
+</ul>
+<p>Aborting is safe: failed documents persist nothing, and re-running
+<code>extract()</code> with <code>skip_processed=True</code> (the default) resumes where the run
+stopped.</p>
+<h3 id="persistence-failures">Persistence failures</h3>
+<p>The pipeline treats these the same as extraction failures: the document gets a failed outcome and the patient's remaining documents continue.</p>
+<h2 id="how-updates-work">How Updates Work</h2>
+<p>Before each document, the SDK fetches existing clinical resources from the FHIR server and passes them as context to the extraction API. The API uses this context to POST a new resource or PUT an update to an existing one.</p>
+<p>The context covers every resource type the extraction API can read, so that each is updated in place rather than duplicated:</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Scope sent as context</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Condition</code></td>
+<td>all</td>
+</tr>
+<tr>
+<td><code>AllergyIntolerance</code></td>
+<td>all</td>
+</tr>
+<tr>
+<td><code>Procedure</code></td>
+<td>all</td>
+</tr>
+<tr>
+<td><code>MedicationRequest</code></td>
+<td>all</td>
+</tr>
+<tr>
+<td><code>MedicationAdministration</code></td>
+<td>all — so a dose series described across notes closes its period instead of starting a second one</td>
+</tr>
+<tr>
+<td><code>NutritionOrder</code></td>
+<td>all, <strong>including revoked/completed</strong> — a diet order can only be <em>stopped</em> by updating the order that started it, which requires seeing it</td>
+</tr>
+<tr>
+<td><code>FamilyMemberHistory</code></td>
+<td>all — family history is restated at nearly every visit; conditions are merged onto the relative already on record</td>
+</tr>
+<tr>
+<td><code>Observation</code></td>
+<td>the last <strong>2 years</strong> relative to the document's own date, capped at the <strong>50</strong> most recent within that window</td>
+</tr>
+<tr>
+<td><code>CarePlan</code></td>
+<td><strong>active only</strong> — a plan that ends is marked completed/revoked and drops out, so it stops growing the context</td>
+</tr>
+<tr>
+<td><code>ResearchSubject</code></td>
+<td>all</td>
+</tr>
+<tr>
+<td><code>ResearchStudy</code></td>
+<td>all statuses except <code>entered-in-error</code>/<code>withdrawn</code>. Not patient-scoped: a study applies to every patient</td>
+</tr>
+</tbody>
+</table>
+<p>Two notes on the scoping:</p>
+<ul>
+<li><strong>The Observation window is anchored on the document, not on today.</strong> Backfilling an archive of 2015 notes with a today-anchored window would put every stored observation outside it and hand the extractor nothing.</li>
+<li><strong>ResearchStudy is deliberately not filtered to <code>active</code>.</strong> A study the patient joined two years ago is still the study a new note names, but its status moves on to <code>completed</code> or <code>closed-to-accrual</code>. Filtering to active dropped it from the context exactly then, and the extractor — which matches studies by title and embedding similarity — re-created it under a fresh id.</li>
+</ul>
+<p>Identity resources are never sent as context: <code>Patient</code>, <code>Organization</code> and <code>Practitioner</code> travel as explicit reference IDs (<code>patient_id</code>, <code>organization_id</code>, <code>practitioner_id</code>) instead. <code>Encounter</code> and <code>DocumentReference</code> are note-scoped by design — one per document, legitimately repeating — so they are not context either.</p>
+<p>Chronological ordering matters:</p>
+<ol>
+<li>Doc 1 mentions "type 2 diabetes" → API creates a new Condition resource</li>
+<li>SDK persists the Condition to FHIR</li>
+<li>Before Doc 2, SDK fetches context again -- the Condition now exists</li>
+<li>Doc 2 mentions "diabetes well controlled" → API sees the existing Condition and updates it rather than creating a duplicate</li>
+</ol>
+<h3 id="validation-tags-and-updates">Validation tags and updates</h3>
+<p>Every resource the extraction API emits carries an <code>unvalidated</code> meta tag
+(see <a href="../extract/#mark-a-resource-validated">Mark a resource validated</a>). By
+the server contract, any update to a resource re-adds the tag — validation
+applies to a specific version.</p>
+<p>One client-side behavior softens this in practice:</p>
+<ul>
+<li><strong>Duplicate suppression</strong>: observations that already exist (same date,
+  code, and value) are dropped client-side before persisting, so
+  re-extracting the same data does not touch validated resources.</li>
+</ul>
+<p>An in-order update with genuinely new information <em>does</em> replace the resource
+and re-marks it <code>unvalidated</code> — by design, since a clinician has not seen the
+new version.</p>
+<p><strong>Backdated documents are not exempt from this.</strong> An out-of-order document is
+extracted like any other (see <a href="#out-of-order-documents-get-split-context">Out-of-order documents get split
+context</a>), and the bundle it produces
+can update a resource that a <em>newer</em> document created — which re-adds
+<code>unvalidated</code> to it. The client does not veto those updates: it tells the API
+which resources postdate the document (<code>future_context</code>) and the API's
+reconciliation decides what to merge, drop or create. A client-side update guard
+that dropped every PUT against a newer-sourced resource is retained but disabled
+in <code>_process_single_document</code>, because under the split rule every such resource
+postdates the document by definition, so the guard would veto exactly the
+reconciliation the API was asked to make. If you need the stricter behaviour,
+that is the block to re-enable.</p>
+<h2 id="connection-check">Connection Check</h2>
+<p><strong>You do not need to check the connection — <code>CavellClient</code> already did.</strong> Constructing it validates both halves of your configuration and raises on the first failure, so nothing is left to verify before <code>seed()</code> or <code>extract()</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Request</th>
+<th>Raises on failure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cavell API key</td>
+<td><code>GET /key/info</code> — pre-flights your LLM Gateway key against the gateway, no tokens spent</td>
+<td><code>CavellAuthError</code> (rejected key), <code>CavellGatewayUnavailableError</code> (gateway down), <code>CavellAPIError</code> (URL doesn't serve the route)</td>
+</tr>
+<tr>
+<td>FHIR server</td>
+<td><code>GET /metadata</code></td>
+<td><code>FHIRAuthError</code> (OAuth2 handshake failed), <code>FHIRConnectionError</code> (unreachable or wrong URL)</td>
+</tr>
+</tbody>
+</table>
+<p>The exception type tells you which half is misconfigured:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">CavellClient</span><span class="p">(</span><span class="n">api_url</span><span class="o">=...</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;sk-typo&quot;</span><span class="p">,</span> <span class="n">fhir_base_url</span><span class="o">=...</span><span class="p">)</span>  <span class="c1"># pragma: allowlist secret</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1"># CavellAuthError: Cavell API error (401): LLM Gateway rejected the provided key.</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">CavellClient</span><span class="p">(</span><span class="n">api_url</span><span class="o">=...</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=&lt;</span><span class="n">valid</span><span class="o">&gt;</span><span class="p">,</span> <span class="n">fhir_base_url</span><span class="o">=</span><span class="s2">&quot;http://localhost:9999&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># FHIRConnectionError: FHIR server unreachable: http://localhost:9999 (...)</span>
+</code></pre></div>
+<p>Neither check can be skipped: the Prism API is always remote, so a configuration that can't be validated is an error rather than a supported mode. <code>extract()</code> re-runs the key pre-flight once per run, so a key that expires between runs never reaches the pipeline.</p>
+<p><code>client.check_connection()</code> remains available for re-checking a long-lived client (say, before a new batch hours later). Unlike the constructor it <em>reports</em> rather than raises, and always checks both services even if one fails:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">status</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">check_connection</span><span class="p">()</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># {&#39;fhir&#39;: {&#39;ok&#39;: True}, &#39;cavell_api&#39;: {&#39;ok&#39;: True}}</span>
+</code></pre></div>
+<p>Each key contains <code>ok</code> (bool) and, on failure, <code>error</code> (str).</p>
+<h2 id="pipeline-options">Pipeline Options</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">pipeline</span> <span class="o">=</span> <span class="n">IngestionPipeline</span><span class="p">(</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="n">client</span><span class="p">,</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="n">tier</span><span class="o">=</span><span class="s2">&quot;low&quot;</span><span class="p">,</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">max_concurrency</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="n">default_organization</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tier</code></td>
+<td><code>None</code></td>
+<td>Model tier to use for extraction (low/medium/high)</td>
+</tr>
+<tr>
+<td><code>max_concurrency</code></td>
+<td><code>5</code></td>
+<td>How many patients are processed in parallel</td>
+</tr>
+<tr>
+<td><code>default_organization</code></td>
+<td><code>None</code></td>
+<td>Org identifier used when <code>Document.organization_identifier</code> is omitted</td>
+</tr>
+</tbody>
+</table>
+<h2 id="extract-options">Extract Options</h2>
+<p>Two entry points, and the difference matters for large datasets:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Scope</th>
+<th>Ordering</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>extract_all(documents, batch_size=N)</code></td>
+<td>Every document, in batches of <code>N</code></td>
+<td>Sorts the <strong>whole dataset</strong> by ascending date first</td>
+</tr>
+<tr>
+<td><code>extract(documents, limit=N)</code></td>
+<td><strong>One</strong> pass, capped at <code>N</code> documents</td>
+<td>Sorts by date <strong>within each patient</strong> in that pass</td>
+</tr>
+</tbody>
+</table>
+<h3 id="extract_all-the-whole-dataset"><code>extract_all()</code> — the whole dataset</h3>
+<p>Use this for anything you would describe as "ingest this CSV". It sorts every
+document by ascending date, splits the sorted list into batches, and calls
+<code>extract()</code> once per batch.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">outcomes</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract_all</span><span class="p">(</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="n">documents</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>  <span class="c1"># documents per extract() call; None = one call</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="n">skip_processed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># applied per batch</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">on_batch</span><span class="o">=</span><span class="k">lambda</span> <span class="n">batch</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="si">}</span><span class="s2"> done&quot;</span><span class="p">),</span>  <span class="c1"># optional progress</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>batch_size</code></td>
+<td><code>None</code></td>
+<td>Documents per <code>extract()</code> call. <code>None</code> processes everything in one call.</td>
+</tr>
+<tr>
+<td><code>skip_processed</code></td>
+<td><code>True</code></td>
+<td>Passed to <code>extract()</code>, which applies it per batch.</td>
+</tr>
+<tr>
+<td><code>on_batch</code></td>
+<td><code>None</code></td>
+<td>Called with each batch's outcomes as that batch finishes. Use it for progress output or to persist partial results — a large run otherwise holds every outcome, including extracted bundles, in memory until it returns.</td>
+</tr>
+</tbody>
+</table>
+<p>The global sort is what makes batching cheap. Batching an <em>unsorted</em> list splits
+it by input order, so a later batch could carry documents older than what an
+earlier batch already persisted. Those are still extracted, but on the slower
+<a href="#out-of-order-documents-get-split-context">split-context path</a> — an extra
+provenance query each, plus the reconciliation the API runs on them. Sorting
+first puts every batch boundary on a clean chronological cut, so each patient's
+documents reach the API oldest-first even when they span several batches, and
+none of them pay for a split a plain forward pass never needs.</p>
+<p>Batches are cut by index, so the walk always terminates — it does not rely on
+<code>skip_processed</code> to advance, and works with <code>skip_processed=False</code> too.</p>
+<p>All documents are validated <em>before</em> the first batch runs, so a bad reference
+late in the list surfaces before earlier batches spend anything. This is also
+the only place <code>document_id</code> uniqueness is checked across the whole dataset:
+<code>extract()</code> sees one batch at a time, so a duplicate pair split across two
+batches would otherwise slip through.</p>
+<p>Prefer larger batches. Each <code>extract()</code> call issues one FHIR query per distinct
+patient in that batch, so halving <code>batch_size</code> roughly doubles the query
+overhead. Batching bounds how much work an interruption loses; 500 bounds that
+about as usefully as 50 while doing a tenth of the chatter.</p>
+<h3 id="extract-a-single-pass"><code>extract()</code> — a single pass</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="n">documents</span><span class="p">,</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">skip_processed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># default: query FHIR and skip already-processed docs</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="n">limit</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>  <span class="c1"># optional: cap this call, e.g. a sanity check before a full run</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="p">):</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="o">...</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>skip_processed</code></td>
+<td><code>True</code></td>
+<td>Query FHIR for already-processed document IDs and skip them. Set to <code>False</code> to process all documents.</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>None</code></td>
+<td>Cap the number of documents processed in <strong>this call</strong>, taken from the front of the list after <code>skip_processed</code> filtering. <code>None</code> processes everything passed.</td>
+</tr>
+</tbody>
+</table>
+<p><code>limit</code> truncates a single pass; it does not chunk. <code>extract(documents, limit=500)</code>
+on a 2000-document list processes 500 and returns — the other 1500 are
+untouched. Reach for <code>extract_all()</code> when you want all of them.</p>
+<div class="admonition note">
+<p class="admonition-title">Renamed in 0.2.0</p>
+<p><code>limit</code> was called <code>batch_size</code>, a name that implied chunking it never
+did. Passing <code>batch_size=</code> to <code>extract()</code> raises <code>TypeError</code> with
+migration guidance rather than being silently ignored, since ignoring it
+would extract every document you passed.</p>
+</div>
+<p>When <code>skip_processed=True</code>, re-running <code>extract()</code> with the same document list is safe as long as documents have stable <code>document_id</code> values — reuse the identifier from your source system rather than generating a fresh one per run, or every run re-extracts everything and duplicates its resources.</p>
+<h3 id="cumulative-statistics">Cumulative statistics</h3>
+<p>The pipeline tracks totals across all <code>extract()</code> calls:</p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>documents_processed</code></td>
+<td><code>int</code></td>
+<td>Documents successfully extracted</td>
+</tr>
+<tr>
+<td><code>documents_failed</code></td>
+<td><code>int</code></td>
+<td>Documents that failed extraction</td>
+</tr>
+<tr>
+<td><code>total_cost</code></td>
+<td><code>float</code></td>
+<td>Estimated cost in USD</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">documents</span><span class="p">):</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">outcome</span><span class="p">)</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pipeline</span><span class="o">.</span><span class="n">documents_processed</span><span class="si">}</span><span class="s2"> succeeded, </span><span class="si">{</span><span class="n">pipeline</span><span class="o">.</span><span class="n">documents_failed</span><span class="si">}</span><span class="s2"> failed&quot;</span><span class="p">)</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total cost: $</span><span class="si">{</span><span class="n">pipeline</span><span class="o">.</span><span class="n">total_cost</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Statistics are fully updated when <code>extract()</code> returns. They accumulate if you call <code>extract()</code> multiple times on the same pipeline.</p>
+<h2 id="timeouts">Timeouts</h2>
+<table>
+<thead>
+<tr>
+<th>Client</th>
+<th>Default</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cavell API</td>
+<td>800s</td>
+<td>Extraction involves many LLM calls; the API caps each call at ~300s</td>
+</tr>
+<tr>
+<td>FHIR server</td>
+<td>30s</td>
+<td>Per-request timeout for all FHIR operations</td>
+</tr>
+</tbody>
+</table>
+<h3 id="deleted-patient-detection">Deleted patient detection</h3>
+<p>Before making any extraction API calls, <code>extract()</code> verifies that all referenced patients still exist on the FHIR server. If a patient was deleted (HAPI returns 404 or 410 Gone), the pipeline raises <code>RuntimeError</code> immediately — before spending on API calls:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="ne">RuntimeError</span><span class="p">:</span> <span class="n">Patient</span> <span class="s1">&#39;MRN-12345&#39;</span> <span class="p">(</span><span class="n">FHIR</span> <span class="nb">id</span> <span class="mi">1007</span><span class="p">)</span> <span class="n">no</span> <span class="n">longer</span> <span class="n">exists</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">on</span> <span class="n">the</span> <span class="n">FHIR</span> <span class="n">server</span> <span class="err">—</span> <span class="n">re</span><span class="o">-</span><span class="n">run</span> <span class="n">seed</span><span class="p">()</span> <span class="n">to</span> <span class="n">restore</span> <span class="n">it</span>
+</code></pre></div>
+<p>This catches the common mistake of deleting a patient and forgetting to re-seed before extracting.</p>
+<h2 id="deleting-and-redoing-a-patient">Deleting and Redoing a Patient</h2>
+<p>If a patient's extracted data looks wrong, delete all their resources and re-extract. Cascade delete removes the patient and everything referencing them — organizations and practitioners are unaffected.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Delete</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="n">fhir_id</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">find_patient_id</span><span class="p">(</span><span class="s2">&quot;MRN-12345&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="n">client</span><span class="o">.</span><span class="n">delete_patient_resources</span><span class="p">(</span><span class="n">fhir_id</span><span class="p">)</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="c1"># Re-extract: create a fresh pipeline and re-seed (recreates the deleted patient),</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="c1"># then extract. skip_processed=True (default) means only the deleted patient&#39;s</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># docs are re-processed.</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="n">pipeline</span> <span class="o">=</span> <span class="n">IngestionPipeline</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">tier</span><span class="o">=</span><span class="s2">&quot;low&quot;</span><span class="p">,</span> <span class="n">default_organization</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">organizations</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">patients</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">practitioners</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">])</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract_all</span><span class="p">(</span><span class="n">all_documents</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>    <span class="o">...</span>
+</code></pre></div>
+<p><strong>Important:</strong> You must create a new pipeline and re-run <code>seed()</code> after deleting a patient. If you try to extract with the old pipeline, <code>extract()</code> will detect that the patient no longer exists and raise <code>RuntimeError</code>.</p>
+<p>Requires <code>allow_cascading_deletes=true</code> in HAPI config (set in the repo's docker-compose).</p>
+<h2 id="multi-organization">Multi-Organization</h2>
+<p>Documents from different facilities for the same patient work without extra configuration:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract</span><span class="p">([</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="n">Document</span><span class="p">(</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>        <span class="n">text</span><span class="o">=</span><span class="s2">&quot;Initial visit at City General...&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>        <span class="n">patient_identifier</span><span class="o">=</span><span class="s2">&quot;MRN-12345&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>        <span class="n">date</span><span class="o">=</span><span class="s2">&quot;2024-01-15&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>        <span class="n">document_id</span><span class="o">=</span><span class="s2">&quot;note-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>        <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>    <span class="p">),</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>    <span class="n">Document</span><span class="p">(</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>        <span class="n">text</span><span class="o">=</span><span class="s2">&quot;Transfer to St. Mary&#39;s...&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>        <span class="n">patient_identifier</span><span class="o">=</span><span class="s2">&quot;MRN-12345&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>        <span class="n">date</span><span class="o">=</span><span class="s2">&quot;2024-02-01&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>        <span class="n">document_id</span><span class="o">=</span><span class="s2">&quot;note-002&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>        <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;SMH-002&quot;</span><span class="p">,</span>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>    <span class="p">),</span>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="p">])</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.instant", "navigation.sections"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
