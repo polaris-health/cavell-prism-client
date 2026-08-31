@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-31
+
 ### Fixed
 
 - **Observation dedup repoints referrers instead of stranding them.**
