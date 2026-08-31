@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-31
+
+### Fixed
+
+- **Observation dedup repoints referrers instead of stranding them.**
+  `deduplicate_observations` drops bundle entries whose (date, code, value)
+  already exists on the server, but its reference cleanup only knew
+  `DocumentReference.context.related` and `Encounter.reasonReference` — it
+  predates TNM staging. Dropping a stage-group *member* left the group's
+  `hasMember` pointing at a placeholder nothing satisfies, and HAPI rejected
+  the whole transaction (`HAPI-0541: Unable to satisfy placeholder ID ...
+  found in element named 'hasMember'`), failing the document. Every reference
+  to a dropped duplicate — `hasMember`, `partOf`, `context.related`,
+  `reasonReference`, any depth — is now repointed to the existing server
+  observation (`Observation/{id}`), which also preserves links the old
+  cleanup silently removed. A match without an `id` no longer causes a drop,
+  since there would be nothing to repoint to.
+
 ## [0.6.0] - 2026-08-27
 
 ### Changed
