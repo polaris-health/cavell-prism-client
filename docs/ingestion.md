@@ -163,7 +163,7 @@ documents = Document.from_rows(
         "patient_identifier": "patient_id",
         "date": "note_date",
         "document_id": "note_id",
-        "visit_id": "visit_id",
+        "encounter_id": "encounter_id",
         "practitioner_identifier": "practitioner_id",
         "meta": "department",
     },
@@ -228,7 +228,7 @@ All three validate upfront — unknown field names, missing CSV columns, and mis
 | `organization_identifier` | `str` | No | Org identifier — falls back to `default_organization` if omitted |
 | `meta` | `str` | No | Extra context for the extraction API (e.g. department, ward). **Do not include the document date or practitioner** — the date is sent as its own `document_date` payload field and the practitioner is injected automatically (see [Meta Assembly](#meta-assembly)). |
 | `practitioner_identifier` | `str` | No | If provided, the SDK resolves this to a FHIR ID (passed as a param) and injects the practitioner's name into `meta`, improving matching precision |
-| `visit_id` | `str` | No | Visit/admission identifier stamped on the Encounter resource — groups notes by hospital visit |
+| `encounter_id` | `str` | No | Your identifier for the visit/admission the document belongs to. When set, the SDK looks the Encounter up in FHIR (`urn:cavell:encounter`) and sends it to the API for an in-place update; the API creates it when there is none yet, and links every resource extracted from the document to it. When unset, no Encounter is created for the document |
 
 Field validation and normalization happen in one place: building a `Document`
 is what checks it. `extract()` and `extract_all()` add only a type check —
@@ -495,7 +495,15 @@ Two notes on the scoping:
 - **The Observation window is anchored on the document, not on today.** Backfilling an archive of 2015 notes with a today-anchored window would put every stored observation outside it and hand the extractor nothing.
 - **ResearchStudy is deliberately not filtered to `active`.** A study the patient joined two years ago is still the study a new note names, but its status moves on to `completed` or `closed-to-accrual`. Filtering to active dropped it from the context exactly then, and the extractor — which matches studies by title and embedding similarity — re-created it under a fresh id.
 
-Identity resources are never sent as context: `Patient`, `Organization` and `Practitioner` travel as explicit reference IDs (`patient_id`, `organization_id`, `practitioner_id`) instead. `Encounter` and `DocumentReference` are note-scoped by design — one per document, legitimately repeating — so they are not context either.
+Identity resources are never sent as context: `Patient`, `Organization` and `Practitioner` travel as explicit reference IDs (`patient_id`, `organization_id`, `practitioner_id`) instead. `DocumentReference` is note-scoped by design — one per document — so it is not context either.
+
+`Encounter` is the exception, and it is fetched on its own terms rather than as part of the patient-wide context. A document with an `encounter_id` triggers one targeted search — `Encounter?subject=<patient>&identifier=urn:cavell:encounter|<encounter_id>` — and the match, if any, is appended to `context` so the API updates that Encounter in place (its `id` never changes, so nothing already linked to it loses its reference). It always travels in `context`, even for a backdated document: the API's out-of-order gate drops proposed updates whose id appears in `future_context`, and the Encounter is meant to be updated. With no match the API creates the Encounter; with no `encounter_id` it creates none.
+
+!!! warning "Requires matching API support"
+
+    An extraction API that predates `encounter_identifier` ignores the field
+    silently and produces no Encounter at all — its Encounters were decided by
+    the planning model, per document, and are not what this SDK now expects.
 
 Chronological ordering matters:
 

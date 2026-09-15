@@ -114,8 +114,9 @@ def _dedupe_documents_by_content(
     Source exports can carry the same note twice under different
     ``document_id`` values (multi-feed merges, amended-note re-exports). The
     resume-skip keys on ``document_id``, so those copies look like new
-    documents and get extracted again — producing a second Encounter,
-    DocumentReference and set of clinical resources for one real event.
+    documents and get extracted again — producing a second DocumentReference
+    and set of clinical resources (and a second pass over the Encounter, when
+    ``encounter_id`` is set) for one real event.
 
     Identity is ``(patient_identifier, date, text)``: same patient, same day,
     byte-identical note. Text is hashed so the key stays small on large
@@ -412,7 +413,13 @@ class Document:
     #: identifiers, and failures are reported by id rather than by a
     #: batch-relative index.
     document_id: str = field(kw_only=True)
-    visit_id: str | None = None
+    #: Your identifier for the visit/admission this document belongs to. When
+    #: set, the pipeline looks the Encounter up in FHIR
+    #: (``urn:cavell:encounter``), sends it to the extraction API so the API
+    #: updates it in place rather than creating a second one, and every
+    #: resource extracted from this document references it. When ``None``, no
+    #: Encounter is created for the document.
+    encounter_id: str | None = None
 
     @classmethod
     def from_rows(
@@ -452,10 +459,22 @@ class Document:
 
         for key in columns:
             if key not in valid_fields:
-                raise ValueError(f"Unknown Document field in columns: '{key}'")
+                hint = (
+                    " ('visit_id' was renamed to 'encounter_id' in "
+                    "cavell-prism-client 0.8.0)"
+                    if key == "visit_id"
+                    else ""
+                )
+                raise ValueError(f"Unknown Document field in columns: '{key}'{hint}")
         for key in defaults:
             if key not in valid_fields:
-                raise ValueError(f"Unknown Document field in defaults: '{key}'")
+                hint = (
+                    " ('visit_id' was renamed to 'encounter_id' in "
+                    "cavell-prism-client 0.8.0)"
+                    if key == "visit_id"
+                    else ""
+                )
+                raise ValueError(f"Unknown Document field in defaults: '{key}'{hint}")
 
         if not rows:
             return []
@@ -1467,6 +1486,19 @@ class IngestionPipeline:
                         patient_fhir_id, reference_date=doc.date
                     )
 
+                # The Encounter this document belongs to, if an earlier
+                # document already created it. It always travels in `context`
+                # — never `future_context`, even for a backdated document —
+                # because the API updates it in place, and its out-of-order
+                # gate drops any proposed update whose id appears in
+                # `future_context`. Without it the API creates the Encounter.
+                if doc.encounter_id:
+                    existing_encounter = self._fhir.find_encounter(
+                        patient_fhir_id, doc.encounter_id
+                    )
+                    if existing_encounter is not None:
+                        context = [*context, existing_encounter]
+
                 # Build meta — the date is no longer part of it, it travels as
                 # its own payload field. Only the attending practitioner is
                 # still injected; meta stays None when there is nothing to say.
@@ -1493,7 +1525,7 @@ class IngestionPipeline:
                     organization_id=org_fhir_id,
                     practitioner_id=practitioner_fhir_id,
                     document_identifier=doc.document_id,
-                    visit_identifier=doc.visit_id,
+                    encounter_identifier=doc.encounter_id,
                     future_context=future_context,
                     out_of_order=out_of_order,
                 )

@@ -112,12 +112,21 @@ bundle, count, usage = api.extract(
     meta="Department: Cardiology",
     tier="high",
     allowed_resources=["Condition", "MedicationRequest"],  # restrict output types
+    encounter_identifier="V-2024-0001",  # the visit this note belongs to
 )
 ```
 
 `allowed_resources` restricts extraction to the listed FHIR resource types.
 It is not available through the pipeline, which assumes full extraction for
 its context and deduplication behavior.
+
+`encounter_identifier` makes the API produce exactly one Encounter for the
+visit: it carries the identifier as `urn:cavell:encounter|<value>`, and every
+resource in the bundle references it. Pass the Encounter an earlier note
+created inside `context` and the API updates it in place — same `id`, status
+and period moved on — instead of creating a second one; the pipeline does that
+lookup for you (`FHIRClient.find_encounter`). Leave the field out and no
+Encounter is created.
 
 #### Extracting a document out of chronological order
 

@@ -1,4 +1,4 @@
-note_id,patient_id,patient_name,birth_date,gender,note_date,visit_id,department,practitioner_id,practitioner_name,note_text
+note_id,patient_id,patient_name,birth_date,gender,note_date,encounter_id,department,practitioner_id,practitioner_name,note_text
 note-0001,MRN-20001,Robert Hayes,1952-04-12,male,2024-03-14,V-001,Emergency Medicine,DOC-201,Eric Sullivan,"ADMISSION NOTE — Emergency Department
 
 72-year-old man admitted with a 5-day history of productive cough with green
