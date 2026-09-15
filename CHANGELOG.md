@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-15
+
 ### Changed
 
 - **`Document.visit_id` is now `Document.encounter_id`, and it decides whether
