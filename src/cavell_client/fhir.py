@@ -25,12 +25,19 @@ DOCUMENT_IDENTIFIER_SYSTEM = "urn:cavell:document"
 ORGANIZATION_IDENTIFIER_SYSTEM = "urn:cavell:organization"
 PRACTITIONER_IDENTIFIER_SYSTEM = "urn:cavell:practitioner"
 PRACTITIONER_ROLE_IDENTIFIER_SYSTEM = "urn:cavell:practitioner-role"
+#: Identifier system the extraction API stamps on every Encounter it creates
+#: from a ``Document.encounter_id``; ``find_encounter`` searches on it.
+ENCOUNTER_IDENTIFIER_SYSTEM = "urn:cavell:encounter"
 
 # Default resource types to fetch for context. Every entry here must be a type
 # the extraction API actually reads (its ``CONTEXT_SLOTS`` map) — anything else
 # is accepted by the API and silently ignored, so it would only inflate the
 # payload. Identity resources are deliberately absent: Patient, Organization
-# and Practitioner travel as explicit reference IDs instead.
+# and Practitioner travel as explicit reference IDs instead. Encounter is
+# absent too, but for a different reason: the API reads it from context, yet
+# only the one matching the document's ``encounter_id`` is relevant, so the
+# pipeline fetches that single resource with ``find_encounter`` rather than
+# sending every encounter the patient ever had.
 CONTEXT_RESOURCE_TYPES: tuple[str, ...] = (
     "Condition",
     "AllergyIntolerance",
@@ -126,6 +133,14 @@ def _observation_window_start(reference_date: str | datetime.date | None) -> str
     return start.isoformat()
 
 
+def _id_sort_key(resource_id: object) -> tuple[int, int, str]:
+    """Sort FHIR ids numerically when numeric (HAPI default), else lexically."""
+    text = str(resource_id)
+    if text.isdecimal():
+        return (0, int(text), text)
+    return (1, 0, text)
+
+
 def _strip_context_noise(resources: list[dict]) -> None:
     """Drop server bookkeeping and generated narrative from context resources.
 
@@ -139,6 +154,12 @@ def _strip_context_noise(resources: list[dict]) -> None:
 
 def _observation_signature(obs: dict) -> tuple[str, str, str] | None:
     """Build (date, code, value) signature for deduplication.
+
+    A quantity is keyed on its normalized number only — never the unit. A
+    discharge letter restates the admission bloods as "WBC 16.4, CRP 212" with
+    no units, and those must match the lab report's "16.4 x10^9/L" already on
+    the server; the same LOINC code, date and number in two different units is
+    not a real case. Mirrors the extraction API's own signature.
 
     Returns None if observation lacks required fields.
     """
@@ -156,7 +177,14 @@ def _observation_signature(obs: dict) -> tuple[str, str, str] | None:
         return None
 
     if vq := obs.get("valueQuantity"):
-        value = f"{vq.get('value')}|{vq.get('unit', '')}"
+        raw = vq.get("value")
+        try:
+            # 130, 130.0 and "130" are one value; 15 significant digits so a
+            # 7-digit count (a viral load, platelets per µL) is never rounded
+            # into its neighbour.
+            value = f"{float(raw):.15g}"
+        except (TypeError, ValueError):
+            value = str(raw)
     elif vcc := obs.get("valueCodeableConcept"):
         value = vcc.get("text", "")
     elif vs := obs.get("valueString"):
@@ -971,6 +999,51 @@ class FHIRClient:
         _strip_context_noise(past)
         _strip_context_noise(future)
         return past, future
+
+    def find_encounter(self, patient_id: str, encounter_id: str) -> dict | None:
+        """Return the patient's Encounter carrying ``encounter_id``, if any.
+
+        Searches ``Encounter?subject={patient_id}&identifier=urn:cavell:encounter|
+        {encounter_id}`` — patient-scoped, so an identifier reused across
+        hospitals cannot pull in another patient's stay. The resource comes
+        back stripped of ``meta`` and ``text`` like every other context
+        resource, ready to append to the extraction payload's ``context``.
+
+        Several matches should not happen (the API creates one Encounter per
+        identifier and updates it thereafter), but a manual write or a race
+        could leave two. The one with the smallest id wins, numeric-aware,
+        so consecutive documents keep updating the same resource;
+        ``meta.lastUpdated`` would be useless for that, since every update
+        bumps it and the choice would alternate.
+
+        Fails open: on any error the lookup logs a warning and returns
+        ``None``, which makes the API create the Encounter — the same outcome
+        as the visit's first document.
+        """
+        try:
+            matches = self.search_patient_resources(
+                patient_id,
+                "Encounter",
+                params={"identifier": f"{ENCOUNTER_IDENTIFIER_SYSTEM}|{encounter_id}"},
+            )
+            matches = [m for m in matches if isinstance(m, dict) and m.get("id")]
+            if not matches:
+                return None
+            matches.sort(key=lambda m: _id_sort_key(m["id"]))
+            if len(matches) > 1:
+                logger.warning(
+                    f"{len(matches)} Encounters carry identifier '{encounter_id}' for "
+                    f"patient {patient_id}; updating the oldest "
+                    f"({', '.join(str(m['id']) for m in matches)})"
+                )
+            _strip_context_noise(matches[:1])
+            return matches[0]
+        except Exception as e:
+            logger.warning(
+                f"Failed to look up Encounter '{encounter_id}' for patient "
+                f"{patient_id} (the API will create it): {e}"
+            )
+            return None
 
     def find_patient_by_identifier(self, identifier: str) -> tuple[str, dict] | None:
         """Search for Patient by identifier, return (id, resource) if found.

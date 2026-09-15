@@ -12,6 +12,7 @@ from cavell_client.fhir import (
     _PATIENT_SEARCH_PARAM,
     CONTEXT_RESOURCE_TYPES,
     DOCUMENT_IDENTIFIER_SYSTEM,
+    ENCOUNTER_IDENTIFIER_SYSTEM,
     IDENTIFIER_SYSTEM,
     MAX_CONTEXT_OBSERVATIONS,
     OBSERVATION_CONTEXT_YEARS,
@@ -1471,7 +1472,11 @@ class TestContextResourceTypeCoverage:
         }
 
     def test_identity_resources_are_never_context(self):
-        """Patient/Organization/Practitioner travel as reference IDs instead."""
+        """Patient/Organization/Practitioner travel as reference IDs instead.
+
+        Encounter is not patient-wide context either: the single one a
+        document belongs to is fetched by ``find_encounter``.
+        """
         for resource_type in ("Patient", "Organization", "Practitioner", "Encounter"):
             assert resource_type not in CONTEXT_RESOURCE_TYPES
 
@@ -1486,7 +1491,40 @@ class TestObservationSignature:
             "valueQuantity": {"value": 120, "unit": "mmHg"},
         }
         sig = _observation_signature(obs)
-        assert sig == ("2023-03-15", "http://loinc.org|8480-6", "120|mmHg")
+        assert sig == ("2023-03-15", "http://loinc.org|8480-6", "120")
+
+    def test_large_values_keep_their_precision(self):
+        """A 7-digit count must not be rounded into its neighbour by the key."""
+        base = {
+            "effectiveDateTime": "2024-03-14",
+            "code": {"coding": [{"system": "http://loinc.org", "code": "10351-5"}]},
+        }
+        a = _observation_signature({**base, "valueQuantity": {"value": 1234567}})
+        b = _observation_signature({**base, "valueQuantity": {"value": 1234568}})
+        c = _observation_signature({**base, "valueQuantity": {"value": 0.1 + 0.2}})
+        assert a is not None
+        assert c is not None
+        assert a != b
+        assert a[2] == "1234567"
+        assert c[2] == "0.3"
+
+    def test_quantity_signature_ignores_unit_and_number_format(self):
+        """'WBC 16.4' restated without a unit matches the lab's '16.4 x10^9/L'."""
+        base = {
+            "effectiveDateTime": "2024-03-14",
+            "code": {"coding": [{"system": "http://loinc.org", "code": "6690-2"}]},
+        }
+        with_unit = {**base, "valueQuantity": {"value": 16.4, "unit": "x10^9/L"}}
+        no_unit = {**base, "valueQuantity": {"value": 16.4}}
+        as_string = {**base, "valueQuantity": {"value": "16.40", "unit": "10*9/L"}}
+        assert (
+            _observation_signature(with_unit)
+            == _observation_signature(no_unit)
+            == _observation_signature(as_string)
+        )
+        assert _observation_signature({**base, "valueQuantity": {"value": 16.5}}) != (
+            _observation_signature(with_unit)
+        )
 
     def test_codeable_concept_observation(self):
         obs = {
@@ -1537,7 +1575,7 @@ class TestObservationSignature:
             "valueQuantity": {"value": 120, "unit": "mmHg"},
         }
         sig = _observation_signature(obs)
-        assert sig == ("2023-03-15", "Blood Pressure", "120|mmHg")
+        assert sig == ("2023-03-15", "Blood Pressure", "120")
 
 
 class TestFilterStaleRefs:
@@ -2121,6 +2159,156 @@ class TestSearchPatientResourcesWithParams:
         assert [r["id"] for r in results] == ["rsub-1"]
 
 
+class TestFindEncounter:
+    """The patient-scoped Encounter lookup the pipeline runs per document."""
+
+    def test_non_string_ids_are_sorted_and_returned(self, fhir, httpx_mock):
+        """A server handing back integer ids must not break the pick."""
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url_prefix="http://localhost:8080/fhir/Encounter",
+            json={
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "Encounter",
+                            "id": 10,
+                            "status": "finished",
+                        }
+                    },
+                    {
+                        "resource": {
+                            "resourceType": "Encounter",
+                            "id": 9,
+                            "status": "finished",
+                        }
+                    },
+                    {"resource": {"resourceType": "Encounter", "status": "finished"}},
+                ]
+            },
+        )
+
+        found = fhir.find_encounter("pat-1", "V-1")
+
+        assert found is not None
+        assert found["id"] == 9
+
+    URL = (
+        "http://localhost:8080/fhir/Encounter?subject=pat-1&_count=500"
+        f"&identifier={quote(ENCOUNTER_IDENTIFIER_SYSTEM, safe='')}%7CV-2024-1"
+    )
+
+    @staticmethod
+    def _auth(httpx_mock):
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+
+    @staticmethod
+    def _enc(fhir_id, **extra):
+        return {
+            "resourceType": "Encounter",
+            "id": fhir_id,
+            "identifier": [
+                {"system": ENCOUNTER_IDENTIFIER_SYSTEM, "value": "V-2024-1"}
+            ],
+            "status": "in-progress",
+            **extra,
+        }
+
+    def test_query_is_patient_scoped_on_the_identifier_system(self, fhir, httpx_mock):
+        self._auth(httpx_mock)
+        httpx_mock.add_response(method="GET", url=self.URL, json={"entry": []})
+
+        assert fhir.find_encounter("pat-1", "V-2024-1") is None
+
+        (request,) = [r for r in httpx_mock.get_requests() if r.method == "GET"]
+        assert request.url.params["subject"] == "pat-1"
+        expected = f"{ENCOUNTER_IDENTIFIER_SYSTEM}|V-2024-1"
+        assert request.url.params["identifier"] == expected
+
+    def test_single_match_is_returned_stripped(self, fhir, httpx_mock):
+        """meta/text carry no extraction signal; the rest is sent as context."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(
+            method="GET",
+            url=self.URL,
+            json={
+                "entry": [
+                    {
+                        "resource": self._enc(
+                            "enc-9",
+                            meta={"versionId": "2", "lastUpdated": "2024-01-02"},
+                            text={"status": "generated", "div": "<div/>"},
+                            period={"start": "2024-01-01"},
+                        )
+                    }
+                ]
+            },
+        )
+
+        found = fhir.find_encounter("pat-1", "V-2024-1")
+
+        assert found is not None
+        assert found["id"] == "enc-9"
+        assert found["period"] == {"start": "2024-01-01"}
+        assert "meta" not in found
+        assert "text" not in found
+
+    def test_several_matches_pick_smallest_id_numerically(
+        self, fhir, httpx_mock, caplog
+    ):
+        """Pick numerically ("9" before "10") so every document updates the same one."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(
+            method="GET",
+            url=self.URL,
+            json={
+                "entry": [
+                    {"resource": self._enc("10")},
+                    {"resource": self._enc("9")},
+                    {"resource": self._enc("100")},
+                ]
+            },
+        )
+
+        with caplog.at_level(logging.WARNING):
+            found = fhir.find_encounter("pat-1", "V-2024-1")
+
+        assert found is not None and found["id"] == "9"
+        assert "3 Encounters carry identifier 'V-2024-1'" in caplog.text
+
+    def test_match_without_id_is_ignored(self, fhir, httpx_mock):
+        """An id-less resource cannot be PUT, so it cannot be the update target."""
+        self._auth(httpx_mock)
+        enc = self._enc("x")
+        del enc["id"]
+        httpx_mock.add_response(
+            method="GET", url=self.URL, json={"entry": [{"resource": enc}]}
+        )
+
+        assert fhir.find_encounter("pat-1", "V-2024-1") is None
+
+    def test_http_error_fails_open(self, fhir, httpx_mock, caplog):
+        """A failed lookup means "create", the same as a visit's first document."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(
+            method="GET", url=self.URL, status_code=500, text="boom"
+        )
+
+        with caplog.at_level(logging.WARNING):
+            assert fhir.find_encounter("pat-1", "V-2024-1") is None
+
+        assert "Failed to look up Encounter 'V-2024-1'" in caplog.text
+
+
 class TestSearchPatientResourcesPagination:
     """Test that search_patient_resources follows pagination links."""
 
@@ -2312,6 +2500,68 @@ class TestDeletePatientResources:
 
 class TestDeduplicateObservations:
     """Test FHIRClient.deduplicate_observations."""
+
+    def test_unit_less_restatement_matches_the_lab_value(self, fhir, httpx_mock):
+        """A letter's 'WBC 16.4' (no unit) is the lab report's 16.4 x10^9/L on the
+        server: dropped, and whatever referenced it is repointed."""
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/fhir/Observation?subject=pat-1&_count=500&date=2024-03-14",
+            json={
+                "resourceType": "Bundle",
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "Observation",
+                            "id": "srv-wbc",
+                            "effectiveDateTime": "2024-03-14",
+                            "code": {
+                                "coding": [
+                                    {"system": "http://loinc.org", "code": "6690-2"}
+                                ]
+                            },
+                            "valueQuantity": {"value": 16.4, "unit": "x10^9/L"},
+                        }
+                    }
+                ],
+            },
+        )
+        entries = [
+            {
+                "fullUrl": "urn:uuid:wbc-restated",
+                "resource": {
+                    "resourceType": "Observation",
+                    "effectiveDateTime": "2024-03-14",
+                    "code": {
+                        "coding": [{"system": "http://loinc.org", "code": "6690-2"}]
+                    },
+                    "valueQuantity": {"value": 16.4},
+                },
+                "request": {"method": "POST", "url": "Observation"},
+            },
+            {
+                "fullUrl": "urn:uuid:enc-1",
+                "resource": {
+                    "resourceType": "Encounter",
+                    "status": "finished",
+                    "class": {"code": "IMP"},
+                    "reasonReference": [{"reference": "urn:uuid:wbc-restated"}],
+                },
+                "request": {"method": "POST", "url": "Encounter"},
+            },
+        ]
+
+        result = fhir.deduplicate_observations(entries, "pat-1")
+
+        assert [e["resource"]["resourceType"] for e in result] == ["Encounter"]
+        assert result[0]["resource"]["reasonReference"] == [
+            {"reference": "Observation/srv-wbc"}
+        ]
 
     def test_removes_duplicate_observations(self, fhir, httpx_mock):
         """Observations matching existing FHIR data are filtered out."""

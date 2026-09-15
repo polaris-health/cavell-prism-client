@@ -6,6 +6,60 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`Document.visit_id` is now `Document.encounter_id`, and it decides whether
+  an Encounter exists** (breaking). The field keeps its position, so positional
+  callers are unaffected; `Document.from_rows()` now expects the mapping key
+  `encounter_id` (mapping `visit_id` raises with a pointer to the new name) and
+  the CSV column itself can keep whatever name it has — the demo CSVs and
+  notebooks now call it `encounter_id` too. The semantics changed
+  with the name. Before, the extraction API decided per document whether a note
+  described a visit, created a fresh Encounter each time it did, and merely
+  stamped the visit identifier on it — so one hospital stay became several
+  Encounters and a note without "visit words" got none, leaving its
+  DocumentReference unlinked. Now a document with an `encounter_id` always has
+  exactly one Encounter: the pipeline looks it up in FHIR first
+  (`FHIRClient.find_encounter`, on the new `urn:cavell:encounter` identifier
+  system, scoped to the patient) and passes it to the API inside `context`, so
+  the API updates it in place — status, period and class follow the stay from
+  admission note to discharge letter and the `id` never changes, so nothing
+  already linked to it loses its reference. With no match the API creates it;
+  every resource extracted from the document, the DocumentReference included,
+  references it either way. A document without an `encounter_id` produces no
+  Encounter at all.
+
+  **Requires the matching Prism-side field.** The payload key is
+  `encounter_identifier`; an API that predates it ignores the field silently
+  and produces no Encounter. `CavellAPI.extract(visit_identifier=...)` raises
+  `TypeError` naming the rename rather than sending a field the API rejects.
+
+  The lookup always lands in `context`, never `future_context`, even for a
+  backdated document: the API's out-of-order gate drops proposed updates whose
+  id appears in `future_context`, and the Encounter is meant to be updated.
+  Persisted Encounters from earlier releases carry `urn:cavell:visit` and are
+  not matched, so an admission still in progress across the upgrade gets a new
+  Encounter from its next document.
+
+### Added
+
+- `FHIRClient.find_encounter(patient_id, encounter_id)` — the patient-scoped
+  lookup the pipeline runs before each extraction. Fails open (a warning and
+  `None`, so the API creates the Encounter) and, should two resources ever
+  carry the same identifier, keeps updating the one with the smallest id.
+- `cavell_client.fhir.ENCOUNTER_IDENTIFIER_SYSTEM` (`urn:cavell:encounter`).
+
+### Fixed
+
+- **Observation dedup no longer keys on the unit.** A discharge letter restates
+  the admission bloods without units ("WBC 16.4, CRP 212"), and the
+  `(date, code, value)` signature used to carry the unit inside the value, so the
+  restatement never matched the lab report's `16.4 x10^9/L` already on the
+  server and persisted as a second Observation. The value is now the normalized
+  number alone (`130`, `130.0` and `"130"` are one value as well), matching the
+  extraction API's own signature. The same LOINC code, date and number in two
+  different units is not a real case, so nothing legitimate collapses.
+
 ## [0.7.0] - 2026-08-31
 
 ### Fixed

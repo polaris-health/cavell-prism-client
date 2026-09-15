@@ -282,7 +282,7 @@ class TestExtractRaw:
             document_date="2024-01-15",
             tier="medium",
             patient_id="pat-1",
-            visit_identifier="V-001",
+            encounter_identifier="V-001",
         )
 
         body = json.loads(httpx_mock.get_request().content)
@@ -291,7 +291,7 @@ class TestExtractRaw:
         assert body["document_date"] == "2024-01-15"
         assert body["tier"] == "medium"
         assert body["patient_id"] == "pat-1"
-        assert body["visit_identifier"] == "V-001"
+        assert body["encounter_identifier"] == "V-001"
 
     def test_raises_on_error(self, api, httpx_mock):
         """Shares extract()'s error contract."""
@@ -405,7 +405,51 @@ class TestExtractNewParams:
         assert "organization_id" not in body
         assert "practitioner_id" not in body
         assert "document_identifier" not in body
+        assert "encounter_identifier" not in body
+
+
+class TestEncounterIdentifier:
+    """``encounter_identifier`` reaches the payload under its new name only."""
+
+    def _stub(self, httpx_mock):
+        httpx_mock.add_response(
+            method="POST",
+            url="https://qa.prism.cavell.app/api/extract/text",
+            json={"bundle": {"entry": []}, "count": 0},
+        )
+
+    def test_extract_with_encounter_identifier(self, api, httpx_mock):
+        self._stub(httpx_mock)
+
+        api.extract(text="Admitted for pneumonia", encounter_identifier="V-2024-7")
+
+        import json
+
+        body = json.loads(httpx_mock.get_request().content)
+        assert body["encounter_identifier"] == "V-2024-7"
         assert "visit_identifier" not in body
+
+    def test_blank_encounter_identifier_is_omitted(self, api, httpx_mock):
+        """An empty string means "no visit", the same as None."""
+        self._stub(httpx_mock)
+
+        api.extract(text="Admitted for pneumonia", encounter_identifier="")
+
+        import json
+
+        body = json.loads(httpx_mock.get_request().content)
+        assert "encounter_identifier" not in body
+
+    def test_visit_identifier_rejected_with_migration_hint(self, api, httpx_mock):
+        """The old kwarg fails loudly instead of sending a field the API rejects."""
+        with pytest.raises(TypeError, match="renamed 'visit_identifier'") as exc_info:
+            api.extract(text="Admitted", visit_identifier="V-1")
+        assert "encounter_identifier" in str(exc_info.value)
+        assert httpx_mock.get_requests() == []
+
+    def test_other_unknown_kwargs_still_rejected(self, api):
+        with pytest.raises(TypeError, match="Unexpected keyword argument"):
+            api.extract(text="Admitted", bogus=1)
 
 
 class TestOutOfOrderParams:

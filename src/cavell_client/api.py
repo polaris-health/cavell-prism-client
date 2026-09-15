@@ -52,6 +52,25 @@ def _reject_removed_auth_kwargs(kwargs: dict) -> None:
         raise TypeError(f"Unexpected keyword argument(s): {unexpected}")
 
 
+def _reject_removed_extract_kwargs(kwargs: dict) -> None:
+    """Raise a pointed migration error for extract()'s renamed `visit_identifier`.
+
+    Silently accepting it would be worse than a crash: the API rejects the old
+    field, and an API that merely ignored it would produce no Encounter at all.
+    """
+    if "visit_identifier" in kwargs:
+        raise TypeError(
+            "CavellAPI.extract() renamed 'visit_identifier' to "
+            "'encounter_identifier' in cavell-prism-client 0.8.0. The semantics "
+            "changed with it: the API now creates or updates exactly one "
+            "Encounter per identifier and links every extracted resource to it. "
+            "See the CHANGELOG for migration notes."
+        )
+    if kwargs:
+        unexpected = ", ".join(sorted(kwargs))
+        raise TypeError(f"Unexpected keyword argument(s): {unexpected}")
+
+
 class CavellAPI:
     """Client for Cavell extraction API."""
 
@@ -161,7 +180,7 @@ class CavellAPI:
         organization_id: str | None = None,
         practitioner_id: str | None = None,
         document_identifier: str | None = None,
-        visit_identifier: str | None = None,
+        encounter_identifier: str | None = None,
         future_context: list[dict] | None = None,
         out_of_order: bool = False,
     ) -> dict:
@@ -214,8 +233,8 @@ class CavellAPI:
             payload["practitioner_id"] = practitioner_id
         if document_identifier:
             payload["document_identifier"] = document_identifier
-        if visit_identifier:
-            payload["visit_identifier"] = visit_identifier
+        if encounter_identifier:
+            payload["encounter_identifier"] = encounter_identifier
         if future_context:
             payload["future_context"] = future_context
         if out_of_order:
@@ -257,9 +276,10 @@ class CavellAPI:
         organization_id: str | None = None,
         practitioner_id: str | None = None,
         document_identifier: str | None = None,
-        visit_identifier: str | None = None,
+        encounter_identifier: str | None = None,
         future_context: list[dict] | None = None,
         out_of_order: bool = False,
+        **removed_kwargs,
     ) -> tuple[dict, int, UsageStats | None]:
         """Extract FHIR resources from clinical text.
 
@@ -283,7 +303,11 @@ class CavellAPI:
             organization_id: FHIR Organization ID for real references
             practitioner_id: FHIR Practitioner ID of attending practitioner
             document_identifier: Identifier stamped on the DocumentReference
-            visit_identifier: Visit/admission identifier stamped on the Encounter
+            encounter_identifier: Your identifier for the visit/admission this
+                document belongs to. The API always produces an Encounter
+                carrying it (``urn:cavell:encounter``): an update of the one
+                passed in ``context``, a create otherwise. Every extracted
+                resource references it. Omit it and no Encounter is created
             future_context: Existing resources that postdate this document, for
                 a document being processed out of chronological order. Only
                 meaningful alongside ``out_of_order``
@@ -297,6 +321,7 @@ class CavellAPI:
         Raises:
             CavellAPIError: If the API returns an error
         """
+        _reject_removed_extract_kwargs(removed_kwargs)
         data = self.extract_raw(
             text,
             context=context,
@@ -308,7 +333,7 @@ class CavellAPI:
             organization_id=organization_id,
             practitioner_id=practitioner_id,
             document_identifier=document_identifier,
-            visit_identifier=visit_identifier,
+            encounter_identifier=encounter_identifier,
             future_context=future_context,
             out_of_order=out_of_order,
         )
