@@ -11,6 +11,7 @@ import pytest
 from cavell_client.fhir import (
     _PATIENT_SEARCH_PARAM,
     CONTEXT_RESOURCE_TYPES,
+    ENCOUNTER_IDENTIFIER_SYSTEM,
     IDENTIFIER_SYSTEM,
     ORGANIZATION_IDENTIFIER_SYSTEM,
     PRACTITIONER_IDENTIFIER_SYSTEM,
@@ -101,6 +102,31 @@ def mock_context_empty(httpx_mock, patient_fhir_id, repeat=False):
         json={"entry": []},
         repeat=repeat,
     )
+
+
+def mock_encounter_lookup(httpx_mock, patient_fhir_id, encounter_id, encounters):
+    """Mock the patient-scoped Encounter search ``find_encounter`` runs."""
+    system_encoded = quote(ENCOUNTER_IDENTIFIER_SYSTEM, safe="")
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            f"http://localhost:8080/fhir/Encounter?subject={patient_fhir_id}"
+            f"&_count=500&identifier={system_encoded}%7C{quote(encounter_id, safe='')}"
+        ),
+        json={"entry": [{"resource": e} for e in encounters]},
+    )
+
+
+def _encounter(fhir_id, encounter_id, **extra):
+    """A minimal persisted Encounter carrying the SDK's identifier system."""
+    return {
+        "resourceType": "Encounter",
+        "id": fhir_id,
+        "identifier": [{"system": ENCOUNTER_IDENTIFIER_SYSTEM, "value": encounter_id}],
+        "status": "in-progress",
+        "class": {"code": "IMP"},
+        **extra,
+    }
 
 
 def _extract_body(httpx_mock):
@@ -1308,8 +1334,110 @@ class TestExtract:
         body = json.loads(extract_request.content)
         assert body["document_identifier"] == "doc-abc-123"
 
-    def test_visit_id_passed_as_visit_identifier(self, client, httpx_mock):
-        """Test that visit_id is passed as visit_identifier to the API."""
+    def test_encounter_id_passed_as_encounter_identifier(self, client, httpx_mock):
+        """encounter_id reaches the API as encounter_identifier.
+
+        With nothing on the server the lookup finds no Encounter, so the
+        payload's context stays empty and the API creates the Encounter.
+        """
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_encounter_lookup(httpx_mock, "pat-1", "visit-abc-123", [])
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        for _ in pipeline.extract(
+            [
+                Document(
+                    text="test",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    organization_identifier="CGH-001",
+                    encounter_id="visit-abc-123",
+                    document_id="doc-1",
+                ),
+            ]
+        ):
+            pass
+
+        body = _extract_body(httpx_mock)
+        assert body["encounter_identifier"] == "visit-abc-123"
+        assert "visit_identifier" not in body
+        assert "context" not in body
+
+    def test_failed_encounter_lookup_does_not_fail_the_document(
+        self, client, httpx_mock
+    ):
+        """A broken Encounter search is a warning, not a failed document."""
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        mock_context_empty(httpx_mock, "pat-1")
+        httpx_mock.add_response(
+            method="GET",
+            url_prefix="http://localhost:8080/fhir/Encounter",
+            status_code=500,
+            json={"resourceType": "OperationOutcome"},
+        )
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        for _ in pipeline.extract(
+            [
+                Document(
+                    text="test",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    organization_identifier="CGH-001",
+                    encounter_id="visit-abc-123",
+                    document_id="doc-1",
+                ),
+            ]
+        ):
+            pass
+
+        body = _extract_body(httpx_mock)
+        assert body["encounter_identifier"] == "visit-abc-123"
+        assert "visit_identifier" not in body
+        assert "context" not in body
+
+    def test_existing_encounter_is_sent_in_context(self, client, httpx_mock):
+        """A found Encounter travels in `context`, stripped of meta/text."""
+        pipeline = self._setup_pipeline(client, httpx_mock)
+
+        mock_context_empty(httpx_mock, "pat-1")
+        mock_encounter_lookup(
+            httpx_mock,
+            "pat-1",
+            "V-7",
+            [_encounter("enc-42", "V-7", meta={"versionId": "3"}, text={"div": "x"})],
+        )
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        for _ in pipeline.extract(
+            [
+                Document(
+                    text="test",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    organization_identifier="CGH-001",
+                    encounter_id="V-7",
+                    document_id="doc-1",
+                ),
+            ]
+        ):
+            pass
+
+        body = _extract_body(httpx_mock)
+        assert body["encounter_identifier"] == "V-7"
+        encounters = [r for r in body["context"] if r["resourceType"] == "Encounter"]
+        assert [e["id"] for e in encounters] == ["enc-42"]
+        assert "meta" not in encounters[0]
+        assert "text" not in encounters[0]
+
+    def test_no_encounter_id_means_no_lookup(self, client, httpx_mock):
+        """Without an encounter_id neither the field nor the search appears."""
         pipeline = self._setup_pipeline(client, httpx_mock)
 
         mock_context_empty(httpx_mock, "pat-1")
@@ -1323,19 +1451,17 @@ class TestExtract:
                     patient_identifier="MRN-1",
                     date="2024-01-01",
                     organization_identifier="CGH-001",
-                    visit_id="visit-abc-123",
                     document_id="doc-1",
                 ),
             ]
         ):
             pass
 
-        requests = httpx_mock.get_requests()
-        extract_request = [
-            r for r in requests if r.method == "POST" and "extract/text" in str(r.url)
-        ][-1]
-        body = json.loads(extract_request.content)
-        assert body["visit_identifier"] == "visit-abc-123"
+        body = _extract_body(httpx_mock)
+        assert "encounter_identifier" not in body
+        assert not any(
+            "/Encounter?" in str(r.url) for r in httpx_mock.get_requests()
+        ), "no Encounter search without an encounter_id"
 
     def test_multiple_patients_concurrent(self, client, httpx_mock):
         """Test that multiple patients are processed concurrently."""
@@ -2629,13 +2755,20 @@ class TestDocumentFromRows:
                 **self.REQUIRED,
                 "meta": "dept",
                 "practitioner_identifier": "prac",
-                "visit_id": "vid",
+                "encounter_id": "vid",
             },
         )
         assert docs[0].document_id == "N1"
         assert docs[0].meta == "Cardiology"
         assert docs[0].practitioner_identifier == "DOC-1"
-        assert docs[0].visit_id == "V1"
+        assert docs[0].encounter_id == "V1"
+
+    def test_visit_id_mapping_names_the_rename(self):
+        """The pre-0.8.0 key fails with a pointer to encounter_id."""
+        rows = [self._row(vid="V1")]
+        with pytest.raises(ValueError, match="'visit_id'.*encounter_id") as exc_info:
+            Document.from_rows(rows, columns={**self.REQUIRED, "visit_id": "vid"})
+        assert "0.8.0" in str(exc_info.value)
 
     def test_defaults(self):
         rows = [self._row()]
@@ -2718,11 +2851,11 @@ class TestDocumentFromRows:
             columns={
                 **self.REQUIRED,
                 "practitioner_identifier": "prac",
-                "visit_id": "vid",
+                "encounter_id": "vid",
             },
         )
         assert docs[0].practitioner_identifier is None
-        assert docs[0].visit_id is None
+        assert docs[0].encounter_id is None
 
     def test_empty_document_id_raises(self):
         """A blank id is not silently coerced to None — it is a required field."""
@@ -4329,6 +4462,36 @@ class TestOutOfOrderExtraction(_PipelineHarness):
         body = _extract_body(httpx_mock)
         assert [r["id"] for r in body["context"]] == ["old"]
         assert [r["id"] for r in body["future_context"]] == ["new"]
+
+    def test_existing_encounter_lands_in_context_not_future(self, client, httpx_mock):
+        """The Encounter is meant to be updated, so it never goes to `future_context`.
+
+        The API's out-of-order gate drops proposed updates whose id appears in
+        `future_context`; parking the Encounter there would silently lose it.
+        """
+        pipeline = self._seed(client, httpx_mock)
+        mock_patient_exists(httpx_mock, "pat-1")
+        mock_watermark(httpx_mock, "pat-1", date="2024-06-01T00:00:00Z")
+        mock_context_split_empty(httpx_mock, "pat-1")
+        mock_encounter_lookup(httpx_mock, "pat-1", "V-1", [_encounter("enc-1", "V-1")])
+        mock_extract_response(httpx_mock, count=1)
+        mock_persist_response(httpx_mock, created=1)
+
+        doc = Document(
+            text="Admission note",
+            patient_identifier="MRN-1",
+            date="2024-05-01",
+            organization_identifier="CGH-001",
+            document_id="older",
+            encounter_id="V-1",
+        )
+        (outcome,) = pipeline.extract([doc])
+
+        assert outcome.out_of_order is True
+        body = _extract_body(httpx_mock)
+        assert body["out_of_order"] is True
+        assert [r["id"] for r in body["context"]] == ["enc-1"]
+        assert "future_context" not in body
 
     def test_in_order_document_sends_neither_new_field(self, client, httpx_mock):
         """The forward path is untouched: no split, no provenance query."""
