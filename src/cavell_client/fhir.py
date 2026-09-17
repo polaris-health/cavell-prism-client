@@ -1056,6 +1056,31 @@ class FHIRClient:
             )
             return None
 
+    def find_practitioner_by_identifier(self, identifier: str) -> dict | None:
+        """The Practitioner carrying this urn:cavell:practitioner identifier.
+
+        Not-found returns ``None``; lookup errors raise (fail-closed, like
+        :meth:`find_encounter_strict`). Duplicates should not happen (seeding
+        upserts conditionally on the identifier), but a manual write could
+        leave two — the smallest id wins, numeric-aware and warned, so every
+        run attributes results to the same resource instead of whichever one
+        the server happened to return first.
+        """
+        matches = [
+            m
+            for m in self.search_practitioners(identifier=identifier)
+            if isinstance(m, dict) and m.get("id")
+        ]
+        if not matches:
+            return None
+        matches.sort(key=lambda m: _id_sort_key(m["id"]))
+        if len(matches) > 1:
+            logger.warning(
+                f"{len(matches)} Practitioners carry identifier '{identifier}'; "
+                f"using the oldest ({', '.join(str(m['id']) for m in matches)})"
+            )
+        return matches[0]
+
     def find_patient_by_identifier(self, identifier: str) -> tuple[str, dict] | None:
         """Search for Patient by identifier, return (id, resource) if found.
 

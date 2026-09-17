@@ -15,15 +15,19 @@ identifier, so re-running a feed is idempotent by construction.
 """
 
 import logging
+import math
+import re
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING, Any, Literal
+
+import httpx
 
 from cavell_client.api import CavellAPI
 from cavell_client.fhir import FHIRClient
 from cavell_client.ingestion import _validate_columns
-from cavell_client.models import PersistResult
+from cavell_client.models import FHIRConnectionError, PersistResult
 
 if TYPE_CHECKING:
     from cavell_client.client import CavellClient
@@ -42,6 +46,64 @@ _REQUIRED_LAB_COLUMNS = (
 )
 
 _ALLOWED_STATUSES = frozenset({"preliminary", "final", "amended", "cancelled"})
+
+#: The API caps rows per request (max_length=5000); bigger patients are sent
+#: in chunks so one prolific patient cannot 422 the run.
+_MAX_ROWS_PER_REQUEST = 5000
+
+#: Mirrors the API's charset rule: the id lands in a FHIR conditional-create
+#: query string, where metacharacters would change the query's meaning.
+#: Checking client-side turns 5000 round-tripped server rejections into
+#: local "validation"-stage ones.
+_LAB_RESULT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
+
+_BOUND_PLAIN_RE = re.compile(r"^[+-]?\d+(\.\d+)?$")
+# A comma is a decimal separator only when it cannot be a grouping one:
+# float('1,000'.replace(',', '.')) would silently read a thousands-separated
+# bound as 1.0. Mirrors the API's rule for `value`.
+_BOUND_EURO_RE = re.compile(r"^[+-]?\d+,\d{1,2}$")
+
+
+def _as_text(value: Any) -> str:
+    """``value`` as stripped text.
+
+    Rows often arrive from dataframes rather than csv.DictReader, so numbers
+    are legitimate input: they become their text form (the API's `value` is a
+    string). ``None`` and non-finite floats (a pandas NaN) become "" so the
+    row is rejected with a reason instead of crashing the whole request.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return str(value) if math.isfinite(value) else ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value)
+
+
+def _coerce_bound(value: Any) -> float | str | None:
+    """A reference bound as float, ``None`` when absent, or the original text
+    when it cannot be read unambiguously (``ingest()`` rejects it with a
+    reason rather than guessing)."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, int):
+        return float(value)
+    if not isinstance(value, str):
+        return str(value)
+    text = value.strip()
+    if not text:
+        return None
+    if _BOUND_PLAIN_RE.match(text):
+        return float(text)
+    if _BOUND_EURO_RE.match(text):
+        return float(text.replace(",", "."))
+    return text
+
 
 #: How many offending items to name before truncating the error message.
 _MAX_LISTED_NON_RESULTS = 10
@@ -67,15 +129,21 @@ class LabResult:
     test_name: str
     #: Result as text: numeric (comparators like ``<5`` allowed) becomes a
     #: valueQuantity server-side, anything else a verbatim valueString.
-    value: str
+    #: Dataframe-shaped rows may pass a number; it is normalized to text
+    #: (NaN becomes absent, so the row is rejected with a reason).
+    value: str | float | int
     #: ``YYYY-MM-DD``, or a full ISO datetime WITH a timezone offset (FHIR
     #: requires one alongside a time; the API rejects offset-less times).
     collected_datetime: str
     #: Your unique id for this result (e.g. a LIS accession number),
     #: keyword-only like ``Document.document_id``. It is the idempotency key:
     #: the Observation carries it as its ``urn:cavell:lab-result`` identifier
-    #: and re-submitting a feed matches instead of duplicating. Must be unique
-    #: across the whole feed.
+    #: and the API's conditional create matches on it scoped to the patient,
+    #: so re-submitting a feed matches instead of duplicating. Must be unique
+    #: per patient (unique across the whole feed is safest). Letters, digits
+    #: and ``. _ : / -`` only, max 200 characters. Note that ingestion only
+    #: CREATES: re-sending an existing id never updates the stored
+    #: Observation, so a corrected (amended) result needs a new id.
     lab_result_id: str = field(kw_only=True)
     loinc_code: str | None = None
     unit: str | None = None
@@ -99,26 +167,12 @@ class LabResult:
             "collected_datetime",
             "lab_result_id",
         ):
-            value = getattr(self, name)
-            setattr(self, name, value.strip() if isinstance(value, str) else value)
-        status = self.status.strip() if isinstance(self.status, str) else ""
-        self.status = status or "final"
+            setattr(self, name, _as_text(getattr(self, name)))
+        self.status = _as_text(self.status) or "final"
         for name in ("loinc_code", "unit", "encounter_id", "practitioner_id"):
-            value = getattr(self, name)
-            if isinstance(value, str):
-                setattr(self, name, value.strip() or None)
+            setattr(self, name, _as_text(getattr(self, name)) or None)
         for name in ("reference_low", "reference_high"):
-            value = getattr(self, name)
-            if isinstance(value, str):
-                text = value.strip()
-                if not text:
-                    setattr(self, name, None)
-                    continue
-                try:
-                    setattr(self, name, float(text.replace(",", ".")))
-                except ValueError:
-                    # Left as the string; ingest() rejects it with a reason.
-                    setattr(self, name, text)
+            setattr(self, name, _coerce_bound(getattr(self, name)))
 
     @classmethod
     def from_rows(
@@ -195,11 +249,15 @@ class LabIngestionOutcome:
     """Result of one :meth:`LabIngestionPipeline.ingest` call."""
 
     total: int
-    #: Rows that reached a bundle POSTed to the FHIR server.
+    #: Rows actually persisted to the FHIR server — created or matched as
+    #: already present. A row lost to a failed transaction is neither
+    #: accepted nor rejected: it appears in its PersistResult's errors and
+    #: flips :attr:`success`.
     accepted: int
     rejected: list[LabRejection]
-    #: One (patient_identifier, PersistResult) per patient whose bundle was
-    #: posted, in processing order.
+    #: One (patient_identifier, PersistResult) per POSTED bundle, in
+    #: processing order. A patient with more than the API's per-request row
+    #: cap contributes several entries.
     persistence: list[tuple[str, PersistResult]]
 
     @property
@@ -267,12 +325,29 @@ def _content_problem(result: LabResult) -> str | None:
     ):
         if not getattr(result, name):
             return f"{name} must be non-empty"
+    if not _LAB_RESULT_ID_RE.match(result.lab_result_id):
+        return (
+            "lab_result_id may only contain letters, digits and . _ : / - "
+            "(max 200 characters, starting with a letter or digit)"
+        )
     for name in ("reference_low", "reference_high"):
         if isinstance(getattr(result, name), str):
             return f"{name} is not numeric: '{getattr(result, name)}'"
     if result.status not in _ALLOWED_STATUSES:
         return f"status must be one of {sorted(_ALLOWED_STATUSES)}: '{result.status}'"
     return None
+
+
+def _fail_closed(description: str, lookup: Callable[..., Any], *args: Any) -> Any:
+    """Run a FHIR call, wrapping transport failures in the library's type.
+
+    Callers of ``ingest()`` handle ``CavellError`` subclasses; a raw
+    httpx exception escaping the public API would bypass that contract.
+    """
+    try:
+        return lookup(*args)
+    except httpx.HTTPError as e:
+        raise FHIRConnectionError(f"{description}: {e}") from e
 
 
 class LabIngestionPipeline:
@@ -299,12 +374,27 @@ class LabIngestionPipeline:
         talking to the FHIR server aborts the run — infrastructure trouble is
         not bad data and retrying later is the right move.
 
+        Aborts are safe to retry: persistence is idempotent (conditional
+        creates), so after fixing the infrastructure the same feed can simply
+        be re-ingested — already-persisted rows come back as
+        ``skipped_existing``.
+
         Args:
             results: LabResult objects (see :meth:`LabResult.from_rows`).
 
         Returns:
             LabIngestionOutcome with accepted/rejected counts, per-row
-            rejection reasons, and per-patient persistence results.
+            rejection reasons, and per-bundle persistence results.
+
+        Raises:
+            TypeError: If any element is not a :class:`LabResult`.
+            CavellAPIError: If the Prism API rejects a request (a 404 names a
+                deployment predating lab ingestion); auth and gateway
+                problems raise the usual CavellAuthError /
+                CavellGatewayUnavailableError.
+            FHIRConnectionError: If a patient/encounter/practitioner lookup
+                or bundle POST fails at the transport level — infrastructure
+                trouble, not bad data.
         """
         _require_lab_results(results)
         self._api.check_connection()
@@ -350,7 +440,11 @@ class LabIngestionPipeline:
         practitioner_ids: dict[str, str | None] = {}
         for patient_identifier in sorted(by_patient):
             patient_rows = by_patient[patient_identifier]
-            found = self._fhir.find_patient_by_identifier(patient_identifier)
+            found = _fail_closed(
+                f"Patient lookup '{patient_identifier}'",
+                self._fhir.find_patient_by_identifier,
+                patient_identifier,
+            )
             if found is None:
                 for index, result in patient_rows:
                     reject(
@@ -369,8 +463,11 @@ class LabIngestionPipeline:
                 encounter_fhir_id = None
                 if result.encounter_id:
                     if result.encounter_id not in encounter_ids:
-                        encounter = self._fhir.find_encounter_strict(
-                            patient_fhir_id, result.encounter_id
+                        encounter = _fail_closed(
+                            f"Encounter lookup '{result.encounter_id}'",
+                            self._fhir.find_encounter_strict,
+                            patient_fhir_id,
+                            result.encounter_id,
                         )
                         encounter_ids[result.encounter_id] = (
                             encounter["id"] if encounter else None
@@ -388,11 +485,13 @@ class LabIngestionPipeline:
                 practitioner_fhir_id = None
                 if result.practitioner_id:
                     if result.practitioner_id not in practitioner_ids:
-                        matches = self._fhir.search_practitioners(
-                            identifier=result.practitioner_id
+                        practitioner = _fail_closed(
+                            f"Practitioner lookup '{result.practitioner_id}'",
+                            self._fhir.find_practitioner_by_identifier,
+                            result.practitioner_id,
                         )
                         practitioner_ids[result.practitioner_id] = (
-                            matches[0]["id"] if matches else None
+                            practitioner["id"] if practitioner else None
                         )
                     practitioner_fhir_id = practitioner_ids[result.practitioner_id]
                     if practitioner_fhir_id is None:
@@ -426,45 +525,59 @@ class LabIngestionPipeline:
                 payload_rows.append(row)
                 sent.append((index, result))
 
-            if not payload_rows:
-                continue
-            response = self._api.ingest_lab_results(
-                patient_id=patient_fhir_id, rows=payload_rows
-            )
-            # The API's rejection indexes are request-relative; map them back
-            # to positions in the caller's input.
-            for server_rejection in response.get("rejected", []):
-                request_index = server_rejection.get("index")
-                if not isinstance(request_index, int) or not (
-                    0 <= request_index < len(sent)
-                ):
-                    logger.warning(
-                        f"API rejection with unmappable index {request_index!r}: "
-                        f"{server_rejection.get('reason')}"
-                    )
-                    continue
-                index, result = sent[request_index]
-                reject(
-                    index,
-                    result,
-                    server_rejection.get("reason", "rejected by the API"),
-                    "server",
+            # Chunked to the API's per-request row cap so one prolific
+            # patient cannot 422 the whole run.
+            for chunk_start in range(0, len(payload_rows), _MAX_ROWS_PER_REQUEST):
+                chunk_rows = payload_rows[
+                    chunk_start : chunk_start + _MAX_ROWS_PER_REQUEST
+                ]
+                chunk_sent = sent[chunk_start : chunk_start + _MAX_ROWS_PER_REQUEST]
+                response = self._api.ingest_lab_results(
+                    patient_id=patient_fhir_id, rows=chunk_rows
                 )
+                # The API's rejection indexes are request-relative; map them
+                # back to positions in the caller's input.
+                for server_rejection in response.get("rejected", []):
+                    request_index = server_rejection.get("index")
+                    if not isinstance(request_index, int) or not (
+                        0 <= request_index < len(chunk_sent)
+                    ):
+                        logger.warning(
+                            f"API rejection with unmappable index "
+                            f"{request_index!r}: {server_rejection.get('reason')}"
+                        )
+                        continue
+                    index, result = chunk_sent[request_index]
+                    reject(
+                        index,
+                        result,
+                        server_rejection.get("reason", "rejected by the API"),
+                        "server",
+                    )
 
-            entries = response.get("bundle", {}).get("entry", [])
-            if not entries:
-                continue
-            # Identifier-based conditional creates make re-runs idempotent;
-            # deliberately NOT deduplicate_observations, whose day-resolution
-            # signature would collapse distinct same-day draws.
-            persist_result = self._fhir.post_bundle(entries)
-            persistence.append((patient_identifier, persist_result))
-            accepted += len(entries)
-            logger.info(
-                f"Patient {patient_identifier}: {len(entries)} lab result(s) "
-                f"posted ({persist_result.created} created, "
-                f"{persist_result.updated} already present)"
-            )
+                entries = response.get("bundle", {}).get("entry", [])
+                if not entries:
+                    continue
+                # Identifier-based conditional creates make re-runs
+                # idempotent; deliberately NOT deduplicate_observations,
+                # whose day-resolution signature would collapse distinct
+                # same-day draws.
+                persist_result = _fail_closed(
+                    f"Bundle POST for patient '{patient_identifier}'",
+                    self._fhir.post_bundle,
+                    entries,
+                )
+                persistence.append((patient_identifier, persist_result))
+                # Count what actually landed: a failed transaction persists
+                # nothing, and reporting its rows as accepted would print a
+                # success headline over a run that wrote nothing.
+                accepted += persist_result.created + persist_result.updated
+                logger.info(
+                    f"Patient {patient_identifier}: {len(entries)} lab "
+                    f"result(s) posted ({persist_result.created} created, "
+                    f"{persist_result.updated} already present, "
+                    f"{len(persist_result.errors)} errors)"
+                )
 
         rejections.sort(key=lambda r: r.index)
         return LabIngestionOutcome(

@@ -3,10 +3,14 @@
 import json
 from urllib.parse import quote
 
-import httpx
 import pytest
 
-from cavell_client import CavellAPIError, LabIngestionPipeline, LabResult
+from cavell_client import (
+    CavellAPIError,
+    FHIRConnectionError,
+    LabIngestionPipeline,
+    LabResult,
+)
 from cavell_client.fhir import (
     ENCOUNTER_IDENTIFIER_SYSTEM,
     IDENTIFIER_SYSTEM,
@@ -91,7 +95,10 @@ def _api_response(lab_result_ids, rejected=()):
                     "request": {
                         "method": "POST",
                         "url": "Observation",
-                        "ifNoneExist": f"identifier=urn:cavell:lab-result|{rid}",
+                        "ifNoneExist": (
+                            f"identifier=urn:cavell:lab-result|{rid}"
+                            "&subject=Patient/pat-1"
+                        ),
                     },
                 }
                 for i, rid in enumerate(lab_result_ids)
@@ -368,12 +375,13 @@ def test_unknown_practitioner_rejects_only_carrying_rows(httpx_mock, client):
 
 
 def test_fhir_error_on_encounter_lookup_aborts(httpx_mock, client):
-    """Infrastructure trouble is not bad data: a lookup error propagates."""
+    """Infrastructure trouble is not bad data: a lookup error aborts the run,
+    wrapped in the library's own exception type per the documented contract."""
     mock_api_preflight(httpx_mock)
     mock_patient_lookup(httpx_mock, "MRN-1", "pat-1")
     mock_encounter_lookup(httpx_mock, "pat-1", "V-1", None, status_code=500)
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(FHIRConnectionError, match="Encounter lookup 'V-1'"):
         LabIngestionPipeline(client).ingest(
             [_result(lab_result_id="LAB-1", encounter_id="V-1")]
         )
@@ -393,6 +401,8 @@ def test_row_validation_rejections(httpx_mock, client):
             _result(lab_result_id="LAB-3", reference_low="high-ish"),
             _result(lab_result_id="LAB-4", status="bogus"),
             _result(lab_result_id="LAB-1", value="9.9"),  # duplicate id
+            _result(lab_result_id="LAB 6"),  # space breaks the query string
+            _result(lab_result_id="LAB-7", reference_high="1,000"),
         ]
     )
 
@@ -402,12 +412,17 @@ def test_row_validation_rejections(httpx_mock, client):
         (2, "validation"),
         (3, "validation"),
         (4, "validation"),
+        (5, "validation"),
+        (6, "validation"),
     ]
     reasons = [r.reason for r in outcome.rejected]
     assert reasons[0] == "value must be non-empty"
     assert reasons[1] == "reference_low is not numeric: 'high-ish'"
     assert "status must be one of" in reasons[2]
     assert reasons[3] == "duplicate lab_result_id (first used by row 0)"
+    assert "lab_result_id may only contain" in reasons[4]
+    # '1,000' is ambiguous (1.0 vs 1000) — rejected, never guessed at.
+    assert reasons[5] == "reference_high is not numeric: '1,000'"
 
 
 def test_server_rejections_mapped_to_original_indices(httpx_mock, client):
@@ -516,3 +531,124 @@ def test_api_ingest_404_names_the_missing_route(httpx_mock, client):
 
     with pytest.raises(CavellAPIError, match="predates structured lab ingestion"):
         client._api.ingest_lab_results(patient_id="pat-1", rows=[{"x": 1}])
+
+
+def test_dataframe_style_rows_normalized():
+    """Numbers and NaN from df.to_dict('records') don't break the contract:
+    a numeric zero is a real result, floats become text, NaN is absent."""
+    zero = LabResult(
+        patient_identifier="MRN-1",
+        test_name="Blasts",
+        value=0.0,
+        collected_datetime="2025-03-18",
+        lab_result_id="LAB-1",
+    )
+    assert zero.value == "0.0"
+    fancy = LabResult(
+        patient_identifier="MRN-1",
+        test_name="Potassium",
+        value=4.2,
+        collected_datetime="2025-03-18",
+        lab_result_id="LAB-2",
+        reference_low=3.5,
+        reference_high=float("nan"),
+    )
+    assert fancy.value == "4.2"
+    assert fancy.reference_high is None
+    nan_value = LabResult(
+        patient_identifier="MRN-1",
+        test_name="eGFR",
+        value=float("nan"),
+        collected_datetime="2025-03-18",
+        lab_result_id="LAB-3",
+    )
+    assert nan_value.value == ""  # rejected later as "value must be non-empty"
+
+
+def test_european_decimal_bounds_coerced():
+    """'3,5' can only be a decimal — coerced; grouping stays a rejection."""
+    r = LabResult(
+        patient_identifier="MRN-1",
+        test_name="K",
+        value="4.2",
+        collected_datetime="2025-03-18",
+        lab_result_id="LAB-1",
+        reference_low="3,5",
+        reference_high="5.0",
+    )
+    assert r.reference_low == 3.5
+    assert r.reference_high == 5.0
+
+
+def test_large_patient_is_chunked(httpx_mock, client, monkeypatch):
+    """A patient over the API's row cap is sent in chunks, with server
+    rejection indexes mapped back through the chunk offset."""
+    from cavell_client import labs
+
+    monkeypatch.setattr(labs, "_MAX_ROWS_PER_REQUEST", 2)
+    mock_api_preflight(httpx_mock)
+    mock_patient_lookup(httpx_mock, "MRN-1", "pat-1")
+    # 5 rows -> chunks of 2/2/1; the third chunk's server rejection (its
+    # request index 0) is input row 4.
+    mock_ingest_endpoint(httpx_mock, _api_response(["LAB-1", "LAB-2"]))
+    mock_ingest_endpoint(httpx_mock, _api_response(["LAB-3", "LAB-4"]))
+    mock_ingest_endpoint(
+        httpx_mock,
+        _api_response(
+            [], rejected=[{"index": 0, "lab_result_id": "LAB-5", "reason": "bad"}]
+        ),
+    )
+    mock_transaction(httpx_mock, ["201 Created", "201 Created"], repeat=True)
+
+    outcome = LabIngestionPipeline(client).ingest(
+        [_result(lab_result_id=f"LAB-{i}") for i in range(1, 6)]
+    )
+
+    ingest_calls = [
+        r
+        for r in httpx_mock.get_requests()
+        if str(r.url).endswith("/ingest/lab-results")
+    ]
+    assert len(ingest_calls) == 3
+    assert outcome.accepted == 4
+    [rejection] = outcome.rejected
+    assert rejection.index == 4  # input-relative, not the chunk's 0
+    assert rejection.stage == "server"
+
+
+def test_failed_transaction_rows_are_not_counted_accepted(httpx_mock, client):
+    """A wholesale transaction failure must not print a success headline."""
+    mock_api_preflight(httpx_mock)
+    mock_patient_lookup(httpx_mock, "MRN-1", "pat-1")
+    mock_ingest_endpoint(httpx_mock, _api_response(["LAB-1", "LAB-2"]))
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{FHIR}/",
+        status_code=500,
+        json={"resourceType": "OperationOutcome"},
+    )
+
+    outcome = LabIngestionPipeline(client).ingest(
+        [_result(lab_result_id="LAB-1"), _result(lab_result_id="LAB-2")]
+    )
+
+    assert outcome.accepted == 0
+    assert not outcome.success
+    [(_, persist)] = outcome.persistence
+    assert persist.status == "failed"
+    assert "0/2 rows accepted" in str(outcome)
+
+
+def test_negative_retry_after_is_floored(httpx_mock, client):
+    """A clock-skewed proxy's 'Retry-After: -1' must not crash time.sleep."""
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{API_URL}/ingest/lab-results",
+        status_code=429,
+        headers={"Retry-After": "-1"},
+        json={"detail": "rate limited"},
+    )
+    mock_ingest_endpoint(httpx_mock, _api_response(["LAB-1"]))
+
+    body = client._api.ingest_lab_results(patient_id="pat-1", rows=[{"x": 1}])
+    assert body["count"] == 1

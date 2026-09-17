@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 _MAX_RETRIES = 3
 
+# Deterministic ingestion answers in seconds even for the largest allowed
+# batch; the client-wide 800s read timeout is sized for LLM extraction and
+# would park a worker for 13 minutes on a hung connection.
+_INGEST_TIMEOUT_SECONDS = 120.0
+
 # A WAF-issued 429 tells us how long to wait (Retry-After: 300); never wait
 # longer than that even if the header says so.
 _RETRY_AFTER_CAP = 300.0
@@ -168,15 +173,24 @@ class CavellAPI:
                 "server exposes /key/info.",
             )
 
-    def _post_with_retry(self, path: str, payload: dict) -> httpx.Response:
+    def _post_with_retry(
+        self, path: str, payload: dict, timeout: float | None = None
+    ) -> httpx.Response:
         """POST with the shared 429 retry contract.
 
-        WAF rate limits send Retry-After (honoured, capped); upstream 429s
-        without one fall back to exponential backoff. Any other status —
-        success or failure — is returned as-is for the caller to interpret.
+        WAF rate limits send Retry-After (honoured, capped, floored at zero —
+        a clock-skewed proxy's negative value must not reach time.sleep);
+        upstream 429s without one fall back to exponential backoff. Any other
+        status — success or failure — is returned as-is for the caller to
+        interpret. ``timeout`` overrides the client-wide read timeout, which
+        is sized for LLM extraction and far too generous for deterministic
+        endpoints.
         """
         client = self._get_client()
-        response = client.post(path, json=payload)
+        kwargs: dict = {"json": payload}
+        if timeout is not None:
+            kwargs["timeout"] = httpx.Timeout(timeout, connect=10.0)
+        response = client.post(path, **kwargs)
         for attempt in range(1, _MAX_RETRIES + 1):
             if response.status_code != 429:
                 break
@@ -184,7 +198,7 @@ class CavellAPI:
             try:
                 # int(), not isdigit(): isdigit() accepts Unicode digits that
                 # float() rejects; HTTP-date values fall back to backoff.
-                wait = min(float(int(retry_after)), _RETRY_AFTER_CAP)
+                wait = max(0.0, min(float(int(retry_after)), _RETRY_AFTER_CAP))
                 source = "Retry-After"
             except ValueError:
                 wait = float(2**attempt)
@@ -194,7 +208,7 @@ class CavellAPI:
                 f"({source}, {attempt}/{_MAX_RETRIES})"
             )
             time.sleep(wait)
-            response = client.post(path, json=payload)
+            response = client.post(path, **kwargs)
         return response
 
     def ingest_lab_results(self, patient_id: str, rows: list[dict]) -> dict:
@@ -219,7 +233,9 @@ class CavellAPI:
                 lab ingestion.
         """
         response = self._post_with_retry(
-            "/ingest/lab-results", {"patient_id": patient_id, "rows": rows}
+            "/ingest/lab-results",
+            {"patient_id": patient_id, "rows": rows},
+            timeout=_INGEST_TIMEOUT_SECONDS,
         )
         if response.status_code == 404:
             raise CavellAPIError(
