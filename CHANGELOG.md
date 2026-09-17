@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Deterministic lab-results ingestion** — `LabResult`, `LabResult.from_rows`,
+  `LabIngestionPipeline`, `LabIngestionOutcome` and `LabRejection`. A CSV of
+  structured lab results becomes FHIR Observations with no LLM involved: the
+  Prism API builds them by plain code (LOINC coding when the row carries a
+  code, UCUM units, reference ranges, H/L/N interpretations, comparator and
+  qualitative values, timestamps kept intact), so ingestion spends no gateway
+  tokens. The pipeline validates every reference **fail-closed** against the
+  FHIR server first — patients, encounters and practitioners must already
+  exist, and rows referencing anything unknown are skipped and reported (with
+  input row number, stage and reason) rather than created for; lookup *errors*
+  abort the run instead. Persistence uses conditional creates on each row's
+  `urn:cavell:lab-result` identifier, so re-running a feed is idempotent and
+  the outcome reports matches as `skipped_existing`. **Requires a Prism
+  deployment exposing `POST /api/ingest/lab-results`** — against an older API
+  the pipeline raises `CavellAPIError` naming the missing route.
+- `CavellAPI.ingest_lab_results()` — the raw endpoint call, with the same
+  429-retry contract as `extract_raw`.
+- `FHIRClient.find_encounter_strict()` — the raising core of `find_encounter`:
+  not-found returns `None`, lookup errors raise. `find_encounter` keeps its
+  fail-open behaviour, unchanged.
+- Demo notebook `docs/notebooks/lab_results_ingestion_demo.ipynb` and dataset
+  `docs/notebooks/lab_results.csv` (251 synthetic rows layered onto the
+  hospitalization cohort — run the hospitalization demo first).
+
 ## [0.8.0] - 2026-09-15
 
 ### Changed
