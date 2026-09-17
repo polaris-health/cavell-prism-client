@@ -168,6 +168,70 @@ class CavellAPI:
                 "server exposes /key/info.",
             )
 
+    def _post_with_retry(self, path: str, payload: dict) -> httpx.Response:
+        """POST with the shared 429 retry contract.
+
+        WAF rate limits send Retry-After (honoured, capped); upstream 429s
+        without one fall back to exponential backoff. Any other status —
+        success or failure — is returned as-is for the caller to interpret.
+        """
+        client = self._get_client()
+        response = client.post(path, json=payload)
+        for attempt in range(1, _MAX_RETRIES + 1):
+            if response.status_code != 429:
+                break
+            retry_after = response.headers.get("Retry-After", "")
+            try:
+                # int(), not isdigit(): isdigit() accepts Unicode digits that
+                # float() rejects; HTTP-date values fall back to backoff.
+                wait = min(float(int(retry_after)), _RETRY_AFTER_CAP)
+                source = "Retry-After"
+            except ValueError:
+                wait = float(2**attempt)
+                source = "backoff"
+            logger.warning(
+                f"Rate limited, retrying in {wait:.0f}s "
+                f"({source}, {attempt}/{_MAX_RETRIES})"
+            )
+            time.sleep(wait)
+            response = client.post(path, json=payload)
+        return response
+
+    def ingest_lab_results(self, patient_id: str, rows: list[dict]) -> dict:
+        """Build FHIR Observations from structured lab results (no LLM).
+
+        POSTs ``/ingest/lab-results`` for one patient. The endpoint is
+        deterministic and spends no gateway tokens; the caller is expected to
+        have resolved and verified every FHIR id in ``rows`` beforehand
+        (:class:`~cavell_client.labs.LabIngestionPipeline` does exactly that).
+        Same retry and error contract as :meth:`extract_raw`.
+
+        Args:
+            patient_id: FHIR Patient.id all Observations will reference.
+            rows: Row dicts matching the API's LabResultRow schema.
+
+        Returns:
+            The decoded JSON response body: ``{bundle, count, rejected}``.
+
+        Raises:
+            CavellAPIError: If the API returns an error. A 404 gets a pointed
+                message — it means the Prism deployment predates structured
+                lab ingestion.
+        """
+        response = self._post_with_retry(
+            "/ingest/lab-results", {"patient_id": patient_id, "rows": rows}
+        )
+        if response.status_code == 404:
+            raise CavellAPIError(
+                404,
+                f"POST {self.base_url}/ingest/lab-results returned 404 — this "
+                "Prism deployment predates structured lab ingestion. Deploy a "
+                "Prism version that exposes /ingest/lab-results or pin "
+                "cavell-prism-client < 0.9.0.",
+            )
+        self._raise_for_error(response)
+        return response.json()
+
     def extract_raw(
         self,
         text: str,
@@ -212,8 +276,6 @@ class CavellAPI:
         Raises:
             CavellAPIError: If the API returns an error
         """
-        client = self._get_client()
-
         payload: dict = {"text": text}
         if context:
             payload["context"] = context
@@ -240,26 +302,7 @@ class CavellAPI:
         if out_of_order:
             payload["out_of_order"] = out_of_order
 
-        response = client.post("/extract/text", json=payload)
-        for attempt in range(1, _MAX_RETRIES + 1):
-            if response.status_code != 429:
-                break
-            # WAF rate limits send Retry-After; upstream LLM 429s do not.
-            retry_after = response.headers.get("Retry-After", "")
-            try:
-                # int(), not isdigit(): isdigit() accepts Unicode digits that
-                # float() rejects; HTTP-date values fall back to backoff.
-                wait = min(float(int(retry_after)), _RETRY_AFTER_CAP)
-                source = "Retry-After"
-            except ValueError:
-                wait = float(2**attempt)
-                source = "backoff"
-            logger.warning(
-                f"Rate limited, retrying in {wait:.0f}s "
-                f"({source}, {attempt}/{_MAX_RETRIES})"
-            )
-            time.sleep(wait)
-            response = client.post("/extract/text", json=payload)
+        response = self._post_with_retry("/extract/text", payload)
         self._raise_for_error(response)
 
         return response.json()

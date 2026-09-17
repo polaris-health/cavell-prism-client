@@ -2308,6 +2308,23 @@ class TestFindEncounter:
 
         assert "Failed to look up Encounter 'V-2024-1'" in caplog.text
 
+    def test_strict_variant_raises_on_error(self, fhir, httpx_mock):
+        """The lab pipeline must tell "does not exist" from "lookup failed"."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(
+            method="GET", url=self.URL, status_code=500, text="boom"
+        )
+
+        with pytest.raises(httpx.HTTPStatusError):
+            fhir.find_encounter_strict("pat-1", "V-2024-1")
+
+    def test_strict_variant_none_when_absent(self, fhir, httpx_mock):
+        """Not-found is a clean None — only errors raise."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(method="GET", url=self.URL, json={"entry": []})
+
+        assert fhir.find_encounter_strict("pat-1", "V-2024-1") is None
+
 
 class TestSearchPatientResourcesPagination:
     """Test that search_patient_resources follows pagination links."""

@@ -9,6 +9,12 @@ from cavell_client.ingestion import (
     Patient,
     Practitioner,
 )
+from cavell_client.labs import (
+    LabIngestionOutcome,
+    LabIngestionPipeline,
+    LabRejection,
+    LabResult,
+)
 from cavell_client.models import (
     CavellAPIError,
     CavellAuthError,
@@ -35,6 +41,10 @@ __all__ = [
     "FHIRConnectionError",
     "IngestionOutcome",
     "IngestionPipeline",
+    "LabIngestionOutcome",
+    "LabIngestionPipeline",
+    "LabRejection",
+    "LabResult",
     "Organization",
     "OutOfOrderDocument",
     "OutOfOrderDocumentError",
