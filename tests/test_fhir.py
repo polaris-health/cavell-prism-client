@@ -2308,6 +2308,71 @@ class TestFindEncounter:
 
         assert "Failed to look up Encounter 'V-2024-1'" in caplog.text
 
+    def test_strict_variant_raises_on_error(self, fhir, httpx_mock):
+        """The lab pipeline must tell "does not exist" from "lookup failed"."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(
+            method="GET", url=self.URL, status_code=500, text="boom"
+        )
+
+        with pytest.raises(httpx.HTTPStatusError):
+            fhir.find_encounter_strict("pat-1", "V-2024-1")
+
+    def test_strict_variant_none_when_absent(self, fhir, httpx_mock):
+        """Not-found is a clean None — only errors raise."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(method="GET", url=self.URL, json={"entry": []})
+
+        assert fhir.find_encounter_strict("pat-1", "V-2024-1") is None
+
+
+class TestFindPractitionerByIdentifier:
+    """The identifier lookup the lab pipeline resolves performers with."""
+
+    URL = (
+        "http://localhost:8080/fhir/Practitioner"
+        f"?identifier={quote(PRACTITIONER_IDENTIFIER_SYSTEM, safe='')}%7CDOC-1"
+    )
+
+    @staticmethod
+    def _auth(httpx_mock):
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+
+    def test_none_when_absent(self, fhir, httpx_mock):
+        """Not-found is a clean None — only errors raise (fail-closed)."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(method="GET", url=self.URL, json={"entry": []})
+
+        assert fhir.find_practitioner_by_identifier("DOC-1") is None
+
+    def test_duplicates_pick_smallest_id_deterministically(
+        self, fhir, httpx_mock, caplog
+    ):
+        """Two resources with one identifier must not flip attribution
+        between runs on server ordering — smallest id wins, warned."""
+        self._auth(httpx_mock)
+        httpx_mock.add_response(
+            method="GET",
+            url=self.URL,
+            json={
+                "entry": [
+                    {"resource": {"resourceType": "Practitioner", "id": "57"}},
+                    {"resource": {"resourceType": "Practitioner", "id": "41"}},
+                ]
+            },
+        )
+
+        with caplog.at_level(logging.WARNING):
+            found = fhir.find_practitioner_by_identifier("DOC-1")
+
+        assert found is not None
+        assert found["id"] == "41"
+        assert "2 Practitioners carry identifier 'DOC-1'" in caplog.text
+
 
 class TestSearchPatientResourcesPagination:
     """Test that search_patient_resources follows pagination links."""
