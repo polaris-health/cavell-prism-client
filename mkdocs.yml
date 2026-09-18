@@ -40,9 +40,14 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Client: extract.md
-  - Pipeline: ingestion.md
-  - Demo: notebooks/extraction_demo.ipynb
-  - Hospitalization Demo: notebooks/hospitalization_extraction_demo.ipynb
-  - Lab Results Demo: notebooks/lab_results_ingestion_demo.ipynb
-  - Demo Data: notebooks/README.md
+  - Guides:
+      - Clinical notes pipeline: ingestion.md
+      - Lab results pipeline: labs.md
+  - Reference:
+      - CSV field reference: csv-reference.md
+      - Client API: extract.md
+  - Demos:
+      - Notes extraction: notebooks/extraction_demo.ipynb
+      - Hospital stays: notebooks/hospitalization_extraction_demo.ipynb
+      - Lab results: notebooks/lab_results_ingestion_demo.ipynb
+      - Demo datasets: notebooks/README.md
