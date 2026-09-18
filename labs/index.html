@@ -1,0 +1,1602 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python client for Cavell FHIR extraction API">
+      
+      
+      
+        <link rel="canonical" href="https://polaris-health.github.io/cavell-prism-client/labs/">
+      
+      
+        <link rel="prev" href="../ingestion/">
+      
+      
+        <link rel="next" href="../csv-reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Lab results pipeline - Cavell Prism Client</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Lab results pipeline - Cavell Prism Client" />
+<meta property="og:description" content="Python client for Cavell FHIR extraction API" />
+<meta property="og:image" content="https://polaris-health.github.io/cavell-prism-client/assets/images/social/labs.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://polaris-health.github.io/cavell-prism-client/labs/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Lab results pipeline - Cavell Prism Client" />
+<meta property="twitter:description" content="Python client for Cavell FHIR extraction API" />
+<meta property="twitter:image" content="https://polaris-health.github.io/cavell-prism-client/assets/images/social/labs.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#lab-results-pipeline" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cavell Prism Client" class="md-header__button md-logo" aria-label="Cavell Prism Client" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cavell Prism Client
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Lab results pipeline
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/polaris-health/cavell-prism-client" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    polaris-health/cavell-prism-client
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cavell Prism Client" class="md-nav__button md-logo" aria-label="Cavell Prism Client" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cavell Prism Client
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/polaris-health/cavell-prism-client" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    polaris-health/cavell-prism-client
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clinical notes pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab results pipeline
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab results pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ingesting-a-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingesting a CSV
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-results-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building results by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-must-already-exist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What must already exist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-resolution-is-fail-closed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference resolution is fail-closed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rejections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rejections
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#re-running-a-feed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-running a feed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#return-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Return types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Return types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#labresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LabResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#labrejection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LabRejection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#labingestionoutcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LabIngestionOutcome
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-differs-from-the-notes-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it differs from the notes pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeouts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#try-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try it
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../csv-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV field reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/extraction_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notes extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/hospitalization_extraction_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hospital stays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/lab_results_ingestion_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ingesting-a-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingesting a CSV
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-results-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building results by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-must-already-exist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What must already exist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-resolution-is-fail-closed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference resolution is fail-closed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rejections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rejections
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#re-running-a-feed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-running a feed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#return-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Return types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Return types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#labresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LabResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#labrejection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LabRejection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#labingestionoutcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LabIngestionOutcome
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-differs-from-the-notes-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it differs from the notes pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeouts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#try-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try it
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="lab-results-pipeline">Lab Results Pipeline</h1>
+<h2 id="overview">Overview</h2>
+<p>Structured lab results — a CSV from your LIS, a query result, a dataframe —
+become FHIR Observations <strong>without an LLM</strong>. Value, unit, reference range,
+collection time, patient and encounter are already machine-readable; sending
+them through a language model would only add cost and a chance of being wrong.</p>
+<p>What that buys you:</p>
+<ul>
+<li><strong>No token cost.</strong> The endpoint spends nothing on the gateway.</li>
+<li><strong>Deterministic.</strong> The same file always produces the same resources.</li>
+<li><strong>Idempotent.</strong> Every row is a conditional create keyed on your own result
+  id, so re-running a feed after a partial run creates nothing twice.</li>
+<li><strong>Skip-and-report.</strong> A bad row is skipped with a reason; the rest still land.</li>
+</ul>
+<p>The pipeline never invents references. Patients, encounters and practitioners
+must already exist on your FHIR server — seeded by you, or created by
+<a href="../ingestion/">document extraction</a>. Rows pointing at anything unknown are
+rejected rather than created for.</p>
+<h2 id="data-flow">Data Flow</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>1. Validate every row&#39;s content, once over the whole input      (no network)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>2. Then, for each patient (sorted, deterministic):
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>     a. Resolve patient / encounter / practitioner against FHIR  (fail-closed)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>     b. Send surviving rows → Prism /ingest/lab-results → Observation bundle
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>     c. Persist the bundle → your FHIR server
+</code></pre></div>
+<h2 id="ingesting-a-csv">Ingesting a CSV</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cavell_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">CavellClient</span><span class="p">,</span> <span class="n">LabResult</span><span class="p">,</span> <span class="n">LabIngestionPipeline</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;lab_results.csv&quot;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8-sig&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">rows</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">with</span> <span class="n">CavellClient</span><span class="p">(</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">api_url</span><span class="o">=</span><span class="s2">&quot;https://prd.prism.cavell.app/api&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;your-llm-gateway-key&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">fhir_base_url</span><span class="o">=</span><span class="s2">&quot;http://localhost:8090&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">results</span> <span class="o">=</span> <span class="n">LabResult</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="n">rows</span><span class="p">,</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>        <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>            <span class="s2">&quot;lab_result_id&quot;</span><span class="p">:</span> <span class="s2">&quot;lab_result_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>            <span class="s2">&quot;patient_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>            <span class="s2">&quot;test_name&quot;</span><span class="p">:</span> <span class="s2">&quot;test_name&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>            <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;value&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>            <span class="s2">&quot;collected_datetime&quot;</span><span class="p">:</span> <span class="s2">&quot;collected_datetime&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>            <span class="s2">&quot;loinc_code&quot;</span><span class="p">:</span> <span class="s2">&quot;loinc_code&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>            <span class="s2">&quot;unit&quot;</span><span class="p">:</span> <span class="s2">&quot;unit&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>            <span class="s2">&quot;reference_low&quot;</span><span class="p">:</span> <span class="s2">&quot;reference_low&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>            <span class="s2">&quot;reference_high&quot;</span><span class="p">:</span> <span class="s2">&quot;reference_high&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>            <span class="s2">&quot;encounter_id&quot;</span><span class="p">:</span> <span class="s2">&quot;encounter_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>            <span class="s2">&quot;practitioner_id&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>        <span class="p">},</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>    <span class="p">)</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>    <span class="n">outcome</span> <span class="o">=</span> <span class="n">LabIngestionPipeline</span><span class="p">(</span><span class="n">client</span><span class="p">)</span><span class="o">.</span><span class="n">ingest</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">outcome</span><span class="p">)</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>    <span class="c1"># 244/251 rows accepted (244 created, 0 already present), 7 rejected</span>
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">outcome</span><span class="o">.</span><span class="n">rejected</span><span class="p">:</span>
+<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;row </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">index</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">lab_result_id</span><span class="si">}</span><span class="s2">  [</span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">stage</span><span class="si">}</span><span class="s2">]  </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Only the first five mappings are required. Drop any of the rest your export
+does not have — see the <a href="../csv-reference/#lab-columns">CSV field reference</a> for
+what each column contributes.</p>
+<p>There is no <code>seed()</code> step and no batching decision to make: rows are grouped by
+patient, and a patient with more rows than the API's per-request cap (5,000) is
+chunked automatically.</p>
+<h2 id="building-results-by-hand">Building results by hand</h2>
+<p>The same object, constructed directly — for a queue consumer, a webhook, or a
+handful of results:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cavell_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">LabResult</span><span class="p">,</span> <span class="n">LabIngestionPipeline</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">results</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">LabResult</span><span class="p">(</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="n">lab_result_id</span><span class="o">=</span><span class="s2">&quot;LAB-0001&quot;</span><span class="p">,</span>  <span class="c1"># your LIS accession — the idempotency key</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="n">patient_identifier</span><span class="o">=</span><span class="s2">&quot;MRN-20001&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;C-reactive protein&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="n">value</span><span class="o">=</span><span class="s2">&quot;212&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;mg/L&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">loinc_code</span><span class="o">=</span><span class="s2">&quot;1988-5&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="n">reference_high</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="n">collected_datetime</span><span class="o">=</span><span class="s2">&quot;2024-03-14T21:40:00+01:00&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="n">encounter_id</span><span class="o">=</span><span class="s2">&quot;V-001&quot;</span><span class="p">,</span>  <span class="c1"># optional — must resolve if given</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="n">practitioner_id</span><span class="o">=</span><span class="s2">&quot;DOC-201&quot;</span><span class="p">,</span>  <span class="c1"># optional — must resolve if given</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="p">),</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">LabResult</span><span class="p">(</span>  <span class="c1"># a qualitative result, no encounter</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>        <span class="n">lab_result_id</span><span class="o">=</span><span class="s2">&quot;LAB-0002&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>        <span class="n">patient_identifier</span><span class="o">=</span><span class="s2">&quot;MRN-20001&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>        <span class="n">test_name</span><span class="o">=</span><span class="s2">&quot;Blood culture&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>        <span class="n">value</span><span class="o">=</span><span class="s2">&quot;No growth after 5 days&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>        <span class="n">collected_datetime</span><span class="o">=</span><span class="s2">&quot;2024-03-19&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    <span class="p">),</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="p">]</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="n">outcome</span> <span class="o">=</span> <span class="n">LabIngestionPipeline</span><span class="p">(</span><span class="n">client</span><span class="p">)</span><span class="o">.</span><span class="n">ingest</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+</code></pre></div>
+<p>Construction never raises on content. A blank value or a malformed datetime
+becomes a rejection from <code>ingest()</code>, not an exception — one bad record cannot
+sink the batch.</p>
+<h2 id="what-must-already-exist">What must already exist</h2>
+<table>
+<thead>
+<tr>
+<th>Referenced by</th>
+<th>Identifier system</th>
+<th>Created by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>patient_identifier</code></td>
+<td><code>urn:cavell:patient</code></td>
+<td><code>IngestionPipeline.seed()</code></td>
+</tr>
+<tr>
+<td><code>encounter_id</code></td>
+<td><code>urn:cavell:encounter</code></td>
+<td>Document extraction with <code>Document.encounter_id</code>, or your own writes</td>
+</tr>
+<tr>
+<td><code>practitioner_id</code></td>
+<td><code>urn:cavell:practitioner</code></td>
+<td><code>IngestionPipeline.seed()</code></td>
+</tr>
+</tbody>
+</table>
+<p>Only the patient is mandatory. A row without <code>encounter_id</code> produces an
+Observation with no encounter reference — which is what an outpatient or GP
+draw should look like. A row without <code>practitioner_id</code> has no performer.</p>
+<h2 id="reference-resolution-is-fail-closed">Reference resolution is fail-closed</h2>
+<p>Every lookup that returns <em>nothing</em> rejects rows:</p>
+<ul>
+<li>Unknown patient → <strong>all</strong> of that patient's rows are rejected</li>
+<li><code>encounter_id</code> given but unresolvable for that patient → only the rows
+  carrying it</li>
+<li><code>practitioner_id</code> given but unresolvable → only the rows carrying it</li>
+</ul>
+<p>Every lookup that <em>fails</em> — a 500, a dropped connection — aborts the run with
+<code>FHIRConnectionError</code>. Infrastructure trouble is not bad data, and quietly
+turning an outage into 3,000 rejected rows would be the wrong report. Aborts
+are safe to retry: persistence is idempotent, so re-ingest the same file once
+the server is back and what already landed returns as <code>skipped_existing</code>.</p>
+<p>Lookups are cached within a run — once per distinct encounter per patient, once
+per distinct practitioner globally.</p>
+<h2 id="rejections">Rejections</h2>
+<p>Rejected rows are reported, never guessed at. Each rejection carries the
+<strong>0-based position in the list you passed</strong>, the result id, the patient, a
+reason, and the stage that caught it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">outcome</span><span class="o">.</span><span class="n">rejected</span><span class="p">:</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">rid</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">lab_result_id</span> <span class="ow">or</span> <span class="s2">&quot;(no id)&quot;</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;row </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">index</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">rid</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">stage</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># row  244  LAB-0245     [reference] unknown patient &#39;MRN-99999&#39;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># row  246  LAB-0247     [reference] unknown encounter &#39;V-999&#39; for patient &#39;MRN-20001&#39;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># row  249  LAB-0250     [validation] value must be non-empty</span>
+</code></pre></div>
+<p><code>stage</code> is <code>"validation"</code> (content, before any network), <code>"reference"</code> (a FHIR
+lookup found nothing) or <code>"server"</code> (the API's own row checks). Rejections from
+all three arrive in one list sorted by input position, so the report maps
+straight back onto your source file.</p>
+<p>The complete rule set — every condition that rejects a row, and the ones that
+deliberately never do — is in
+<a href="../csv-reference/#when-a-lab-row-is-rejected">When a lab row is rejected</a>.</p>
+<h2 id="re-running-a-feed">Re-running a feed</h2>
+<p>Ingestion is idempotent by construction. The Observation carries your
+<code>lab_result_id</code> as a <code>urn:cavell:lab-result</code> identifier, and each bundle entry
+is a conditional create matched on that identifier scoped to the patient:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">outcome</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">ingest</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>  <span class="c1"># 244 created</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">outcome</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">ingest</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>  <span class="c1"># again</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">outcome</span><span class="o">.</span><span class="n">created</span><span class="p">,</span> <span class="n">outcome</span><span class="o">.</span><span class="n">skipped_existing</span><span class="p">)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># 0 244</span>
+</code></pre></div>
+<p>So a run interrupted halfway can simply be repeated, and a daily feed that
+overlaps yesterday's costs nothing extra.</p>
+<div class="admonition note">
+<p class="admonition-title">Ingestion only creates — it never updates</p>
+<p>Re-sending an existing <code>lab_result_id</code> with a corrected value leaves the
+stored Observation untouched. An amended result needs a <strong>new id</strong>
+(<code>LAB-0001.A</code>, or your LIS's amendment accession) so it lands as its own
+Observation, ideally with <code>status="amended"</code>.</p>
+</div>
+<p>Unlike LLM-extracted resources, lab Observations carry <strong>no <code>unvalidated</code>
+meta tag</strong>: a structured feed is already a source of truth, so there is nothing
+for a clinician to review.</p>
+<h2 id="return-types">Return types</h2>
+<h3 id="labresult">LabResult</h3>
+<p>See the <a href="../csv-reference/#lab-columns">CSV field reference</a> for the full field
+table. Construction normalizes only — strings are stripped, blank optionals
+become <code>None</code>, numeric-looking bounds are coerced to float (European decimal
+commas included).</p>
+<h3 id="labrejection">LabRejection</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index</code></td>
+<td><code>int</code></td>
+<td>0-based position in the list passed to <code>ingest()</code> — input-relative, even for rejections the API reported against its own request</td>
+</tr>
+<tr>
+<td><code>lab_result_id</code></td>
+<td><code>str</code> or <code>None</code></td>
+<td>The row's id, when it had one</td>
+</tr>
+<tr>
+<td><code>patient_identifier</code></td>
+<td><code>str</code> or <code>None</code></td>
+<td>The row's patient</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>str</code></td>
+<td>Why it was skipped</td>
+</tr>
+<tr>
+<td><code>stage</code></td>
+<td><code>"validation"</code>, <code>"reference"</code> or <code>"server"</code></td>
+<td>Which check caught it</td>
+</tr>
+</tbody>
+</table>
+<h3 id="labingestionoutcome">LabIngestionOutcome</h3>
+<table>
+<thead>
+<tr>
+<th>Field / property</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>total</code></td>
+<td><code>int</code></td>
+<td>Rows passed in</td>
+</tr>
+<tr>
+<td><code>accepted</code></td>
+<td><code>int</code></td>
+<td>Rows that actually landed in FHIR (created + already present)</td>
+</tr>
+<tr>
+<td><code>rejected</code></td>
+<td><code>list[LabRejection]</code></td>
+<td>Skipped rows, sorted by input position</td>
+</tr>
+<tr>
+<td><code>persistence</code></td>
+<td><code>list[tuple[str, PersistResult]]</code></td>
+<td>One entry per posted bundle, in processing order</td>
+</tr>
+<tr>
+<td><code>created</code></td>
+<td><code>int</code></td>
+<td>Newly created Observations (201s)</td>
+</tr>
+<tr>
+<td><code>skipped_existing</code></td>
+<td><code>int</code></td>
+<td>Already present (200s — the conditional create matched)</td>
+</tr>
+<tr>
+<td><code>success</code></td>
+<td><code>bool</code></td>
+<td>Every posted bundle persisted cleanly. Rejected rows do <strong>not</strong> make a run unsuccessful — check <code>rejected</code> for those</td>
+</tr>
+</tbody>
+</table>
+<p>A row lost to a failed FHIR transaction is neither accepted nor rejected: it
+appears in that bundle's <code>PersistResult.errors</code> and flips <code>success</code>.</p>
+<h2 id="error-handling">Error handling</h2>
+<table>
+<thead>
+<tr>
+<th>Raises</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TypeError</code></td>
+<td>The list contains something that is not a <code>LabResult</code> — the classic mistake of passing raw CSV rows. Raised upfront, naming the offending positions, before any request</td>
+</tr>
+<tr>
+<td><code>FHIRConnectionError</code></td>
+<td>A reference lookup or a bundle POST failed at the transport level</td>
+</tr>
+<tr>
+<td><code>CavellAuthError</code></td>
+<td>The gateway rejected your key</td>
+</tr>
+<tr>
+<td><code>CavellGatewayUnavailableError</code></td>
+<td>The gateway is down</td>
+</tr>
+<tr>
+<td><code>CavellAPIError</code></td>
+<td>The API rejected a request. A <strong>404</strong> means the Prism deployment predates structured lab ingestion and needs upgrading</td>
+</tr>
+</tbody>
+</table>
+<p>Everything else is a rejection, not an exception.</p>
+<h2 id="how-it-differs-from-the-notes-pipeline">How it differs from the notes pipeline</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><a href="../ingestion/">Clinical notes</a></th>
+<th>Lab results</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cost</td>
+<td>LLM tokens per document</td>
+<td>None</td>
+</tr>
+<tr>
+<td>Seeding</td>
+<td><code>pipeline.seed()</code> creates orgs, practitioners, patients</td>
+<td>Nothing is created — all references must exist</td>
+</tr>
+<tr>
+<td>Ordering</td>
+<td>Chronological per patient; out-of-order notes get split context</td>
+<td>Order is irrelevant; rows are independent facts</td>
+</tr>
+<tr>
+<td>Bad input</td>
+<td><code>Document.from_rows()</code> raises on blank required fields</td>
+<td>Rows are skipped and reported</td>
+</tr>
+<tr>
+<td>Re-runs</td>
+<td><code>skip_processed</code> filters on <code>document_id</code></td>
+<td>Conditional creates on <code>lab_result_id</code></td>
+</tr>
+<tr>
+<td>Updates</td>
+<td>Resources are updated in place as the record evolves</td>
+<td>Create-only; an amended result needs a new id</td>
+</tr>
+<tr>
+<td>Validation tag</td>
+<td>Resources carry <code>unvalidated</code> until reviewed</td>
+<td>Never tagged <code>unvalidated</code> — the feed is a source of truth</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td><code>max_concurrency</code> workers</td>
+<td>Sequential; there is no latency to hide</td>
+</tr>
+</tbody>
+</table>
+<h2 id="timeouts">Timeouts</h2>
+<table>
+<thead>
+<tr>
+<th>Client</th>
+<th>Default</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cavell API</td>
+<td>120s</td>
+<td>Per ingest request (up to 5,000 rows), plus 10s to connect; no LLM latency to absorb</td>
+</tr>
+<tr>
+<td>FHIR server</td>
+<td>30s</td>
+<td>Per-request timeout for lookups and bundle POSTs</td>
+</tr>
+</tbody>
+</table>
+<p>A 429 is retried up to three times: the server's <code>Retry-After</code> is honoured when
+it sends one (capped at 300s), and exponential backoff is used when it does not.</p>
+<h2 id="try-it">Try it</h2>
+<p><code>docs/notebooks/lab_results_ingestion_demo.ipynb</code> runs this end to end against
+251 synthetic rows — fail-closed reference checks, a merged rejection report,
+and an idempotent re-run. Run the
+<a href="../notebooks/hospitalization_extraction_demo/">hospitalization demo</a> first:
+the labs attach to its patients, practitioners and admissions.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.instant", "navigation.sections"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

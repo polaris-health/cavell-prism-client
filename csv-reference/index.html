@@ -1,0 +1,1992 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python client for Cavell FHIR extraction API">
+      
+      
+      
+        <link rel="canonical" href="https://polaris-health.github.io/cavell-prism-client/csv-reference/">
+      
+      
+        <link rel="prev" href="../labs/">
+      
+      
+        <link rel="next" href="../extract/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>CSV field reference - Cavell Prism Client</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="CSV field reference - Cavell Prism Client" />
+<meta property="og:description" content="Python client for Cavell FHIR extraction API" />
+<meta property="og:image" content="https://polaris-health.github.io/cavell-prism-client/assets/images/social/csv-reference.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://polaris-health.github.io/cavell-prism-client/csv-reference/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="CSV field reference - Cavell Prism Client" />
+<meta property="twitter:description" content="Python client for Cavell FHIR extraction API" />
+<meta property="twitter:image" content="https://polaris-health.github.io/cavell-prism-client/assets/images/social/csv-reference.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#csv-field-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cavell Prism Client" class="md-header__button md-logo" aria-label="Cavell Prism Client" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cavell Prism Client
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CSV field reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/polaris-health/cavell-prism-client" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    polaris-health/cavell-prism-client
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cavell Prism Client" class="md-nav__button md-logo" aria-label="Cavell Prism Client" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cavell Prism Client
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/polaris-health/cavell-prism-client" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    polaris-health/cavell-prism-client
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clinical notes pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../labs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab results pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV field reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV field reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-csv-becomes-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a CSV becomes objects
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clinical-notes-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clinical notes CSV
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Clinical notes CSV">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-smallest-file-that-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The smallest file that works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#document-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Document columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#patient-practitioner-and-organization-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patient, Practitioner and Organization columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-matters-and-the-sdk-handles-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order matters, and the SDK handles it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lab-results-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lab results CSV
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lab results CSV">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-smallest-file-that-works_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The smallest file that works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lab-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lab columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-row-becomes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the row becomes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-numeric-comparator-qualitative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Values: numeric, comparator, qualitative
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#units-and-ucum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Units and UCUM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference-ranges-and-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference ranges and interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datetimes-and-timezones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Datetimes and timezones
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identity-and-re-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity and re-runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-a-lab-row-is-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a lab row is rejected
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When a lab row is rejected">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stage-validation-content-checks-before-any-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage validation — content checks, before any network
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-reference-fail-closed-lookups-against-your-fhir-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage reference — fail-closed lookups against your FHIR server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-server-the-apis-own-row-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage server — the API's own row checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#never-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Never rejected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the report
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-go-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to go next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/extraction_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notes extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/hospitalization_extraction_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hospital stays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/lab_results_ingestion_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-csv-becomes-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a CSV becomes objects
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clinical-notes-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clinical notes CSV
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Clinical notes CSV">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-smallest-file-that-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The smallest file that works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#document-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Document columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#patient-practitioner-and-organization-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patient, Practitioner and Organization columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-matters-and-the-sdk-handles-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order matters, and the SDK handles it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lab-results-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lab results CSV
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lab results CSV">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-smallest-file-that-works_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The smallest file that works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lab-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lab columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-row-becomes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the row becomes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-numeric-comparator-qualitative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Values: numeric, comparator, qualitative
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#units-and-ucum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Units and UCUM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference-ranges-and-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference ranges and interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datetimes-and-timezones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Datetimes and timezones
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identity-and-re-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity and re-runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-a-lab-row-is-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a lab row is rejected
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When a lab row is rejected">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stage-validation-content-checks-before-any-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage validation — content checks, before any network
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-reference-fail-closed-lookups-against-your-fhir-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage reference — fail-closed lookups against your FHIR server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-server-the-apis-own-row-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage server — the API's own row checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#never-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Never rejected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the report
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-go-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to go next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="csv-field-reference">CSV Field Reference</h1>
+<p>Both pipelines start from a table: a CSV of clinical notes, or a CSV of lab
+results. This page is the reference for what each column means, what it
+produces in FHIR, and which rules decide whether a row is accepted.</p>
+<p>You do not have to rename anything in your export. You map your column headers
+to SDK field names once, and the mapping is validated before a single object is
+built.</p>
+<h2 id="how-a-csv-becomes-objects">How a CSV becomes objects</h2>
+<p><code>Patient</code>, <code>Practitioner</code>, <code>Document</code> and <code>LabResult</code> each have a
+<code>from_rows()</code> classmethod with the same shape (an <code>Organization</code> is a two-field
+literal you pass directly):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">Document</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">},</span> <span class="o">**</span><span class="n">defaults</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rows</code></td>
+<td>A list of dicts — <code>csv.DictReader</code>, <code>df.to_dict("records")</code>, or parsed JSON</td>
+</tr>
+<tr>
+<td><code>columns</code></td>
+<td>Maps <strong>SDK field name → your column header</strong>. The left side is fixed by the SDK; the right side is whatever your export calls it</td>
+</tr>
+<tr>
+<td><code>**defaults</code></td>
+<td>Literal values applied to every row — for constants your file does not carry (<code>organization_identifier="CGH-001"</code>, <code>status="preliminary"</code>)</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">documents</span> <span class="o">=</span> <span class="n">Document</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">rows</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;note_text&quot;</span><span class="p">,</span>  <span class="c1"># SDK field  ←  your header</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="s2">&quot;patient_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;mrn&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="s2">&quot;date&quot;</span><span class="p">:</span> <span class="s2">&quot;service_date&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        <span class="s2">&quot;document_id&quot;</span><span class="p">:</span> <span class="s2">&quot;note_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="p">},</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span>  <span class="c1"># same value on every document</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">)</span>
+</code></pre></div>
+<p>Set a column to <code>None</code> to disable an optional field your export does not have:
+<code>columns={..., "encounter_id": None}</code>. <code>Document</code> and <code>LabResult</code> raise rather than let you disable a
+required field that way.</p>
+<p>Everything is validated upfront — unknown SDK field names, headers that are not
+in the data, and missing required keys all raise <code>ValueError</code> before any object
+is built, so a typo costs you nothing but the error message.</p>
+<hr />
+<h2 id="clinical-notes-csv">Clinical notes CSV</h2>
+<p>One row per note. The same file usually feeds three object types: patients and
+practitioners are deduplicated by identifier (first occurrence wins), documents
+are one per row.</p>
+<h3 id="the-smallest-file-that-works">The smallest file that works</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>note_id,patient_id,note_date,note_text
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>note-0001,MRN-12345,2024-01-15,&quot;Patient presents with a persistent cough...&quot;
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>note-0002,MRN-12345,2024-04-15,&quot;Follow-up: symptoms resolved on amoxicillin...&quot;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">patients</span> <span class="o">=</span> <span class="n">Patient</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">},</span> <span class="n">managing_organization</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">)</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">documents</span> <span class="o">=</span> <span class="n">Document</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">rows</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>        <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;note_text&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="s2">&quot;patient_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="s2">&quot;date&quot;</span><span class="p">:</span> <span class="s2">&quot;note_date&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="s2">&quot;document_id&quot;</span><span class="p">:</span> <span class="s2">&quot;note_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="p">},</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="p">)</span>
+</code></pre></div>
+<p>Everything else is optional and makes the extraction better.</p>
+<h3 id="document-columns">Document columns</h3>
+<p>The <code>Document</code> is the unit of extraction — one note in, FHIR resources out.</p>
+<table>
+<thead>
+<tr>
+<th>SDK field</th>
+<th>Required</th>
+<th>Format</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text</code></td>
+<td>Yes</td>
+<td>Free text</td>
+<td>The clinical narrative the model reads. Warns below 20 characters</td>
+</tr>
+<tr>
+<td><code>patient_identifier</code></td>
+<td>Yes</td>
+<td>Your MRN</td>
+<td>Resolved against <code>urn:cavell:patient</code>; the patient must have been seeded</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td>Yes</td>
+<td><code>YYYY-MM-DD</code> or <code>datetime.date</code></td>
+<td><strong>The document's own date.</strong> Drives chronological ordering, is sent to the API as <code>document_date</code>, and is what every relative expression in the text ("two days ago", "since last winter") is resolved against</td>
+</tr>
+<tr>
+<td><code>document_id</code></td>
+<td>Yes</td>
+<td>Your note id, unique across the feed</td>
+<td>The idempotency key. The resume filter (<code>skip_processed</code>), the chronology watermark, and failure reporting all key on it. Stamped onto the DocumentReference</td>
+</tr>
+<tr>
+<td><code>encounter_id</code></td>
+<td>No</td>
+<td>Your visit id</td>
+<td>Ties the note to a hospital stay. The SDK looks the Encounter up (<code>urn:cavell:encounter</code>); the API creates it on the first note and <strong>updates it in place</strong> on later ones, and links every resource extracted from the note to it. Omit for standalone notes — then no Encounter is created</td>
+</tr>
+<tr>
+<td><code>practitioner_identifier</code></td>
+<td>No</td>
+<td>Your staff id</td>
+<td>Resolved to a FHIR id and the practitioner's name is injected into the model's context, which sharply improves author matching</td>
+</tr>
+<tr>
+<td><code>organization_identifier</code></td>
+<td>No</td>
+<td>Your facility code</td>
+<td>Falls back to the pipeline's <code>default_organization</code></td>
+</tr>
+<tr>
+<td><code>meta</code></td>
+<td>No</td>
+<td>Short free text</td>
+<td>Extra context for the model — department, ward, note type. <strong>Do not put the date or the author here</strong>; both have their own fields</td>
+</tr>
+</tbody>
+</table>
+<p><code>meta</code> can also be mapped as a dict of label → column, which is usually what you
+want from a CSV: <code>columns={..., "meta": {"Department": "department", "Ward":
+"ward"}}</code> renders <code>"Department: Cardiology\nWard: 4B"</code> for each row, skipping
+labels whose cell is empty.</p>
+<div class="admonition warning">
+<p class="admonition-title">Blank required values raise, they are not skipped</p>
+<p><code>Document.from_rows()</code> raises if <code>text</code>, <code>patient_identifier</code>, <code>date</code> or
+<code>document_id</code> is blank on any row, and raises again if two rows share a
+<code>document_id</code>. A note is expensive to extract and silently dropping one
+would be worse than stopping. (The lab pipeline makes the opposite choice —
+see <a href="#when-a-lab-row-is-rejected">rejection rules</a>.)</p>
+</div>
+<h3 id="patient-practitioner-and-organization-columns">Patient, Practitioner and Organization columns</h3>
+<p>These come from the same CSV, deduplicated by identifier. Rows with a blank
+identifier are skipped.</p>
+<table>
+<thead>
+<tr>
+<th>Object</th>
+<th>SDK field</th>
+<th>Required</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Patient</code></td>
+<td><code>identifier</code></td>
+<td>Yes</td>
+<td>Your MRN — the key every document and lab row references</td>
+</tr>
+<tr>
+<td></td>
+<td><code>name</code></td>
+<td>No</td>
+<td>Patient name</td>
+</tr>
+<tr>
+<td></td>
+<td><code>birth_date</code></td>
+<td>No</td>
+<td>ISO date</td>
+</tr>
+<tr>
+<td></td>
+<td><code>gender</code></td>
+<td>No</td>
+<td>FHIR gender code</td>
+</tr>
+<tr>
+<td></td>
+<td><code>managing_organization</code></td>
+<td>No</td>
+<td>Must match a seeded organization</td>
+</tr>
+<tr>
+<td></td>
+<td><code>general_practitioners</code></td>
+<td>No</td>
+<td>Practitioner identifier(s); a single string is normalized to a list</td>
+</tr>
+<tr>
+<td><code>Practitioner</code></td>
+<td><code>identifier</code></td>
+<td>Yes</td>
+<td>Your staff id</td>
+</tr>
+<tr>
+<td></td>
+<td><code>name</code></td>
+<td>Yes*</td>
+<td>Virtual column: splits <code>"Jane Smith"</code> into given + family</td>
+</tr>
+<tr>
+<td></td>
+<td><code>given_name</code> / <code>family_name</code></td>
+<td>Yes*</td>
+<td>Use these <em>or</em> <code>name</code>, never both</td>
+</tr>
+<tr>
+<td></td>
+<td><code>organization_identifier</code></td>
+<td>Yes</td>
+<td>Must match a seeded organization</td>
+</tr>
+<tr>
+<td></td>
+<td><code>specialty</code></td>
+<td>No</td>
+<td>Written to <code>PractitionerRole.specialty</code></td>
+</tr>
+<tr>
+<td><code>Organization</code></td>
+<td><code>identifier</code></td>
+<td>Yes</td>
+<td>Your facility code</td>
+</tr>
+<tr>
+<td></td>
+<td><code>name</code></td>
+<td>Yes</td>
+<td>Display name</td>
+</tr>
+</tbody>
+</table>
+<p>Organizations are usually a short literal list rather than a CSV column.</p>
+<h3 id="order-matters-and-the-sdk-handles-it">Order matters, and the SDK handles it</h3>
+<p>Notes are extracted per patient in date order, because each extraction is shown
+what is already in the record. Hand the whole file to
+<a href="../ingestion/#extract_all-the-whole-dataset"><code>extract_all()</code></a> and it sorts
+globally by <code>date</code> before batching. A note that predates one already extracted
+is not rejected — it is extracted against
+<a href="../ingestion/#out-of-order-documents-get-split-context">split context</a> instead.</p>
+<hr />
+<h2 id="lab-results-csv">Lab results CSV</h2>
+<p>One row per result. No LLM is involved: the row is mapped to a FHIR Observation
+deterministically, so there is no token cost and the same file always produces
+the same resources.</p>
+<h3 id="the-smallest-file-that-works_1">The smallest file that works</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>lab_result_id,patient_id,test_name,value,collected_datetime
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>LAB-0001,MRN-20001,C-reactive protein,212,2024-03-14
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>LAB-0002,MRN-20001,Haemoglobin,11.2,2024-03-14
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">results</span> <span class="o">=</span> <span class="n">LabResult</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">rows</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="s2">&quot;lab_result_id&quot;</span><span class="p">:</span> <span class="s2">&quot;lab_result_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="s2">&quot;patient_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="s2">&quot;test_name&quot;</span><span class="p">:</span> <span class="s2">&quot;test_name&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;value&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="s2">&quot;collected_datetime&quot;</span><span class="p">:</span> <span class="s2">&quot;collected_datetime&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="p">},</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="p">)</span>
+</code></pre></div>
+<p>Add <code>loinc_code</code>, <code>unit</code> and reference bounds and the same row becomes a coded,
+quantified, interpreted Observation.</p>
+<h3 id="lab-columns">Lab columns</h3>
+<table>
+<thead>
+<tr>
+<th>SDK field</th>
+<th>Required</th>
+<th>Format</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lab_result_id</code></td>
+<td>Yes</td>
+<td>Starts with a letter or digit, then letters, digits and <code>. _ : / -</code>, max 200 chars</td>
+<td><strong>The idempotency key</strong> — typically your LIS accession number. Becomes the Observation's <code>urn:cavell:lab-result</code> identifier and drives the conditional create, so re-running a feed matches instead of duplicating. See <a href="#identity-and-re-runs">Identity and re-runs</a></td>
+</tr>
+<tr>
+<td><code>patient_identifier</code></td>
+<td>Yes</td>
+<td>Your MRN</td>
+<td>Must already exist in FHIR (<code>urn:cavell:patient</code>). The pipeline never creates patients</td>
+</tr>
+<tr>
+<td><code>test_name</code></td>
+<td>Yes</td>
+<td>Free text</td>
+<td>The analyte name. Always becomes <code>code.text</code>; with a <code>loinc_code</code> it is also the coding's display when the code is not in the local LOINC terminology</td>
+</tr>
+<tr>
+<td><code>value</code></td>
+<td>Yes</td>
+<td>Number, comparator, or text</td>
+<td>See <a href="#values-numeric-comparator-qualitative">Values</a></td>
+</tr>
+<tr>
+<td><code>collected_datetime</code></td>
+<td>Yes</td>
+<td><code>YYYY-MM-DD</code> or ISO datetime <strong>with an offset</strong></td>
+<td>When the specimen was drawn → <code>effectiveDateTime</code>. See <a href="#datetimes-and-timezones">Datetimes</a></td>
+</tr>
+<tr>
+<td><code>loinc_code</code></td>
+<td>No</td>
+<td>LOINC code</td>
+<td>Adds a real LOINC coding with the official display. Omit and the code is text-only</td>
+</tr>
+<tr>
+<td><code>unit</code></td>
+<td>No</td>
+<td>UCUM-style unit</td>
+<td><code>mmol/L</code>, <code>10*9/L</code>, <code>g/dL</code>. Recognized units get a UCUM code; unrecognized ones keep the text you gave without claiming a coding system</td>
+</tr>
+<tr>
+<td><code>reference_low</code></td>
+<td>No</td>
+<td>Number</td>
+<td>Lower bound of the normal range</td>
+</tr>
+<tr>
+<td><code>reference_high</code></td>
+<td>No</td>
+<td>Number</td>
+<td>Upper bound</td>
+</tr>
+<tr>
+<td><code>encounter_id</code></td>
+<td>No</td>
+<td>Your visit id</td>
+<td>Links the result to a stay. <strong>If given it must resolve for that patient or the row is rejected</strong>; if blank the Observation simply has no encounter — which is exactly right for an outpatient or GP draw</td>
+</tr>
+<tr>
+<td><code>practitioner_id</code></td>
+<td>No</td>
+<td>Your staff id</td>
+<td>The performer. Same rule: given means it must resolve</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>No</td>
+<td><code>preliminary</code>, <code>final</code>, <code>amended</code>, <code>cancelled</code></td>
+<td>Defaults to <code>final</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-the-row-becomes">What the row becomes</h3>
+<table>
+<thead>
+<tr>
+<th>CSV</th>
+<th>FHIR element</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lab_result_id</code></td>
+<td><code>identifier[0]</code> — system <code>urn:cavell:lab-result</code></td>
+</tr>
+<tr>
+<td><code>test_name</code> + <code>loinc_code</code></td>
+<td><code>code</code> — LOINC coding plus <code>text</code>, or text-only</td>
+</tr>
+<tr>
+<td><code>value</code> + <code>unit</code></td>
+<td><code>valueQuantity</code> (numeric), or <code>valueString</code> for a qualitative value — where the unit is dropped</td>
+</tr>
+<tr>
+<td><code>reference_low</code> / <code>reference_high</code></td>
+<td><code>referenceRange[0]</code> — numeric values only</td>
+</tr>
+<tr>
+<td>derived</td>
+<td><code>interpretation</code> — <code>H</code>, <code>L</code> or <code>N</code>; omitted with no bound, a comparator, or a qualitative value</td>
+</tr>
+<tr>
+<td><code>collected_datetime</code></td>
+<td><code>effectiveDateTime</code></td>
+</tr>
+<tr>
+<td><code>patient_identifier</code></td>
+<td><code>subject</code></td>
+</tr>
+<tr>
+<td><code>encounter_id</code></td>
+<td><code>encounter</code> (omitted when blank)</td>
+</tr>
+<tr>
+<td><code>practitioner_id</code></td>
+<td><code>performer[0]</code> (omitted when blank)</td>
+</tr>
+<tr>
+<td>always</td>
+<td><code>category</code> = <code>laboratory</code>, <code>status</code>, and a <code>meta</code> tag naming the Prism version</td>
+</tr>
+</tbody>
+</table>
+<p>Lab Observations carry <strong>no <code>unvalidated</code> tag</strong>. A structured feed is already a
+source of truth — there is nothing for a clinician to review, unlike an
+LLM-extracted resource.</p>
+<h3 id="values-numeric-comparator-qualitative">Values: numeric, comparator, qualitative</h3>
+<p>A lab feed is not all numbers, and the SDK does not pretend otherwise.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>212</code>, <code>11.2</code>, <code>-0.3</code></td>
+<td><code>valueQuantity</code> with the unit</td>
+</tr>
+<tr>
+<td><code>&lt;5</code>, <code>&gt;=60</code>, <code>&lt;= 0.01</code></td>
+<td><code>valueQuantity</code> with a <code>comparator</code> — and <strong>no interpretation</strong>, since "below the assay floor" cannot be scored against a range</td>
+</tr>
+<tr>
+<td><code>6,4</code></td>
+<td>Read as <code>6.4</code>. A comma is accepted as a decimal separator only when it cannot be a grouping one</td>
+</tr>
+<tr>
+<td><code>No growth after 5 days</code>, <code>++</code>, <code>E. coli &gt;10^5 CFU/mL</code></td>
+<td><code>valueString</code>, verbatim. A qualitative result is a legitimate result, not a parse failure — reference range and interpretation are skipped</td>
+</tr>
+<tr>
+<td><code>150,000</code>, <code>1 500</code></td>
+<td><strong>Rejected as ambiguous.</strong> Digit grouping is never guessed at: <code>150,000</code> could be 150.0 or 150000, and reading it wrong is worse than refusing it</td>
+</tr>
+<tr>
+<td>blank, or a <code>NaN</code> from a dataframe</td>
+<td><strong>Rejected</strong> — a row with no value has nothing to record</td>
+</tr>
+</tbody>
+</table>
+<h3 id="units-and-ucum">Units and UCUM</h3>
+<p>Common spellings are recognized case-insensitively and mapped to a UCUM code:
+<code>mmol/L</code>, <code>umol/L</code>, <code>ng/L</code>, <code>kPa</code>, <code>U/L</code>, <code>mm/h</code> and <code>10*9/L</code> all resolve, and so
+does <code>x10^9/L</code> — it lands on the same <code>10*9/L</code> code. An unrecognized unit is not
+an error: your text is kept as the display (normalized only for superscripts and
+stray digit commas) and no UCUM coding is claimed for it, so no downstream
+consumer is misled into converting a unit the server never actually identified.</p>
+<h3 id="reference-ranges-and-interpretation">Reference ranges and interpretation</h3>
+<p>Supply either bound, both, or neither. When the value is numeric and at least
+one bound is present, <code>interpretation</code> is derived: <code>H</code> above the high bound,
+<code>L</code> below the low bound, <code>N</code> otherwise. Bounds on a qualitative value are
+ignored rather than rejected.</p>
+<p>Bounds must be unambiguously numeric. <code>3,5</code> is read as <code>3.5</code>; <code>1,000</code> or
+<code>see report</code> rejects the row rather than being guessed at.</p>
+<h3 id="datetimes-and-timezones">Datetimes and timezones</h3>
+<p><code>collected_datetime</code> accepts exactly two shapes:</p>
+<ul>
+<li><code>2024-03-14</code> — a date, when the time is not meaningful or not exported</li>
+<li><code>2024-03-14T21:40:00+01:00</code> — a full ISO datetime <strong>with a timezone offset</strong>
+  (<code>Z</code> is fine too). Seconds are required and fractional seconds are allowed, so
+  <code>2024-03-14T21:40+01:00</code> is rejected but <code>...T21:40:00.123+01:00</code> is not</li>
+</ul>
+<p>A time without an offset is rejected. This is FHIR's rule, not ours: a
+<code>dateTime</code> carrying a time must carry a zone, and there is no safe default to
+invent. It also matters clinically — a serial troponin drawn at 08:00, 09:00
+and 11:00 is three distinct results, and the offset is what keeps them ordered
+across a daylight-saving boundary.</p>
+<h3 id="identity-and-re-runs">Identity and re-runs</h3>
+<p><code>lab_result_id</code> must be unique across the rows of a single <code>ingest()</code> call — a
+repeat is rejected rather than sent, whichever patients the two rows belong to.
+On the server it identifies the Observation scoped to its patient, which is what
+makes ingestion idempotent: every bundle entry is a conditional create matched on
+that identifier, so re-sending a file after a partial run creates nothing new and
+reports the rest as <code>skipped_existing</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Ingestion only creates — it never updates</p>
+<p>Re-sending an existing <code>lab_result_id</code> with a different value leaves the
+stored Observation untouched. An amended result therefore needs a <strong>new
+id</strong> (<code>LAB-0001.A</code>, or your LIS's amendment accession) so it lands as its
+own Observation with <code>status="amended"</code>.</p>
+</div>
+<hr />
+<h2 id="when-a-lab-row-is-rejected">When a lab row is rejected</h2>
+<p>One bad row never sinks the batch. Bad rows are skipped, everything else is
+ingested, and each skipped row is reported with its <strong>0-based position in the
+list you passed</strong>, its id, and a reason. Rejections do not make a run
+unsuccessful — they are the designed outcome.</p>
+<p>Rows are checked in three stages, and a row is reported against the first one
+that catches it.</p>
+<h3 id="stage-validation-content-checks-before-any-network">Stage <code>validation</code> — content checks, before any network</h3>
+<table>
+<thead>
+<tr>
+<th>Rejected when</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A required field is blank after normalization</td>
+<td>Empty <code>value</code>; a pandas <code>NaN</code>; a missing MRN</td>
+</tr>
+<tr>
+<td><code>lab_result_id</code> does not start with a letter or digit, uses characters outside letters, digits and <code>. _ : / -</code>, or exceeds 200 characters</td>
+<td><code>LAB 1&amp;2</code> — the id lands in a FHIR query string, where <code>&amp;</code> and <code>&#124;</code> would change the query's meaning</td>
+</tr>
+<tr>
+<td><code>reference_low</code> / <code>reference_high</code> is present but not unambiguously numeric</td>
+<td><code>1,000</code>, <code>see report</code></td>
+</tr>
+<tr>
+<td><code>status</code> is not one of <code>preliminary</code>, <code>final</code>, <code>amended</code>, <code>cancelled</code></td>
+<td><code>final</code> is fine (trimmed); <code>Final</code> and <code>verified</code> are not</td>
+</tr>
+<tr>
+<td>Two rows in the same call share a <code>lab_result_id</code></td>
+<td>First occurrence is kept, the rest are rejected</td>
+</tr>
+</tbody>
+</table>
+<h3 id="stage-reference-fail-closed-lookups-against-your-fhir-server">Stage <code>reference</code> — fail-closed lookups against your FHIR server</h3>
+<p>Nothing is created for a reference that does not resolve.</p>
+<table>
+<thead>
+<tr>
+<th>Rejected when</th>
+<th>Scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The patient is not in FHIR</td>
+<td><strong>All</strong> of that patient's rows</td>
+</tr>
+<tr>
+<td><code>encounter_id</code> is given but does not resolve for that patient</td>
+<td>Only the rows carrying it</td>
+</tr>
+<tr>
+<td><code>practitioner_id</code> is given but does not resolve</td>
+<td>Only the rows carrying it</td>
+</tr>
+</tbody>
+</table>
+<p>A blank <code>encounter_id</code> or <code>practitioner_id</code> is not a rejection — the Observation
+is simply written without that reference.</p>
+<div class="admonition danger">
+<p class="admonition-title">Not found rejects a row; a lookup <em>failure</em> aborts the run</p>
+<p>If the FHIR server returns a 500 or the connection drops, that is
+infrastructure trouble rather than bad data, and guessing would be wrong.
+The run raises <code>FHIRConnectionError</code> and stops. Because persistence is
+idempotent, fix the infrastructure and re-ingest the same file — what
+already landed comes back as <code>skipped_existing</code>.</p>
+</div>
+<h3 id="stage-server-the-apis-own-row-checks">Stage <code>server</code> — the API's own row checks</h3>
+<table>
+<thead>
+<tr>
+<th>Rejected when</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>collected_datetime</code> is malformed, offset-less, or an impossible date</td>
+<td><code>2024-03-14 21:40</code>, <code>2024-02-30</code></td>
+</tr>
+<tr>
+<td><code>value</code> is numerically ambiguous</td>
+<td><code>150,000</code></td>
+</tr>
+<tr>
+<td>A reference id is not a well-formed FHIR id</td>
+<td>Only reachable when calling the API directly</td>
+</tr>
+</tbody>
+</table>
+<h3 id="never-rejected">Never rejected</h3>
+<ul>
+<li>A missing <code>loinc_code</code> → text-only code</li>
+<li>An unrecognized <code>unit</code> → the text is kept, no UCUM coding claimed</li>
+<li>A missing reference range → no interpretation</li>
+<li>A qualitative <code>value</code> → <code>valueString</code>, unless it is only digits and
+  separators (see <a href="#values-numeric-comparator-qualitative">Values</a>)</li>
+<li>A re-submitted <code>lab_result_id</code> → counted as <code>skipped_existing</code></li>
+</ul>
+<h3 id="reading-the-report">Reading the report</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">outcome</span> <span class="o">=</span> <span class="n">LabIngestionPipeline</span><span class="p">(</span><span class="n">client</span><span class="p">)</span><span class="o">.</span><span class="n">ingest</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">outcome</span><span class="p">)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># 244/251 rows accepted (244 created, 0 already present), 7 rejected</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">outcome</span><span class="o">.</span><span class="n">rejected</span><span class="p">:</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">rid</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">lab_result_id</span> <span class="ow">or</span> <span class="s2">&quot;(no id)&quot;</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;row </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">index</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">rid</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">stage</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">r</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># row  244  LAB-0245     [reference] unknown patient &#39;MRN-99999&#39;</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># row  246  LAB-0247     [reference] unknown encounter &#39;V-999&#39; for patient &#39;MRN-20001&#39;</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="c1"># row  249  LAB-0250     [validation] value must be non-empty</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="c1"># row  250  LAB-0251     [server] collected_datetime must be YYYY-MM-DD or a full</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1">#                        ISO datetime with a timezone offset: &#39;2024-12-03T08:00:00&#39;</span>
+</code></pre></div>
+<p>Rejections from all three stages arrive in one list, sorted by input position,
+so a report can be written straight back against the source file — the <code>index</code>
+is the row you gave, never an internal one.</p>
+<p>One failure mode is neither accepted nor rejected: if a FHIR transaction itself
+fails, its rows appear in that bundle's <code>PersistResult.errors</code> and
+<code>outcome.success</code> is <code>False</code>. <code>accepted</code> only ever counts rows that actually
+landed.</p>
+<hr />
+<h2 id="where-to-go-next">Where to go next</h2>
+<ul>
+<li><a href="../ingestion/">Clinical notes pipeline</a> — seeding, ordering, updates, error handling</li>
+<li><a href="../labs/">Lab results pipeline</a> — the full lab walkthrough and return types</li>
+<li><a href="../notebooks/">Demo datasets</a> — real CSVs you can run end to end</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.instant", "navigation.sections"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
