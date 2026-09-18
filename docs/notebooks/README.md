@@ -22,6 +22,10 @@ table.
 | `lab_results_ingestion_demo.ipynb` | Structured lab results → FHIR Observations, deterministically (no LLM): fail-closed reference checks, a merged rejection report, and an idempotent re-run. **Run the hospitalization demo first** — the labs attach to its patients, practitioners and admissions |
 | `lab_results.csv` | 251 synthetic lab rows for the hospitalization cohort: the structured twin of its prose lab notes plus pre-admission/post-discharge draws, rows without LOINC codes, comparator and qualitative values, and 7 deliberately broken rows for the rejection report |
 
+Every column in these files is documented in the
+[CSV field reference](../csv-reference.md) — what it means, what it produces
+in FHIR, and which rules decide whether a row is accepted.
+
 ## Running
 
 1. Start the local FHIR server: `docker compose up -d` (HAPI on

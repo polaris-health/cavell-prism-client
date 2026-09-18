@@ -1,4 +1,4 @@
-# Pipeline
+# Clinical Notes Pipeline
 
 ## Overview
 
@@ -13,6 +13,10 @@ Before each extraction, the SDK passes the patient, organization, and practition
 
 Practitioners are matched by the SDK after extraction — the Cavell API extracts practitioner names from text, and the SDK links them to seeded practitioners in FHIR.
 
+This page covers **clinical notes**, which are extracted by a model. Already-
+structured lab results take a separate, deterministic path with no LLM and no
+token cost — see the [lab results pipeline](labs.md).
+
 ## Data Flow
 
 ```
@@ -24,7 +28,74 @@ Extract: For each document:
          4. Persist clinical resources with correct references → FHIR server
 ```
 
+## Start from a CSV
+
+Most work starts from an export rather than hand-built objects. All three
+data types provide a `from_rows()` classmethod that builds objects from CSV data (or any list of dicts). The `columns` dict maps SDK field names (left) to your CSV column headers (right). Keyword arguments are applied as literal defaults to every row.
+
+```python
+import csv
+from cavell_client import Patient, Practitioner, Document
+
+with open("notes.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+
+practitioners = Practitioner.from_rows(
+    rows,
+    columns={"identifier": "practitioner_id", "name": "practitioner_name"},
+    organization_identifier="DEMO-HOSPITAL",
+)
+
+patients = Patient.from_rows(
+    rows,
+    columns={
+        "identifier": "patient_id",
+        "name": "patient_name",
+        "birth_date": "birth_date",
+        "gender": "gender",
+        "general_practitioners": "practitioner_id",
+    },
+    managing_organization="DEMO-HOSPITAL",
+)
+
+documents = Document.from_rows(
+    rows,
+    columns={
+        "text": "note_text",
+        "patient_identifier": "patient_id",
+        "date": "note_date",
+        "document_id": "note_id",
+        "encounter_id": "encounter_id",
+        "practitioner_identifier": "practitioner_id",
+        "meta": "department",
+    },
+    organization_identifier="DEMO-HOSPITAL",
+)
+```
+
+`Patient.from_rows()` and `Practitioner.from_rows()` deduplicate by identifier (first occurrence wins) and skip rows with empty identifiers. `Document.from_rows()` creates one document per row, validates that `document_id` values are unique, and warns on short text (`< 20` characters). Its `columns` mapping must include `text`, `patient_identifier`, `date` and `document_id`; a row with a blank value for any of them raises rather than being silently coerced to `None`.
+
+`Document.from_rows()` preserves CSV row order and does **not** sort by date. To
+ingest the whole file, hand the list to
+[`extract_all()`](#extract_all-the-whole-dataset), which sorts globally by date
+before batching:
+
+```python
+pipeline.seed(organizations=[...], patients=patients, practitioners=practitioners)
+outcomes = pipeline.extract_all(documents, batch_size=500)
+```
+
+`Practitioner.from_rows()` supports a virtual `"name"` column that auto-splits `"Given Family"` into `given_name` and `family_name`. Use either `"name"` or the individual `"given_name"`/`"family_name"` keys, not both.
+
+All three validate upfront — unknown field names, missing CSV columns, and missing required keys raise `ValueError` before any objects are built.
+
+Every column's meaning, and what it produces downstream, is in the
+[CSV field reference](csv-reference.md#clinical-notes-csv).
+
 ## Full Walkthrough
+
+The same pipeline with every object built by hand — every option in one
+place.
 
 ```python
 from cavell_client import (
@@ -126,66 +197,6 @@ with CavellClient(
         else:
             print(f"[{outcome.patient_identifier}] Error: {outcome.error}")
 ```
-
-## Loading from CSV
-
-All three data types provide a `from_rows()` classmethod that builds objects from CSV data (or any list of dicts). The `columns` dict maps SDK field names (left) to your CSV column headers (right). Keyword arguments are applied as literal defaults to every row.
-
-```python
-import csv
-from cavell_client import Patient, Practitioner, Document
-
-with open("notes.csv", newline="", encoding="utf-8") as f:
-    rows = list(csv.DictReader(f))
-
-practitioners = Practitioner.from_rows(
-    rows,
-    columns={"identifier": "practitioner_id", "name": "practitioner_name"},
-    organization_identifier="DEMO-HOSPITAL",
-)
-
-patients = Patient.from_rows(
-    rows,
-    columns={
-        "identifier": "patient_id",
-        "name": "patient_name",
-        "birth_date": "birth_date",
-        "gender": "gender",
-        "general_practitioners": "practitioner_id",
-    },
-    managing_organization="DEMO-HOSPITAL",
-)
-
-documents = Document.from_rows(
-    rows,
-    columns={
-        "text": "note_text",
-        "patient_identifier": "patient_id",
-        "date": "note_date",
-        "document_id": "note_id",
-        "encounter_id": "encounter_id",
-        "practitioner_identifier": "practitioner_id",
-        "meta": "department",
-    },
-    organization_identifier="DEMO-HOSPITAL",
-)
-```
-
-`Patient.from_rows()` and `Practitioner.from_rows()` deduplicate by identifier (first occurrence wins) and skip rows with empty identifiers. `Document.from_rows()` creates one document per row, validates that `document_id` values are unique, and warns on short text (`< 20` characters). Its `columns` mapping must include `text`, `patient_identifier`, `date` and `document_id`; a row with a blank value for any of them raises rather than being silently coerced to `None`.
-
-`Document.from_rows()` preserves CSV row order and does **not** sort by date. To
-ingest the whole file, hand the list to
-[`extract_all()`](#extract_all-the-whole-dataset), which sorts globally by date
-before batching:
-
-```python
-pipeline.seed(organizations=[...], patients=patients, practitioners=practitioners)
-outcomes = pipeline.extract_all(documents, batch_size=500)
-```
-
-`Practitioner.from_rows()` supports a virtual `"name"` column that auto-splits `"Given Family"` into `given_name` and `family_name`. Use either `"name"` or the individual `"given_name"`/`"family_name"` keys, not both.
-
-All three validate upfront — unknown field names, missing CSV columns, and missing required keys raise `ValueError` before any objects are built.
 
 ## Helper Dataclasses
 

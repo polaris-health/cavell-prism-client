@@ -1,4 +1,8 @@
-# Client
+# Client API
+
+The lower-level client, for work the pipelines do not cover. For ordinary
+ingestion start with the [clinical notes pipeline](ingestion.md) or the
+[lab results pipeline](labs.md).
 
 ## Setup
 
@@ -167,6 +171,37 @@ unchanged. The pipeline does all of this for you — see
     An extraction API that predates these fields ignores them silently, which
     would leave the note extracting against past-only context with nothing to
     reconcile against.
+
+### Direct lab-ingestion API
+
+Structured lab results have their own endpoint, which spends no gateway
+tokens. It expects FHIR ids that you have already resolved and verified, which
+is exactly what [`LabIngestionPipeline`](labs.md) does for you — use the raw
+call only when you are doing that resolution yourself:
+
+```python
+response = api.ingest_lab_results(
+    patient_id="1042",  # a FHIR Patient.id, not an MRN
+    rows=[
+        {
+            "lab_result_id": "LAB-0001",
+            "test_name": "C-reactive protein",
+            "value": "212",
+            "unit": "mg/L",
+            "loinc_code": "1988-5",
+            "reference_high": 5.0,
+            "collected_datetime": "2024-01-15T21:40:00+01:00",
+            "status": "final",
+        },
+    ],
+)
+# {"bundle": {...}, "count": 1, "rejected": []}
+```
+
+The response bundle's entries are conditional creates, so posting it twice
+creates nothing twice. Bad rows come back in `rejected` with a request-relative
+`index` — the pipeline is what maps those back onto your input positions. A 404
+means the Prism deployment predates lab ingestion.
 
 ## Response Types
 

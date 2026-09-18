@@ -43,15 +43,28 @@ adheres to [Semantic Versioning](https://semver.org/).
 - `FHIRClient.find_practitioner_by_identifier()` — deterministic identifier
   lookup (smallest id wins on duplicates, warned), so re-runs never flip
   performer attribution on server ordering.
+- Demo notebook `docs/notebooks/lab_results_ingestion_demo.ipynb` and dataset
+  `docs/notebooks/lab_results.csv` (251 synthetic rows layered onto the
+  hospitalization cohort — run the hospitalization demo first).
+- Documentation: a **CSV field reference** (`docs/csv-reference.md`) covering
+  every column of both file types — what each one means, what it produces in
+  FHIR, and the complete rule set for when a lab row is rejected — and a
+  **lab results pipeline** page (`docs/labs.md`), which the feature previously
+  had none of outside the changelog and the notebook.
+
+### Changed
+
+- Documentation now leads with CSV ingestion. The home page and README open
+  with a complete CSV-to-FHIR example for notes and for lab results, and only
+  then show the single-record form; the notes pipeline page starts from a CSV
+  before the hand-built walkthrough; and the site navigation is grouped into
+  Guides / Reference / Demos.
 
 ### Fixed
 
 - A negative `Retry-After` header from a clock-skewed proxy no longer crashes
   the shared 429 retry loop (`time.sleep(-1)`); the wait is floored at zero.
   Pre-existing in `extract()`/`extract_raw()`, fixed in the shared retry path.
-- Demo notebook `docs/notebooks/lab_results_ingestion_demo.ipynb` and dataset
-  `docs/notebooks/lab_results.csv` (251 synthetic rows layered onto the
-  hospitalization cohort — run the hospitalization demo first).
 
 ## [0.8.0] - 2026-09-15
 
