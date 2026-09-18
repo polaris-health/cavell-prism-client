@@ -163,8 +163,8 @@ with CavellClient(
 
 The patients, encounters and practitioners the rows reference must already
 exist — lab ingestion never creates them. A row pointing at something unknown
-is skipped and reported rather than silently dropped, and only the last five
-`columns` entries above are optional.
+is skipped and reported rather than silently dropped, and only the first five
+`columns` entries above are required.
 
 !!! tip "Column meanings, formats and rejection rules"
     The [CSV field reference](csv-reference.md) documents every column of both
@@ -214,7 +214,7 @@ with CavellClient(
             ),
         ]
     ):
-        print(f"Extracted {outcome.extract_result.count} resources")
+        print(outcome)
 
     print(f"Total: {pipeline.documents_processed} docs, ${pipeline.total_cost:.3f}")
 ```

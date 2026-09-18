@@ -23,11 +23,12 @@ rejected rather than created for.
 ## Data Flow
 
 ```
-For each patient (sorted, deterministic):
-    1. Validate row content            (no network)
-    2. Resolve patient / encounter / practitioner against FHIR   (fail-closed)
-    3. Send surviving rows → Prism /ingest/lab-results  → Observation bundle
-    4. Persist the bundle → your FHIR server
+1. Validate every row's content, once over the whole input      (no network)
+
+2. Then, for each patient (sorted, deterministic):
+     a. Resolve patient / encounter / practitioner against FHIR  (fail-closed)
+     b. Send surviving rows → Prism /ingest/lab-results → Observation bundle
+     c. Persist the bundle → your FHIR server
 ```
 
 ## Ingesting a CSV
@@ -250,17 +251,18 @@ Everything else is a rejection, not an exception.
 | Bad input | `Document.from_rows()` raises on blank required fields | Rows are skipped and reported |
 | Re-runs | `skip_processed` filters on `document_id` | Conditional creates on `lab_result_id` |
 | Updates | Resources are updated in place as the record evolves | Create-only; an amended result needs a new id |
-| Validation tag | Resources carry `unvalidated` until reviewed | No tag — the feed is a source of truth |
+| Validation tag | Resources carry `unvalidated` until reviewed | Never tagged `unvalidated` — the feed is a source of truth |
 | Concurrency | `max_concurrency` workers | Sequential; there is no latency to hide |
 
 ## Timeouts
 
 | Client | Default | Notes |
 |--------|---------|-------|
-| Cavell API | 120s | Per ingest request (up to 5,000 rows); no LLM latency to absorb |
+| Cavell API | 120s | Per ingest request (up to 5,000 rows), plus 10s to connect; no LLM latency to absorb |
 | FHIR server | 30s | Per-request timeout for lookups and bundle POSTs |
 
-Requests are retried once on a 429 with the server's `Retry-After` delay.
+A 429 is retried up to three times: the server's `Retry-After` is honoured when
+it sends one (capped at 300s), and exponential backoff is used when it does not.
 
 ## Try it
 

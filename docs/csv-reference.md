@@ -10,7 +10,9 @@ built.
 
 ## How a CSV becomes objects
 
-Every helper dataclass has a `from_rows()` classmethod with the same shape:
+`Patient`, `Practitioner`, `Document` and `LabResult` each have a
+`from_rows()` classmethod with the same shape (an `Organization` is a two-field
+literal you pass directly):
 
 ```python
 Document.from_rows(rows, columns={...}, **defaults)
@@ -36,8 +38,8 @@ documents = Document.from_rows(
 ```
 
 Set a column to `None` to disable an optional field your export does not have:
-`columns={..., "encounter_id": None}`. Required fields cannot be disabled that
-way.
+`columns={..., "encounter_id": None}`. `Document` and `LabResult` raise rather than let you disable a
+required field that way.
 
 Everything is validated upfront — unknown SDK field names, headers that are not
 in the data, and missing required keys all raise `ValueError` before any object
@@ -90,6 +92,11 @@ The `Document` is the unit of extraction — one note in, FHIR resources out.
 | `practitioner_identifier` | No | Your staff id | Resolved to a FHIR id and the practitioner's name is injected into the model's context, which sharply improves author matching |
 | `organization_identifier` | No | Your facility code | Falls back to the pipeline's `default_organization` |
 | `meta` | No | Short free text | Extra context for the model — department, ward, note type. **Do not put the date or the author here**; both have their own fields |
+
+`meta` can also be mapped as a dict of label → column, which is usually what you
+want from a CSV: `columns={..., "meta": {"Department": "department", "Ward":
+"ward"}}` renders `"Department: Cardiology\nWard: 4B"` for each row, skipping
+labels whose cell is empty.
 
 !!! warning "Blank required values raise, they are not skipped"
     `Document.from_rows()` raises if `text`, `patient_identifier`, `date` or
@@ -166,9 +173,9 @@ quantified, interpreted Observation.
 
 | SDK field | Required | Format | What it does |
 |-----------|----------|--------|--------------|
-| `lab_result_id` | Yes | Letters, digits and `. _ : / -`, max 200 chars | **The idempotency key** — typically your LIS accession number. Becomes the Observation's `urn:cavell:lab-result` identifier and drives the conditional create, so re-running a feed matches instead of duplicating. See [Identity and re-runs](#identity-and-re-runs) |
+| `lab_result_id` | Yes | Starts with a letter or digit, then letters, digits and `. _ : / -`, max 200 chars | **The idempotency key** — typically your LIS accession number. Becomes the Observation's `urn:cavell:lab-result` identifier and drives the conditional create, so re-running a feed matches instead of duplicating. See [Identity and re-runs](#identity-and-re-runs) |
 | `patient_identifier` | Yes | Your MRN | Must already exist in FHIR (`urn:cavell:patient`). The pipeline never creates patients |
-| `test_name` | Yes | Free text | The analyte name. Becomes `code.text`, and the display when no LOINC code is given |
+| `test_name` | Yes | Free text | The analyte name. Always becomes `code.text`; with a `loinc_code` it is also the coding's display when the code is not in the local LOINC terminology |
 | `value` | Yes | Number, comparator, or text | See [Values](#values-numeric-comparator-qualitative) |
 | `collected_datetime` | Yes | `YYYY-MM-DD` or ISO datetime **with an offset** | When the specimen was drawn → `effectiveDateTime`. See [Datetimes](#datetimes-and-timezones) |
 | `loinc_code` | No | LOINC code | Adds a real LOINC coding with the official display. Omit and the code is text-only |
@@ -185,14 +192,14 @@ quantified, interpreted Observation.
 |-----|--------------|
 | `lab_result_id` | `identifier[0]` — system `urn:cavell:lab-result` |
 | `test_name` + `loinc_code` | `code` — LOINC coding plus `text`, or text-only |
-| `value` + `unit` | `valueQuantity` (numeric) or `valueString` (qualitative) |
-| `reference_low` / `reference_high` | `referenceRange[0]` |
-| derived | `interpretation` — `H`, `L` or `N` |
+| `value` + `unit` | `valueQuantity` (numeric), or `valueString` for a qualitative value — where the unit is dropped |
+| `reference_low` / `reference_high` | `referenceRange[0]` — numeric values only |
+| derived | `interpretation` — `H`, `L` or `N`; omitted with no bound, a comparator, or a qualitative value |
 | `collected_datetime` | `effectiveDateTime` |
 | `patient_identifier` | `subject` |
 | `encounter_id` | `encounter` (omitted when blank) |
 | `practitioner_id` | `performer[0]` (omitted when blank) |
-| always | `category` = `laboratory`, `status` |
+| always | `category` = `laboratory`, `status`, and a `meta` tag naming the Prism version |
 
 Lab Observations carry **no `unvalidated` tag**. A structured feed is already a
 source of truth — there is nothing for a clinician to review, unlike an
@@ -213,11 +220,12 @@ A lab feed is not all numbers, and the SDK does not pretend otherwise.
 
 ### Units and UCUM
 
-Write units the UCUM way and they are coded properly: `10*9/L` rather than
-`x10^9/L`, `umol/L`, `mmol/L`, `ng/L`, `kPa`, `U/L`, `mm/h`. An unrecognized
-unit is not an error — the text you supplied is kept as the display, and no
-UCUM coding is claimed for it, so no downstream consumer is misled into
-converting a unit the server never actually identified.
+Common spellings are recognized case-insensitively and mapped to a UCUM code:
+`mmol/L`, `umol/L`, `ng/L`, `kPa`, `U/L`, `mm/h` and `10*9/L` all resolve, and so
+does `x10^9/L` — it lands on the same `10*9/L` code. An unrecognized unit is not
+an error: your text is kept as the display (normalized only for superscripts and
+stray digit commas) and no UCUM coding is claimed for it, so no downstream
+consumer is misled into converting a unit the server never actually identified.
 
 ### Reference ranges and interpretation
 
@@ -235,7 +243,8 @@ Bounds must be unambiguously numeric. `3,5` is read as `3.5`; `1,000` or
 
 - `2024-03-14` — a date, when the time is not meaningful or not exported
 - `2024-03-14T21:40:00+01:00` — a full ISO datetime **with a timezone offset**
-  (`Z` is fine too)
+  (`Z` is fine too). Seconds are required and fractional seconds are allowed, so
+  `2024-03-14T21:40+01:00` is rejected but `...T21:40:00.123+01:00` is not
 
 A time without an offset is rejected. This is FHIR's rule, not ours: a
 `dateTime` carrying a time must carry a zone, and there is no safe default to
@@ -245,11 +254,12 @@ across a daylight-saving boundary.
 
 ### Identity and re-runs
 
-`lab_result_id` must be unique per patient — unique across the whole feed is
-safest. It makes ingestion idempotent: every bundle entry is a conditional
-create matched on that identifier scoped to the patient, so re-sending a file
-after a partial run creates nothing new and reports the rest as
-`skipped_existing`.
+`lab_result_id` must be unique across the rows of a single `ingest()` call — a
+repeat is rejected rather than sent, whichever patients the two rows belong to.
+On the server it identifies the Observation scoped to its patient, which is what
+makes ingestion idempotent: every bundle entry is a conditional create matched on
+that identifier, so re-sending a file after a partial run creates nothing new and
+reports the rest as `skipped_existing`.
 
 !!! note "Ingestion only creates — it never updates"
     Re-sending an existing `lab_result_id` with a different value leaves the
@@ -274,7 +284,7 @@ that catches it.
 | Rejected when | Example |
 |---------------|---------|
 | A required field is blank after normalization | Empty `value`; a pandas `NaN`; a missing MRN |
-| `lab_result_id` uses characters outside letters, digits and `. _ : / -`, or exceeds 200 characters | `LAB 1&2` — the id lands in a FHIR query string, where `&` and <code>&#124;</code> would change the query's meaning |
+| `lab_result_id` does not start with a letter or digit, uses characters outside letters, digits and `. _ : / -`, or exceeds 200 characters | `LAB 1&2` — the id lands in a FHIR query string, where `&` and <code>&#124;</code> would change the query's meaning |
 | `reference_low` / `reference_high` is present but not unambiguously numeric | `1,000`, `see report` |
 | `status` is not one of `preliminary`, `final`, `amended`, `cancelled` | `final ` is fine (trimmed); `Final` and `verified` are not |
 | Two rows in the same call share a `lab_result_id` | First occurrence is kept, the rest are rejected |
@@ -312,7 +322,8 @@ is simply written without that reference.
 - A missing `loinc_code` → text-only code
 - An unrecognized `unit` → the text is kept, no UCUM coding claimed
 - A missing reference range → no interpretation
-- A qualitative `value` → `valueString`
+- A qualitative `value` → `valueString`, unless it is only digits and
+  separators (see [Values](#values-numeric-comparator-qualitative))
 - A re-submitted `lab_result_id` → counted as `skipped_existing`
 
 ### Reading the report
