@@ -6,6 +6,68 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-18
+
+### Added
+
+- **Deterministic lab-results ingestion** — `LabResult`, `LabResult.from_rows`,
+  `LabIngestionPipeline`, `LabIngestionOutcome` and `LabRejection`. A CSV of
+  structured lab results becomes FHIR Observations with no LLM involved: the
+  Prism API builds them by plain code (LOINC coding when the row carries a
+  code, UCUM units, reference ranges, H/L/N interpretations, comparator and
+  qualitative values, timestamps kept intact), so ingestion spends no gateway
+  tokens. The pipeline validates every reference **fail-closed** against the
+  FHIR server first — patients, encounters and practitioners must already
+  exist, and rows referencing anything unknown are skipped and reported (with
+  input row number, stage and reason) rather than created for; lookup *errors*
+  abort the run instead. Persistence uses conditional creates on each row's
+  `urn:cavell:lab-result` identifier **scoped to the patient** (accession
+  numbers recycle across patients; a reused id creates a separate resource
+  instead of silently matching another patient's), so re-running a feed is
+  idempotent and the outcome reports matches as `skipped_existing`. Ingestion
+  only creates: re-sending an existing `lab_result_id` never updates the
+  stored Observation, so a corrected (amended) result needs a new id.
+  `lab_result_id` is restricted to letters, digits and `. _ : / -` (it lands
+  in a FHIR conditional-create query string); ambiguous numerics — grouping
+  separators like `1,000` in values or reference bounds — are rejected
+  per-row rather than guessed at; numbers and NaN from dataframe-shaped rows
+  are normalized instead of failing the batch. Patients with more rows than
+  the API's per-request cap are sent in chunks, `accepted` counts only what
+  actually persisted, and lookup/transport failures surface as
+  `FHIRConnectionError`. **Requires a Prism deployment exposing
+  `POST /api/ingest/lab-results`** — against an older API the pipeline raises
+  `CavellAPIError` naming the missing route.
+- `CavellAPI.ingest_lab_results()` — the raw endpoint call, with the same
+  429-retry contract as `extract_raw`.
+- `FHIRClient.find_encounter_strict()` — the raising core of `find_encounter`:
+  not-found returns `None`, lookup errors raise. `find_encounter` keeps its
+  fail-open behaviour, unchanged.
+- `FHIRClient.find_practitioner_by_identifier()` — deterministic identifier
+  lookup (smallest id wins on duplicates, warned), so re-runs never flip
+  performer attribution on server ordering.
+- Demo notebook `docs/notebooks/lab_results_ingestion_demo.ipynb` and dataset
+  `docs/notebooks/lab_results.csv` (251 synthetic rows layered onto the
+  hospitalization cohort — run the hospitalization demo first).
+- Documentation: a **CSV field reference** (`docs/csv-reference.md`) covering
+  every column of both file types — what each one means, what it produces in
+  FHIR, and the complete rule set for when a lab row is rejected — and a
+  **lab results pipeline** page (`docs/labs.md`), which the feature previously
+  had none of outside the changelog and the notebook.
+
+### Changed
+
+- Documentation now leads with CSV ingestion. The home page and README open
+  with a complete CSV-to-FHIR example for notes and for lab results, and only
+  then show the single-record form; the notes pipeline page starts from a CSV
+  before the hand-built walkthrough; and the site navigation is grouped into
+  Guides / Reference / Demos.
+
+### Fixed
+
+- A negative `Retry-After` header from a clock-skewed proxy no longer crashes
+  the shared 429 retry loop (`time.sleep(-1)`); the wait is floored at zero.
+  Pre-existing in `extract()`/`extract_raw()`, fixed in the shared retry path.
+
 ## [0.8.0] - 2026-09-15
 
 ### Changed

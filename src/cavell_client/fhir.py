@@ -1000,7 +1000,7 @@ class FHIRClient:
         _strip_context_noise(future)
         return past, future
 
-    def find_encounter(self, patient_id: str, encounter_id: str) -> dict | None:
+    def find_encounter_strict(self, patient_id: str, encounter_id: str) -> dict | None:
         """Return the patient's Encounter carrying ``encounter_id``, if any.
 
         Searches ``Encounter?subject={patient_id}&identifier=urn:cavell:encounter|
@@ -1016,34 +1016,70 @@ class FHIRClient:
         ``meta.lastUpdated`` would be useless for that, since every update
         bumps it and the choice would alternate.
 
-        Fails open: on any error the lookup logs a warning and returns
-        ``None``, which makes the API create the Encounter — the same outcome
-        as the visit's first document.
+        FAILS CLOSED: not-found returns ``None``, but a lookup *error* raises.
+        Callers that must distinguish "the encounter does not exist" (reject
+        the row) from "the lookup failed" (abort, retry later) — the lab
+        pipeline — need the difference; :meth:`find_encounter` is the
+        fail-open view for the document pipeline.
+        """
+        matches = self.search_patient_resources(
+            patient_id,
+            "Encounter",
+            params={"identifier": f"{ENCOUNTER_IDENTIFIER_SYSTEM}|{encounter_id}"},
+        )
+        matches = [m for m in matches if isinstance(m, dict) and m.get("id")]
+        if not matches:
+            return None
+        matches.sort(key=lambda m: _id_sort_key(m["id"]))
+        if len(matches) > 1:
+            logger.warning(
+                f"{len(matches)} Encounters carry identifier '{encounter_id}' for "
+                f"patient {patient_id}; updating the oldest "
+                f"({', '.join(str(m['id']) for m in matches)})"
+            )
+        _strip_context_noise(matches[:1])
+        return matches[0]
+
+    def find_encounter(self, patient_id: str, encounter_id: str) -> dict | None:
+        """Fail-open view of :meth:`find_encounter_strict`.
+
+        On any error the lookup logs a warning and returns ``None``, which
+        makes the extraction API create the Encounter — the same outcome as
+        the visit's first document.
         """
         try:
-            matches = self.search_patient_resources(
-                patient_id,
-                "Encounter",
-                params={"identifier": f"{ENCOUNTER_IDENTIFIER_SYSTEM}|{encounter_id}"},
-            )
-            matches = [m for m in matches if isinstance(m, dict) and m.get("id")]
-            if not matches:
-                return None
-            matches.sort(key=lambda m: _id_sort_key(m["id"]))
-            if len(matches) > 1:
-                logger.warning(
-                    f"{len(matches)} Encounters carry identifier '{encounter_id}' for "
-                    f"patient {patient_id}; updating the oldest "
-                    f"({', '.join(str(m['id']) for m in matches)})"
-                )
-            _strip_context_noise(matches[:1])
-            return matches[0]
+            return self.find_encounter_strict(patient_id, encounter_id)
         except Exception as e:
             logger.warning(
                 f"Failed to look up Encounter '{encounter_id}' for patient "
                 f"{patient_id} (the API will create it): {e}"
             )
             return None
+
+    def find_practitioner_by_identifier(self, identifier: str) -> dict | None:
+        """The Practitioner carrying this urn:cavell:practitioner identifier.
+
+        Not-found returns ``None``; lookup errors raise (fail-closed, like
+        :meth:`find_encounter_strict`). Duplicates should not happen (seeding
+        upserts conditionally on the identifier), but a manual write could
+        leave two — the smallest id wins, numeric-aware and warned, so every
+        run attributes results to the same resource instead of whichever one
+        the server happened to return first.
+        """
+        matches = [
+            m
+            for m in self.search_practitioners(identifier=identifier)
+            if isinstance(m, dict) and m.get("id")
+        ]
+        if not matches:
+            return None
+        matches.sort(key=lambda m: _id_sort_key(m["id"]))
+        if len(matches) > 1:
+            logger.warning(
+                f"{len(matches)} Practitioners carry identifier '{identifier}'; "
+                f"using the oldest ({', '.join(str(m['id']) for m in matches)})"
+            )
+        return matches[0]
 
     def find_patient_by_identifier(self, identifier: str) -> tuple[str, dict] | None:
         """Search for Patient by identifier, return (id, resource) if found.
