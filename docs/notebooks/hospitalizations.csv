@@ -1,4 +1,4 @@
-note_id,patient_id,patient_name,birth_date,gender,note_date,encounter_id,department,practitioner_id,practitioner_name,note_text
+﻿note_id,patient_id,patient_name,birth_date,gender,note_date,encounter_id,department,practitioner_id,practitioner_name,note_text
 note-0001,MRN-20001,Robert Hayes,1952-04-12,male,2024-03-14,V-001,Emergency Medicine,DOC-201,Eric Sullivan,"ADMISSION NOTE — Emergency Department
 
 72-year-old man admitted with a 5-day history of productive cough with green
@@ -1017,6 +1017,47 @@ sensitive to amoxicillin.
 Blood cultures x2: no growth at 5 days.
 Conclusion: Haemophilus influenzae — the causative organism of this infective
 exacerbation of COPD. No radiological or microbiological evidence of pneumonia."
+note-0105,MRN-20003,Geoffrey Almeida,1948-06-21,male,2024-03-14,V-101,Cardiology Outpatients,DOC-203,Marcus Feld,"OUTPATIENT CLINIC LETTER — Cardiology review
+
+Seen in the heart failure clinic for routine review. Stable on current therapy;
+exertional breathlessness NYHA II, no orthopnoea, no ankle swelling. O/E: BP
+142/86, HR 78 regular. Bloods from 12 March reviewed: creatinine 152 µmol/L,
+eGFR 40, HbA1c 8.2% (66 mmol/mol), NT-proBNP 1,850 ng/L.
+
+Problem list:
+1. Chronic heart failure with reduced ejection fraction — active. Echo January
+   2024: LVEF 35%. Continues ramipril 2.5 mg and bisoprolol 2.5 mg.
+2. Type 2 diabetes mellitus — active, poorly controlled (HbA1c 8.2%); metformin
+   continued, referred to the diabetes specialist nurse.
+3. Chronic kidney disease stage 3 — active, stable (eGFR 40, at baseline).
+4. Hypertension — active, control suboptimal.
+5. NSTEMI (2019) with drug-eluting stent to the LAD — resolved; remains on
+   secondary prevention (aspirin, atorvastatin).
+6. Gout — inactive; no flares since 2021, allopurinol stopped.
+7. Gastric ulcer (2015), Helicobacter pylori eradicated — resolved.
+
+Plan: continue current therapy, dietitian referral for salt restriction, repeat
+renal profile in six weeks, review in clinic in three months."
+note-0106,MRN-20009,Patricia Nowak,1959-08-17,female,2024-06-05,V-102,General Practice,DOC-216,Helena Brandt,"GP REVIEW — Annual health check
+
+Attends for her annual review and feels well. O/E: BP 148/88 on treatment, HR
+76 regular. Current smoker, around 15 cigarettes/day — brief cessation advice
+given; she declines referral for now. Bloods taken today: HbA1c 5.6%, fasting
+glucose 5.9 mmol/L, creatinine 82 µmol/L (eGFR >90).
+
+Problem list:
+1. Hypertension — active; amlodipine 5 mg continued.
+2. Hypercholesterolaemia — active; has declined a statin to date, dietary
+   advice repeated.
+3. Carcinoma of the left breast (2017), wide local excision and adjuvant
+   radiotherapy — in remission; annual surveillance mammography, most recently
+   February 2024, clear.
+4. Iron-deficiency anaemia (2020) secondary to menorrhagia — resolved after
+   iron therapy; full blood count normalised.
+5. Childhood asthma — inactive since adolescence; no inhaler use in decades.
+
+Plan: continue antihypertensive, repeat lipid profile in twelve months,
+mammography per surveillance schedule."
 note-9001,MRN-20002,Margaret Doyle,1939-11-03,female,2023-09-12,V-902,Emergency Medicine,DOC-202,Hannah Berg,"ADMISSION NOTE — Emergency Department
 
 83-year-old woman presenting after tripping on a rug at home and landing on her
