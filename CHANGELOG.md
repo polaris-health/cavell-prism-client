@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `docs/notebooks/notes.csv` is now the unified demo dataset for Prism and
+  Atlas: 2,414 synthetic documents for 262 patients (cut-off 2026-06-30). It
+  merges the original outpatient notes with the curated stays of
+  `hospitalizations.csv` and adds 94 hospital stays, 20 day cases, 25 ED
+  attendances and outpatient work-ups covering quality measurement, MZG
+  coding, trial recruitment, quality-label audits and BI questions. Merging
+  re-keyed the original notes to avoid id collisions (`note-NNNN` + 1000; the
+  8 notes on `V-001`–`V-005` moved to their own `V-<mrn>-<seq>` encounters),
+  gave each practitioner a single id, corrected 11 stated ages, made patient
+  names unique and removed 165 verbatim duplicate notes. Lab-report documents
+  are replaced by structured lab rows. `hospitalizations.csv` and
+  `lab_results.csv` are unchanged, so the hospitalization and lab notebooks
+  behave as before.
+
+### Added
+
+- `docs/notebooks/notes_lab_results.csv` — 4,984 structured lab rows for the
+  unified dataset — and `docs/notebooks/demo_scenarios.md`, the answer key for
+  demos on it.
+
 ## [0.9.0] - 2026-09-18
 
 ### Added
