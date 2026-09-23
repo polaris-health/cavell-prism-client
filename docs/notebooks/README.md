@@ -45,3 +45,7 @@ extracted: its rows reference the patients, practitioners and encounters that
 the notes create. `notes.csv` is the input of `extraction_demo.ipynb`; at
 2,414 documents a full run is a substantial number of API calls, so filter to
 the patients your demo needs (`demo_scenarios.md` lists them per use case).
+`scripts/extract_demo_dataset.py` does the whole load unattended — fresh FHIR
+database, seeding, every note, then the labs — with progress bars and an ETA.
+It keeps existing FHIR data and resumes an interrupted run; `--fresh` wipes
+the database and starts over.
