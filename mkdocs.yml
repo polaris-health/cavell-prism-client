@@ -51,3 +51,4 @@ nav:
       - Hospital stays: notebooks/hospitalization_extraction_demo.ipynb
       - Lab results: notebooks/lab_results_ingestion_demo.ipynb
       - Demo datasets: notebooks/README.md
+      - Demo scenarios: notebooks/demo_scenarios.md
