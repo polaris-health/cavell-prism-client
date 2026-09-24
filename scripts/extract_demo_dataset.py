@@ -24,7 +24,7 @@ Usage:
     uv run python scripts/extract_demo_dataset.py --fresh      # wipe + full run
     uv run python scripts/extract_demo_dataset.py              # start or continue
     uv run python scripts/extract_demo_dataset.py --patient MRN-20101 MRN-20401
-    uv run python scripts/extract_demo_dataset.py --tier medium --concurrency 6
+    uv run python scripts/extract_demo_dataset.py --tier medium --concurrency 5
 """
 
 import argparse
@@ -33,9 +33,11 @@ import getpass
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -76,41 +78,133 @@ RESOURCE_TYPES = [
 # ------------------------------------------------------------------ progress
 
 
-class Progress:
-    """A dependency-free progress bar: count, percentage, rate, ETA, extra info.
+BAR_WIDTH = 20
+RATE_LIMITED = re.compile(r"Rate limited, retrying in (\d+)s")
 
-    Redraws in place on a terminal; prints one line per update otherwise
-    (so a log file or CI output stays readable).
+
+class Progress:
+    """A dependency-free, single-line progress bar with count, ETA and info.
+
+    On a terminal the line is redrawn in place — every second, so the clock
+    keeps moving while a batch is in flight — and is cut to the window width,
+    so it never wraps (a wrapped line cannot be erased with a carriage return,
+    which is what leaves stray fragments behind). Log records are printed on
+    their own line above the bar (see :class:`BarLogHandler`). Without a
+    terminal it prints one line per update instead, which reads well in a log.
     """
 
-    def __init__(self, total: int, label: str, unit: str = "docs") -> None:
-        self.total, self.label, self.unit = max(total, 1), label, unit
+    active: "Progress | None" = None
+    lock = threading.RLock()
+
+    def __init__(self, total: int, label: str) -> None:
+        self.total, self.label = max(total, 1), label
         self.done = 0
+        self.info = ""
+        self.paused_until: float | None = None  # rate-limit wait, monotonic
+        self.paused_workers = 0
         self.t0 = time.monotonic()
         self.tty = sys.stdout.isatty()
-
-    def update(self, n: int, info: str = "") -> None:
-        self.done += n
-        elapsed = time.monotonic() - self.t0
-        rate = self.done / elapsed if elapsed > 0 else 0.0
-        eta = (self.total - self.done) / rate if rate > 0 else None
-        frac = min(self.done / self.total, 1.0)
-        width = max(10, min(40, shutil.get_terminal_size((100, 20)).columns - 90))
-        filled = round(frac * width)
-        bar = "█" * filled + "░" * (width - filled)
-        line = (
-            f"{self.label} {bar} {self.done}/{self.total} {self.unit} "
-            f"{frac:5.1%}  {_dur(elapsed)} elapsed, ETA {_dur(eta)}  {info}"
-        )
+        self._stop = threading.Event()
+        Progress.active = self
         if self.tty:
-            sys.stdout.write("\r\033[K" + line)
-        else:
-            sys.stdout.write(line + "\n")
-        sys.stdout.flush()
+            threading.Thread(target=self._tick, daemon=True).start()
+
+    def _tick(self) -> None:
+        while not self._stop.wait(1.0):
+            self.draw()
+
+    def update(self, n: int, info: str) -> None:
+        with self.lock:
+            self.done += n
+            self.info = info
+            self.paused_until = None
+            self.draw(newline=not self.tty)
+
+    def rate_limited(self, wait: float) -> None:
+        with self.lock:
+            now = time.monotonic()
+            if self.paused_until is None or now > self.paused_until:
+                self.paused_workers = 0
+            self.paused_until = now + wait
+            self.paused_workers += 1
+            self.draw()
+
+    def line(self) -> str:
+        elapsed = time.monotonic() - self.t0
+        rate = self.done / elapsed if elapsed > 0 and self.done else 0.0
+        eta = (self.total - self.done) / rate if rate else None
+        filled = round(min(self.done / self.total, 1.0) * BAR_WIDTH)
+        bar = "█" * filled + "░" * (BAR_WIDTH - filled)
+        status = self.info
+        if self.paused_until is not None:
+            left = self.paused_until - time.monotonic()
+            if left > 0:
+                status = (
+                    f"rate-limited, {self.paused_workers} request(s) waiting "
+                    f"{_dur(left)} · {self.info}"
+                )
+        return (
+            f"{self.label} {bar} {self.done}/{self.total}  "
+            f"{_dur(elapsed)} · ETA {_dur(eta)}  {status}"
+        )
+
+    def draw(self, newline: bool = False) -> None:
+        with self.lock:
+            if self._stop.is_set():
+                return
+            if self.tty:
+                width = shutil.get_terminal_size((100, 20)).columns - 1
+                sys.stdout.write("\r\033[K" + self.line()[:width])
+            elif newline:
+                sys.stdout.write(self.line() + "\n")
+            sys.stdout.flush()
+
+    def message(self, text: str) -> None:
+        """Print ``text`` on its own line without breaking the bar."""
+        with self.lock:
+            if self.tty:
+                sys.stdout.write("\r\033[K")
+            sys.stdout.write(text + "\n")
+            self.draw()
 
     def close(self) -> None:
-        if self.tty:
-            sys.stdout.write("\n")
+        with self.lock:
+            self.draw()
+            self._stop.set()
+            if self.tty:
+                sys.stdout.write("\n")
+            Progress.active = None
+
+
+class BarLogHandler(logging.Handler):
+    """Route log records around the progress bar instead of through it.
+
+    The SDK logs a warning per rate-limited request; with several workers a
+    single rate limit produces a burst of identical lines, so those are folded
+    into the bar ("rate-limited, 3 request(s) waiting 04m12s") after one line
+    per burst.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        text = record.getMessage()
+        stamp = datetime.now().strftime("%H:%M:%S")
+        bar = Progress.active
+        match = RATE_LIMITED.search(text)
+        if bar is None:
+            sys.stdout.write(f"{stamp} {record.levelname.lower()}: {text}\n")
+            return
+        if match:
+            first_of_burst = bar.paused_until is None or (
+                time.monotonic() > bar.paused_until
+            )
+            if first_of_burst:
+                bar.message(
+                    f"{stamp} rate-limited by the Prism API (HTTP 429), "
+                    f"retrying in {match.group(1)}s"
+                )
+            bar.rate_limited(float(match.group(1)))
+            return
+        bar.message(f"{stamp} {record.levelname.lower()}: {text}")
 
 
 def _dur(seconds: float | None) -> str:
@@ -193,7 +287,7 @@ def extract_notes(
 
     stats = {"ok": 0, "failed": 0, "cost": 0.0, "resources": 0, "out_of_order": 0}
     bar = Progress(todo, "notes")
-    bar.update(0, "starting…")
+    bar.update(0, "first batch in flight…")
 
     def on_batch(outcomes: list[IngestionOutcome]) -> None:
         with results_log.open("a") as f:
@@ -206,8 +300,9 @@ def extract_notes(
                     stats["resources"] += r.count if r else 0
                 else:
                     stats["failed"] += 1
-                    msg = f"FAILED {o.document_id} ({o.patient_identifier}): {o.error}"
-                    sys.stdout.write(("\r\033[K" if bar.tty else "") + msg + "\n")
+                    bar.message(
+                        f"FAILED {o.document_id} ({o.patient_identifier}): {o.error}"
+                    )
                 stats["out_of_order"] += o.out_of_order
                 f.write(
                     json.dumps(
@@ -235,8 +330,8 @@ def extract_notes(
         per_doc = stats["cost"] / stats["ok"] if stats["ok"] else 0.0
         bar.update(
             len(outcomes),
-            f"${stats['cost']:.2f} (${per_doc:.3f}/doc), "
-            f"{stats['resources']} resources, {stats['failed']} failed",
+            f"${stats['cost']:.2f} · ${per_doc:.3f}/doc · "
+            f"{stats['resources']} res · {stats['failed']} failed",
         )
 
     pipeline.extract_all(documents, batch_size=batch_size, on_batch=on_batch)
@@ -282,7 +377,7 @@ def ingest_labs(
 
     labs = LabIngestionPipeline(client)
     stats = {"accepted": 0, "created": 0, "existing": 0, "rejected": []}
-    bar = Progress(len(results), "labs ", unit="rows")
+    bar = Progress(len(results), "labs ")
     for group in groups:
         outcome = labs.ingest(group)
         stats["accepted"] += outcome.accepted
@@ -304,7 +399,7 @@ def ingest_labs(
                 )
         bar.update(
             len(group),
-            f"{stats['created']} created, {stats['existing']} already present, "
+            f"{stats['created']} new · {stats['existing']} present · "
             f"{len(stats['rejected'])} rejected",
         )
     bar.close()
@@ -333,8 +428,10 @@ def main() -> None:
     parser.add_argument(
         "--concurrency",
         type=int,
-        default=5,
-        help="patients extracted in parallel (default: 5)",
+        default=3,
+        help="patients extracted in parallel (default: 3). The Prism API's rate "
+        "limit caps throughput anyway; more workers mostly hit it sooner and "
+        "then all wait out its 5-minute block together",
     )
     parser.add_argument(
         "--batch-size",
@@ -353,9 +450,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.WARNING, handlers=[BarLogHandler()])
 
     all_rows = rows = read_csv(NOTES_CSV)
     patient_filter = set(args.patient) if args.patient else None
