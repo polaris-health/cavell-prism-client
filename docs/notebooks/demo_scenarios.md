@@ -1,10 +1,10 @@
 # Demo scenarios — ground truth for the unified dataset
 
-This page is the answer key for demonstrating **Prism** (notes and labs → FHIR) and **Atlas** (questions over the record) on `notes.csv` and `notes_lab_results.csv`. Every name, date and value is synthetic. It is generated from the authoring manifests; if you edit the data, regenerate it rather than hand-editing numbers.
+This page is the answer key for demonstrating **Prism** (notes and labs → FHIR) and **Atlas** (questions over the record) on `notes.csv` and `notes_lab_results.csv`. Every name, date and value is synthetic. It is generated from the authoring manifests; if you edit the data, regenerate it rather than hand-editing numbers. (Exception: the 19 stays V-2301 … V-2314 and V-2401 … V-2405 were added by hand and are not in the manifests; see §2.)
 
-- **2,414 documents**, **262 patients**, **1,927 encounters**, **320 practitioners**; **4,984 lab rows** for 242 patients.
+- **2,452 documents**, **281 patients**, **1,946 encounters**, **322 practitioners**; **4,989 lab rows** for 244 patients.
 - Documents span 2017-08-14 → 2026-06-26. The **data cut-off is 2026-06-30**: judge anything relative ("in the past 12 months", "eligible now") as of that date.
-- Hospital stays: **115 inpatient admissions** (21 curated MZG stays from 2022–2025 plus 94 in 2025–2026), **20 day cases** and **25 ED attendances** without admission. The rest are outpatient visits (clinic, GP, imaging, pathology).
+- Hospital stays: **121 inpatient admissions** (21 curated MZG stays from 2022–2025 plus 100 in 2025–2026), **33 day cases** and **25 ED attendances** without admission. The rest are outpatient visits (clinic, GP, imaging, pathology).
 - Lab reports are **not** documents: every blood, urine, culture and CSF result is a row in `notes_lab_results.csv` (LOINC-coded where a code applies, units and reference ranges as reported, hospital draws time-stamped with their Belgian UTC offset). Clinicians quote key values in their notes, and those quotes equal the rows.
 
 Clock times in documents are local Belgian time. One stay crosses a daylight-saving change: V-1108 (arrival 28/03/2026 16:10, incision 29/03 11:30) is 19.3 h by the clock and 18.3 h elapsed — both are under the 36 h standard.
@@ -375,6 +375,32 @@ Time stamps and measures exactly as documented (door-to-CT/needle/groin, door-to
 
 The 21 curated stays of `hospitalizations.csv` (V-001 … V-019, V-902, V-903 and the outpatient reviews V-101 … V-104) are carried over unchanged — same note, encounter and practitioner ids — so the coding scenarios documented in `hospitalization_extraction_demo.ipynb` hold here too. Their structured lab rows keep their `LAB-` ids from `lab_results.csv`; the prose `LABORATORY RESULTS` documents are replaced by those rows. Every new stay is written to be codable as well (principal and secondary diagnoses, procedures with dates, present-on-admission status of complications) — see the per-stay diagnoses in the manifests' tables below.
 
+### Pain-clinic and maxillofacial stays
+
+Nineteen short stays: pain-clinic procedures, spine surgery, admissions where pain is managed alongside the main reason for the stay, and maxillofacial tooth removal. Each is a procedure or operative note plus a discharge document. Load them on their own with `scripts/extract_demo_dataset.py --patient MRN-21701 … MRN-21719` (V-2304 and V-2308 have lab rows).
+
+| Stay | Patient | Scenario | Documents |
+|------|---------|----------|-----------|
+| V-2301 | Wim Janssens | Transforaminal epidural steroid injection for chronic L5 radicular pain from an L4-L5 disc herniation | procedure note, day-case discharge |
+| V-2302 | Els Maes | Radiofrequency medial branch denervation for chronic low back pain from L3-L5 facet arthropathy | procedure note, day-case discharge |
+| V-2303 | Bart Claes | Spinal cord stimulator implant after failed conservative therapy (L5-S1 protrusion, not a surgical candidate) | operative note, day-case discharge |
+| V-2304 | Lieve Jacobs | Coeliac plexus neurolysis for pain from metastatic pancreatic cancer | procedure note, day-case discharge |
+| V-2305 | Anja Willems | Cervical interlaminar epidural steroid injection for chronic C6 radicular pain | procedure note, day-case discharge |
+| V-2306 | Marc Mertens | Microdiscectomy for a left L5-S1 disc herniation with S1 radiculopathy | operative note, discharge letter |
+| V-2307 | Maria Verstraeten | Balloon kyphoplasty for a painful osteoporotic L1 compression fracture | operative note, discharge letter |
+| V-2308 | Georges Lemmens | Admitted for community-acquired pneumonia; chronic low back pain from lumbar spondylosis, analgesia continued | admission note, discharge letter |
+| V-2309 | Rita Hendrickx | Admitted for cycle 1 of palliative chemotherapy for metastatic pancreatic cancer; cancer pain titrated alongside | admission note, discharge letter |
+| V-2310 | Dirk Van Damme | S1 transforaminal infiltration for chronic S1 radicular pain from an L5-S1 disc herniation | procedure note, day-case discharge |
+| V-2311 | Martine Claessens | Radiofrequency denervation for chronic low back pain from lumbar facet arthrosis | procedure note, day-case discharge |
+| V-2312 | Johan Willaert | Spinal cord stimulator implant for chronic L5 radicular pain from an L4-L5 disc herniation | operative note, day-case discharge |
+| V-2313 | Christiane Dewulf | Total knee replacement for primary knee osteoarthritis; chronic neck pain treated on the ward | operative note, discharge letter |
+| V-2314 | Luc Vermeiren | Laparoscopic cholecystectomy for gallstones; low back pain treated on the ward | operative note, discharge letter |
+| V-2401 | Lotte Wouters | Surgical removal of four impacted wisdom teeth with flap, bone removal and sectioning | operative note, day-case discharge |
+| V-2402 | Ruben De Smet | Surgical removal of a horizontally impacted lower left third molar (38) with flap and osteotomy | operative note, day-case discharge |
+| V-2403 | Nina Dubois | Surgical removal of a palatally impacted upper canine via a palatal flap | operative note, day-case discharge |
+| V-2404 | Joris Goossens | Coronectomy of 48: crown removed, roots left in place | operative note, day-case discharge |
+| V-2405 | Frank Hermans | Forceps extraction of six carious teeth under general anaesthesia | operative note, day-case discharge |
+
 ## 3. Research — trial recruitment
 
 Six fictional protocols. Screen **as of 2026-06-30**. Each pool mixes clear eligibles, single-criterion failures (often subtle: a unit conversion, a date window, an exon-20 insertion instead of exon 19) and pending cases.
@@ -644,22 +670,22 @@ Example questions: *Admissions per month by department in 2025?* · *Average len
 | 2025-10 | 6 | Neurology 1, Cardiology 1, General Surgery 1, Pulmonology 1, Gastroenterology 1, Thoracic Surgery 1 |
 | 2025-11 | 7 | Orthopaedics 2, Cardiology 2, Pulmonology 2, Pediatrics 1 |
 | 2025-12 | 6 | Internal Medicine 2, General Surgery 2, Neurology 1, Obstetrics/Gynaecology 1 |
-| 2026-01 | 9 | Neurology 2, Orthopaedics 2, Vascular Surgery 1, Cardiology 1, General Surgery 1, Pulmonology 1, Geriatrics 1 |
-| 2026-02 | 6 | Cardiology 2, Oncology 1, Pulmonology 1, Obstetrics/Gynaecology 1, Pediatrics 1 |
-| 2026-03 | 8 | Orthopaedics 2, Pulmonology 2, Neurology 1, Internal Medicine 1, General Surgery 1, Cardiology 1 |
+| 2026-01 | 10 | Orthopaedics 3, Neurology 2, Vascular Surgery 1, Cardiology 1, General Surgery 1, Pulmonology 1, Geriatrics 1 |
+| 2026-02 | 8 | Cardiology 2, Pulmonology 2, Oncology 1, Obstetrics/Gynaecology 1, Pediatrics 1, General Surgery 1 |
+| 2026-03 | 10 | Orthopaedics 2, Pulmonology 2, Neurology 1, Internal Medicine 1, General Surgery 1, Cardiology 1, Neurosurgery 1, Oncology 1 |
 | 2026-04 | 4 | Internal Medicine 2, Cardiology 1, General Surgery 1 |
 | 2026-05 | 4 | Neurology 1, Cardiology 1, Orthopaedics 1, Obstetrics/Gynaecology 1 |
-| 2026-06 | 4 | Orthopaedics 2, General Surgery 1, Gastroenterology 1 |
+| 2026-06 | 5 | Orthopaedics 2, General Surgery 1, Gastroenterology 1, Neurosurgery 1 |
 
 ### Length of stay by department (all inpatient stays)
 
 | Department | Stays | Bed-days | Mean LOS | Emergency / elective |
 |------------|------:|---------:|---------:|---------------------:|
-| Orthopaedics | 21 | 129 | 6.1 | 12 / 9 |
-| Pulmonology | 16 | 76 | 4.8 | 16 / 0 |
+| Orthopaedics | 22 | 132 | 6.0 | 12 / 10 |
+| Pulmonology | 17 | 80 | 4.7 | 17 / 0 |
 | Cardiology | 16 | 88 | 5.5 | 16 / 0 |
 | Internal Medicine | 16 | 94 | 5.9 | 16 / 0 |
-| General Surgery | 14 | 79 | 5.6 | 8 / 6 |
+| General Surgery | 15 | 80 | 5.3 | 8 / 7 |
 | Neurology | 10 | 65 | 6.5 | 10 / 0 |
 | Obstetrics/Gynaecology | 7 | 22 | 3.1 | 6 / 1 |
 | Pediatrics | 4 | 15 | 3.8 | 4 / 0 |
@@ -669,12 +695,13 @@ Example questions: *Admissions per month by department in 2025?* · *Average len
 | General Medicine | 1 | 4 | 4.0 | 1 / 0 |
 | Nephrology | 1 | 5 | 5.0 | 1 / 0 |
 | Intensive Care | 1 | 2 | 2.0 | 1 / 0 |
-| Oncology | 1 | 5 | 5.0 | 1 / 0 |
+| Oncology | 2 | 7 | 3.5 | 1 / 1 |
 | Thoracic Surgery | 1 | 5 | 5.0 | 0 / 1 |
+| Neurosurgery | 2 | 2 | 1.0 | 0 / 2 |
 
-**Discharge destinations:** home 93, home_with_care 8, nursing_home 5, rehabilitation 4, deceased 4, another_hospital 1.
+**Discharge destinations:** home 99, home_with_care 8, nursing_home 5, rehabilitation 4, deceased 4, another_hospital 1.
 
-**Day cases:** 20 — Ophthalmology 7, General Surgery 5, Gastroenterology 4, Orthopaedics 2, Urology 2.
+**Day cases:** 33 — Anaesthesiology 8, Ophthalmology 7, General Surgery 5, Maxillofacial Surgery 5, Gastroenterology 4, Orthopaedics 2, Urology 2.
 
 **ED attendances without admission:** 25.
 
@@ -683,19 +710,19 @@ Example questions: *Admissions per month by department in 2025?* · *Average len
 | Department | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 | Total |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Internal Medicine | 2 | 38 | 93 | 101 | 101 | 79 | 80 | 50 | 23 | 13 | 580 |
-| Orthopaedics |  | 1 | 13 | 13 | 33 | 19 | 9 | 6 | 36 | 19 | 149 |
+| Orthopaedics |  | 1 | 13 | 13 | 33 | 19 | 9 | 6 | 36 | 21 | 151 |
 | Cardiology |  | 10 | 13 | 10 | 19 | 7 | 10 | 20 | 30 | 28 | 147 |
 | Obstetrics/Gynaecology |  |  | 4 | 40 | 28 | 8 | 25 | 14 | 13 | 4 | 136 |
 | Emergency Medicine |  |  | 5 | 11 | 16 | 7 | 6 | 12 | 49 | 27 | 133 |
+| Pulmonology |  | 8 | 14 | 14 | 12 | 9 | 8 | 11 | 21 | 31 | 128 |
 | Neurology |  | 4 | 13 | 18 | 15 | 12 | 13 | 9 | 25 | 18 | 127 |
-| Pulmonology |  | 8 | 14 | 14 | 12 | 9 | 8 | 11 | 21 | 29 | 126 |
 | Gastroenterology |  |  | 13 | 17 | 18 | 32 | 15 | 5 | 13 | 5 | 118 |
 | Rheumatology |  | 3 | 8 | 17 | 24 | 20 | 19 | 7 | 5 | 13 | 116 |
 | Radiology |  |  |  |  |  | 1 | 1 | 9 | 56 | 23 | 90 |
 | Nursing |  |  |  |  |  |  |  |  | 57 | 33 | 90 |
 | Dermatology |  |  |  | 4 | 24 | 24 | 17 | 3 |  |  | 72 |
-| General Surgery |  |  | 1 | 3 | 7 | 4 | 1 | 12 | 24 | 17 | 69 |
-| Oncology |  | 4 | 8 | 8 | 14 | 8 | 9 |  |  | 14 | 65 |
+| General Surgery |  |  | 1 | 3 | 7 | 4 | 1 | 12 | 24 | 19 | 71 |
+| Oncology |  | 4 | 8 | 8 | 14 | 8 | 9 |  |  | 16 | 67 |
 | Ophthalmology |  | 2 | 10 | 7 | 12 | 10 | 2 | 1 | 8 | 6 | 58 |
 | Endocrinology | 1 | 4 | 8 | 9 | 9 | 6 | 6 |  | 2 | 6 | 51 |
 | Psychiatry |  |  |  | 7 | 11 | 20 | 8 | 3 |  |  | 49 |
@@ -703,21 +730,23 @@ Example questions: *Admissions per month by department in 2025?* · *Average len
 | Urology |  |  | 8 | 6 | 5 | 7 | 2 | 4 | 2 | 2 | 36 |
 | Pathology |  |  |  |  |  |  |  | 3 | 12 | 14 | 29 |
 | ENT |  |  | 1 | 2 | 2 | 5 | 9 |  |  |  | 19 |
+| Anaesthesiology |  |  |  |  |  |  |  |  | 1 | 17 | 18 |
 | Geriatrics |  |  |  |  |  |  |  |  | 11 | 6 | 17 |
 | Pediatrics |  |  |  |  |  |  |  |  | 9 | 3 | 12 |
 | Nuclear Medicine |  |  |  |  |  |  |  |  | 2 | 10 | 12 |
 | General Practice |  |  |  |  |  |  |  | 2 | 7 | 2 | 11 |
+| Maxillofacial Surgery |  |  |  |  |  |  |  |  |  | 10 | 10 |
 | Intensive Care |  |  |  |  |  |  |  |  | 9 |  | 9 |
 | Midwifery |  |  |  |  |  |  |  |  | 5 | 4 | 9 |
 | Microbiology |  |  |  |  |  |  |  | 3 | 5 |  | 8 |
 | Vascular Surgery |  |  |  |  |  |  |  |  | 3 | 4 | 7 |
 | Speech and Language Therapy |  |  |  |  |  |  |  |  | 3 | 1 | 4 |
 | Physiotherapy |  |  |  |  |  |  |  |  | 2 | 2 | 4 |
+| Neurosurgery |  |  |  |  |  |  |  |  |  | 4 | 4 |
 | Dietetics |  |  |  |  |  |  |  |  | 2 | 1 | 3 |
 | Pharmacy |  |  |  |  |  |  |  |  | 2 | 1 | 3 |
 | Palliative Care |  |  |  |  |  |  |  |  | 3 |  | 3 |
 | Thoracic Surgery |  |  |  |  |  |  |  |  | 3 |  | 3 |
-| Anaesthesiology |  |  |  |  |  |  |  |  | 1 | 1 | 2 |
 | Neuropsychology |  |  |  |  |  |  |  |  | 2 |  | 2 |
 | General Medicine |  |  |  |  |  | 1 |  |  |  |  | 1 |
 | Cardiology Outpatients |  |  |  |  |  |  |  | 1 |  |  | 1 |
@@ -823,6 +852,7 @@ Example questions: *Admissions per month by department in 2025?* · *Average len
 | V-1907 | Octavie Stassen | Geriatrics | 2026-01-08 | 2026-01-20 | 12 | emergency | nursing_home | Delirium due to urinary tract infection with Proteus mirabilis |
 | V-1006 | Luc Moens | Neurology | 2026-01-12 | 2026-01-14 | 2 | emergency | home | Transient ischaemic attack, left carotid territory (G45.1) |
 | V-1507 | Patrick Donckers | Orthopaedics | 2026-01-12 | 2026-01-15 | 3 | elective | home | Primary osteoarthritis of the right knee |
+| V-2313 | Christiane Dewulf | Orthopaedics | 2026-01-12 | 2026-01-15 | 3 | elective | home | Unilateral primary osteoarthritis of the right knee |
 | V-1306 | Paula Geens | Cardiology | 2026-01-14 | 2026-01-24 | 10 | emergency | home_with_care | Acute decompensated heart failure, dilated cardiomyopathy LVEF 20 % |
 | V-2201 | Albert Huysmans | Neurology | 2026-01-19 | 2026-01-24 | 5 | emergency | home | Acute ischaemic stroke, left MCA cortical branch territory (minor, NIHSS 3), probable artery-to-artery embolism from left ICA atheroma (40 % stenosis) |
 | V-2005 | Emile Carpentier | Ophthalmology | 2026-01-19 | 2026-01-19 | 0 | elective | home | Right age-related cataract |
@@ -834,31 +864,49 @@ Example questions: *Admissions per month by department in 2025?* · *Average len
 | V-2011 | Veerle Bracke | Gastroenterology | 2026-02-02 | 2026-02-02 | 0 | elective | home | Coeliac disease (Marsh 3a) |
 | V-1206 | Hendrik De Wit | Cardiology | 2026-02-03 | 2026-02-07 | 4 | emergency | another_hospital | NSTEMI (type 1) |
 | V-1805 | Ines Demeulemeester | Obstetrics/Gynaecology | 2026-02-09 | 2026-02-13 | 4 | emergency | home | Pre-eclampsia with severe features at 37+0 weeks |
+| V-2308 | Georges Lemmens | Pulmonology | 2026-02-09 | 2026-02-13 | 4 | emergency | home | Community-acquired right lower lobe pneumonia |
 | V-1406 | Leen Verhaegen | Oncology | 2026-02-17 | 2026-02-22 | 5 | emergency | home | Febrile neutropenia / neutropenic sepsis after chemotherapy, no organism identified |
 | V-2020 | Brigitte Mahieu | General Surgery | 2026-02-23 | 2026-02-23 | 0 | elective | home | Symptomatic cholelithiasis |
+| V-2314 | Luc Vermeiren | General Surgery | 2026-02-23 | 2026-02-24 | 1 | elective | home | Calculus of gallbladder without cholecystitis |
 | V-1308 | Jeannine Raes | Cardiology | 2026-02-24 | 2026-03-02 | 6 | emergency | home | Acute decompensated heart failure with LVEF 40 % |
 | V-1711 | Norbert Callewaert | Pulmonology | 2026-03-02 | 2026-03-06 | 4 | emergency | home | Acute exacerbation of asthma-COPD overlap |
+| V-2309 | Rita Hendrickx | Oncology | 2026-03-02 | 2026-03-04 | 2 | elective | home | Encounter for antineoplastic chemotherapy (metastatic pancreatic adenocarcinoma) |
 | V-1908 | Ivan Petrov | Cardiology | 2026-03-03 | 2026-03-05 | 2 | emergency | home | Atrial fibrillation, new, with rapid ventricular response, cardioverted |
 | V-1008 | Nadia Bouzid | Neurology | 2026-03-09 | 2026-03-13 | 4 | emergency | home | Lacunar infarct, right internal capsule (I63.8) |
 | V-1608 | Gaston Leclercq | General Surgery | 2026-03-09 | 2026-03-10 | 1 | elective | home | Cholelithiasis after mild acute gallstone pancreatitis |
 | V-2101 | Werner Goris | Pulmonology | 2026-03-10 | 2026-03-15 | 5 | emergency | home_with_care | Malignant left pleural effusion (secondary malignant neoplasm of pleura) from lung adenocarcinoma |
 | V-1407 | Omar Haddad | Internal Medicine | 2026-03-16 | 2026-03-22 | 6 | emergency | home | Sepsis due to ESBL-producing Klebsiella pneumoniae (bacteraemia) from acute left pyelonephritis |
 | V-2014 | Els Vandamme-Claus | General Surgery | 2026-03-16 | 2026-03-16 | 0 | elective | home | Umbilical hernia |
+| V-2310 | Dirk Van Damme | Anaesthesiology | 2026-03-17 | 2026-03-17 | 0 | elective | home | Chronic left S1 radicular pain (pain control; L5-S1 disc herniation) |
 | V-1508 | Anne-Sophie Collard | Orthopaedics | 2026-03-23 | 2026-03-24 | 1 | elective | home | Primary anteromedial osteoarthritis of the right knee |
+| V-2307 | Maria Verstraeten | Neurosurgery | 2026-03-24 | 2026-03-25 | 1 | elective | home | Acute osteoporotic compression fracture of L1 |
 | V-1108 | Yvonne Cools | Orthopaedics | 2026-03-28 | 2026-04-08 | 11 | emergency | nursing_home | Displaced intracapsular fracture of the right femoral neck (S72.0) |
 | V-1408 | Omar Haddad | Internal Medicine | 2026-04-05 | 2026-04-10 | 5 | emergency | home | Clostridioides difficile infection, severe, healthcare-associated (after meropenem in V-1407) |
 | V-1609 | Marthe Van den Bossche | General Surgery | 2026-04-13 | 2026-04-20 | 7 | emergency | home_with_care | Incarcerated umbilical hernia without strangulation |
+| V-2301 | Wim Janssens | Anaesthesiology | 2026-04-14 | 2026-04-14 | 0 | elective | home | Chronic right L5 radicular pain (pain control; L4-L5 disc herniation) |
+| V-2401 | Lotte Wouters | Maxillofacial Surgery | 2026-04-16 | 2026-04-16 | 0 | elective | home | Impacted teeth 18, 28, 38 and 48 |
 | V-2006 | Denise Wyns | Ophthalmology | 2026-04-20 | 2026-04-20 | 0 | elective | home | Left age-related cataract |
 | V-1201 | Kristof Smets | Cardiology | 2026-04-21 | 2026-04-26 | 5 | emergency | home | Acute anterior ST-elevation myocardial infarction (proximal LAD) |
+| V-2302 | Els Maes | Anaesthesiology | 2026-04-21 | 2026-04-21 | 0 | elective | home | Chronic low back pain (pain control; lumbar facet arthropathy) |
+| V-2402 | Ruben De Smet | Maxillofacial Surgery | 2026-04-23 | 2026-04-23 | 0 | elective | home | Impacted lower left third molar (38) |
 | V-1909 | Maryse Delhaye | Internal Medicine | 2026-04-27 | 2026-04-29 | 2 | emergency | home | Syncope due to drug-induced orthostatic hypotension |
+| V-2311 | Martine Claessens | Anaesthesiology | 2026-04-28 | 2026-04-28 | 0 | elective | home | Chronic low back pain (pain control; lumbar facet arthrosis) |
 | V-1509 | Johan Verbeke | Orthopaedics | 2026-05-04 | 2026-05-08 | 4 | elective | home | Primary osteoarthritis of the left hip |
+| V-2303 | Bart Claes | Anaesthesiology | 2026-05-05 | 2026-05-05 | 0 | elective | home | Chronic left S1 radicular pain refractory to conservative treatment |
+| V-2403 | Nina Dubois | Maxillofacial Surgery | 2026-05-07 | 2026-05-07 | 0 | elective | home | Impacted upper right permanent canine (13) |
 | V-2018 | Lucienne Pirard | Urology | 2026-05-11 | 2026-05-11 | 0 | elective | home | Painless visible haematuria, normal cystoscopy |
 | V-1207 | Sabine Mortier | Cardiology | 2026-05-12 | 2026-05-13 | 1 | emergency | home | Musculoskeletal (costochondral) chest wall pain |
+| V-2304 | Lieve Jacobs | Anaesthesiology | 2026-05-12 | 2026-05-12 | 0 | elective | home | Neoplasm-related pain (pancreatic head adenocarcinoma, liver metastases) |
 | V-1009 | Georgette Lambrechts | Neurology | 2026-05-18 | 2026-06-01 | 14 | emergency | nursing_home | Acute ischaemic stroke, right MCA territory, right M1 occlusion, cardioembolic (I63.4) |
+| V-2305 | Anja Willems | Anaesthesiology | 2026-05-19 | 2026-05-19 | 0 | elective | home | Chronic left C6 radicular pain (pain control; C5-C6 disc herniation) |
+| V-2404 | Joris Goossens | Maxillofacial Surgery | 2026-05-21 | 2026-05-21 | 0 | elective | home | Impacted lower right third molar (48), roots on the inferior alveolar canal |
 | V-1806 | Hanna Wauters | Obstetrics/Gynaecology | 2026-05-25 | 2026-05-26 | 1 | emergency | home | Spontaneous vertex delivery at term (39+4), single live birth |
 | V-1109 | Liliane Stevens | Orthopaedics | 2026-06-01 | 2026-06-07 | 6 | emergency | home | Undisplaced intracapsular fracture of the left femoral neck, Garden I (S72.0) |
+| V-2306 | Marc Mertens | Neurosurgery | 2026-06-02 | 2026-06-03 | 1 | elective | home | Left L5-S1 disc herniation with S1 radiculopathy |
+| V-2405 | Frank Hermans | Maxillofacial Surgery | 2026-06-04 | 2026-06-04 | 0 | elective | supported_residence | Dental caries extending into the pulp, six non-restorable teeth |
 | V-1409 | Hilda Wellens | Orthopaedics | 2026-06-08 | 2026-06-20 | 12 | emergency | home_with_care | Septic arthritis of the right knee due to methicillin-sensitive Staphylococcus aureus, with sepsis |
 | V-2019 | Tim Verhelst | General Surgery | 2026-06-08 | 2026-06-08 | 0 | elective | home | Subcutaneous lipoma of the back |
+| V-2312 | Johan Willaert | Anaesthesiology | 2026-06-09 | 2026-06-09 | 0 | elective | home | Chronic right L5 radicular pain (neurostimulator; L4-L5 disc herniation) |
 | V-1610 | Jens Hofmann | General Surgery | 2026-06-15 | 2026-06-16 | 1 | elective | home | Right indirect inguinal hernia |
 | V-2007 | Hugo Delanghe | Ophthalmology | 2026-06-15 | 2026-06-15 | 0 | elective | home | Right age-related cataract |
 | V-1910 | Raf Coenen | Gastroenterology | 2026-06-22 | 2026-06-25 | 3 | emergency | home | Iron-deficiency anaemia due to chronic blood loss from caecal angiodysplasia |
