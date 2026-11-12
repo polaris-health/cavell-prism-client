@@ -98,3 +98,12 @@ dev = [
     "sqlalchemy>=2.0",
     "ty>=0.0.1",
 ]
+
+[[tool.ty.overrides]]
+# The demo notebooks' settings cells use `if COL_X:` so a reader can set an
+# optional column to None; ty sees the default string and calls the check
+# redundant.
+include = ["docs/notebooks/**"]
+
+[tool.ty.overrides.rules]
+redundant-condition = "ignore"
