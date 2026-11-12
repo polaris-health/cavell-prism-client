@@ -20,7 +20,7 @@ Document.from_rows(rows, columns={...}, **defaults)
 
 | Argument | What it is |
 |----------|------------|
-| `rows` | A list of dicts — `csv.DictReader`, `df.to_dict("records")`, or parsed JSON |
+| `rows` | A list of dicts — `csv.DictReader`, `df.to_dict("records")`, [`DatabaseSource.rows()`](database.md), or parsed JSON |
 | `columns` | Maps **SDK field name → your column header**. The left side is fixed by the SDK; the right side is whatever your export calls it |
 | `**defaults` | Literal values applied to every row — for constants your file does not carry (`organization_identifier="CGH-001"`, `status="preliminary"`) |
 
@@ -41,9 +41,15 @@ Set a column to `None` to disable an optional field your export does not have:
 `columns={..., "encounter_id": None}`. `Document` and `LabResult` raise rather than let you disable a
 required field that way.
 
-Everything is validated upfront — unknown SDK field names, headers that are not
-in the data, and missing required keys all raise `ValueError` before any object
-is built, so a typo costs you nothing but the error message.
+The *mapping* is validated upfront — unknown SDK field names, headers that are
+not in the data, and missing required keys all raise `ValueError` before any
+object is built, so a typo costs you nothing but the error message. Problems
+with individual *rows* never raise: the row is skipped and reported, and every
+other row goes ahead (see below).
+
+!!! tip "The same columns work straight from a database"
+    A database table or query with these columns can be extracted without
+    exporting it first — see [Extracting from a database](database.md).
 
 ---
 
@@ -86,7 +92,7 @@ The `Document` is the unit of extraction — one note in, FHIR resources out.
 |-----------|----------|--------|--------------|
 | `text` | Yes | Free text | The clinical narrative the model reads. Warns below 20 characters |
 | `patient_identifier` | Yes | Your MRN | Resolved against `urn:cavell:patient`; the patient must have been seeded |
-| `date` | Yes | `YYYY-MM-DD` or `datetime.date` | **The document's own date.** Drives chronological ordering, is sent to the API as `document_date`, and is what every relative expression in the text ("two days ago", "since last winter") is resolved against |
+| `date` | Yes | `YYYY-MM-DD`, an ISO datetime (`2024-01-15T09:30:00`, `2024-01-15 09:30:00+01:00` — the date part is kept as written), or `datetime.date` | **The document's own date.** Drives chronological ordering, is sent to the API as `document_date`, and is what every relative expression in the text ("two days ago", "since last winter") is resolved against |
 | `document_id` | Yes | Your note id, unique across the feed | The idempotency key. The resume filter (`skip_processed`), the chronology watermark, and failure reporting all key on it. Stamped onto the DocumentReference |
 | `encounter_id` | No | Your visit id | Ties the note to a hospital stay. The SDK looks the Encounter up (`urn:cavell:encounter`); the API creates it on the first note and **updates it in place** on later ones, and links every resource extracted from the note to it. Omit for standalone notes — then no Encounter is created |
 | `practitioner_identifier` | No | Your staff id | Resolved to a FHIR id and the practitioner's name is injected into the model's context, which sharply improves author matching |
@@ -98,12 +104,25 @@ want from a CSV: `columns={..., "meta": {"Department": "department", "Ward":
 "ward"}}` renders `"Department: Cardiology\nWard: 4B"` for each row, skipping
 labels whose cell is empty.
 
-!!! warning "Blank required values raise, they are not skipped"
-    `Document.from_rows()` raises if `text`, `patient_identifier`, `date` or
-    `document_id` is blank on any row, and raises again if two rows share a
-    `document_id`. A note is expensive to extract and silently dropping one
-    would be worse than stopping. (The lab pipeline makes the opposite choice —
-    see [rejection rules](#when-a-lab-row-is-rejected).)
+!!! warning "Bad rows are skipped and reported, not raised"
+    `Document.from_rows()` skips a row whose `text`, `patient_identifier` or
+    `document_id` is blank or whose `date` is not an ISO date/datetime, and a
+    row that repeats an earlier row's `document_id` **for the same patient**
+    (the first one is kept). Each skipped row is logged at WARNING and listed,
+    with its 0-based position and the reason, in the returned list's
+    `.rejected` attribute; `extract_all()` reports them again in its
+    end-of-run summary. One bad row never stops the others — the lab pipeline
+    follows the same rule (see [rejection rules](#when-a-lab-row-is-rejected)).
+
+    ```python
+    documents = Document.from_rows(rows, columns={...})
+    for r in documents.rejected:
+        print(f"row {r.index}: {r.document_id} — {r.reason}")
+    # row 17: note-0018 — Document.text must not be empty
+    ```
+
+    At extraction time, a document whose patient, organization or practitioner
+    was never seeded is likewise rejected (`category="reference"`), not raised.
 
 ### Patient, Practitioner and Organization columns
 

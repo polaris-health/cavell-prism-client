@@ -16,21 +16,34 @@ identifier, so re-running a feed is idempotent by construction.
 
 import logging
 import math
+import os
 import re
 from collections import defaultdict
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 
 from cavell_client.api import CavellAPI
+from cavell_client.database import cell_to_text
 from cavell_client.fhir import FHIRClient
-from cavell_client.ingestion import _validate_columns
+from cavell_client.ingestion import (
+    _forbid_key_defaults,
+    _require_available_columns,
+    _validate_columns,
+)
 from cavell_client.models import FHIRConnectionError, PersistResult
+from cavell_client.reporting import (
+    FailureCategory,
+    FailureRecord,
+    FailureReporter,
+    persist_error_detail,
+)
 
 if TYPE_CHECKING:
     from cavell_client.client import CavellClient
+    from cavell_client.database import DatabaseSource
 
 logger = logging.getLogger(__name__)
 
@@ -72,13 +85,7 @@ def _as_text(value: Any) -> str:
     string). ``None`` and non-finite floats (a pandas NaN) become "" so the
     row is rejected with a reason instead of crashing the whole request.
     """
-    if value is None:
-        return ""
-    if isinstance(value, float):
-        return str(value) if math.isfinite(value) else ""
-    if isinstance(value, str):
-        return value.strip()
-    return str(value)
+    return cell_to_text(value).strip()
 
 
 def _coerce_bound(value: Any) -> float | str | None:
@@ -108,7 +115,40 @@ def _coerce_bound(value: Any) -> float | str | None:
 #: How many offending items to name before truncating the error message.
 _MAX_LISTED_NON_RESULTS = 10
 
+
+def _check_lab_columns(
+    columns: Mapping[str, str | None], defaults: Mapping[str, Any]
+) -> dict[str, str]:
+    """Validate a LabResult column mapping; return field -> column for the
+    mapped (not disabled) fields.
+
+    Raises:
+        ValueError: On an unknown field or an unmapped required field.
+    """
+    valid_fields = {f.name for f in fields(LabResult)}
+    for required in _REQUIRED_LAB_COLUMNS:
+        if not columns.get(required):
+            raise ValueError(
+                f"columns must include '{required}' — it is a required "
+                f"LabResult field and cannot be disabled"
+            )
+    for key in columns:
+        if key not in valid_fields:
+            raise ValueError(f"Unknown LabResult field in columns: '{key}'")
+    for key in defaults:
+        if key not in valid_fields:
+            raise ValueError(f"Unknown LabResult field in defaults: '{key}'")
+    return {k: v for k, v in columns.items() if isinstance(v, str)}
+
+
 RejectionStage = Literal["validation", "reference", "server"]
+
+#: Failure category (who has to act) for each rejection stage.
+_STAGE_CATEGORY: dict[str, FailureCategory] = {
+    "validation": "data",
+    "reference": "reference",
+    "server": "prism_rejected",
+}
 
 
 @dataclass
@@ -198,34 +238,21 @@ class LabResult:
             List of LabResult, one per row — no rows are dropped here; content
             problems surface as rejections from :meth:`LabIngestionPipeline.ingest`.
         """
-        valid_fields = {f.name for f in fields(cls)}
-
-        for required in _REQUIRED_LAB_COLUMNS:
-            if not columns.get(required):
-                raise ValueError(
-                    f"columns must include '{required}' — it is a required "
-                    f"LabResult field and cannot be disabled"
-                )
-        for key in columns:
-            if key not in valid_fields:
-                raise ValueError(f"Unknown LabResult field in columns: '{key}'")
-        for key in defaults:
-            if key not in valid_fields:
-                raise ValueError(f"Unknown LabResult field in defaults: '{key}'")
-
+        flat_columns = _check_lab_columns(columns, defaults)
         if not rows:
             return []
-
-        flat_columns = {k: v for k, v in columns.items() if isinstance(v, str)}
         _validate_columns(flat_columns, rows)
 
-        results: list[LabResult] = []
-        for row in rows:
-            kwargs: dict[str, Any] = dict(defaults)
-            for field_name, col_name in flat_columns.items():
-                kwargs[field_name] = row.get(col_name, "")
-            results.append(cls(**kwargs))
-        return results
+        return [_lab_from_row(row, flat_columns, defaults) for row in rows]
+
+
+def _lab_from_row(
+    row: Mapping[str, Any], flat_columns: Mapping[str, str], defaults: Mapping[str, Any]
+) -> LabResult:
+    kwargs: dict[str, Any] = dict(defaults)
+    for field_name, col_name in flat_columns.items():
+        kwargs[field_name] = row.get(col_name, "")
+    return LabResult(**kwargs)
 
 
 @dataclass(frozen=True)
@@ -243,6 +270,24 @@ class LabRejection:
     #: FHIR), or "server" (the API's own row checks).
     stage: RejectionStage
 
+    @property
+    def category(self) -> FailureCategory:
+        """Who has to act: ``data`` (fix the row), ``reference`` (the patient,
+        encounter or practitioner is not in FHIR) or ``prism_rejected`` (the
+        API refused the row's content)."""
+        return _STAGE_CATEGORY[self.stage]
+
+    def to_failure(self) -> FailureRecord:
+        return FailureRecord(
+            kind="lab_result",
+            identifier=self.lab_result_id,
+            patient_identifier=self.patient_identifier,
+            status="rejected",
+            category=self.category,
+            reason=self.reason,
+            row=self.index,
+        )
+
 
 @dataclass
 class LabIngestionOutcome:
@@ -259,6 +304,9 @@ class LabIngestionOutcome:
     #: processing order. A patient with more than the API's per-request row
     #: cap contributes several entries.
     persistence: list[tuple[str, PersistResult]]
+    #: Rows not sent at all because their lab_result_id was already in FHIR
+    #: for that patient (``ingest_from_database`` checks before sending).
+    skipped_already_ingested: int = 0
 
     @property
     def created(self) -> int:
@@ -280,11 +328,58 @@ class LabIngestionOutcome:
         return all(p.success for _, p in self.persistence)
 
     def __str__(self) -> str:
-        return (
+        text = (
             f"{self.accepted}/{self.total} rows accepted "
             f"({self.created} created, {self.skipped_existing} already present), "
             f"{len(self.rejected)} rejected"
         )
+        if self.skipped_already_ingested:
+            text += f", {self.skipped_already_ingested} skipped as already ingested"
+        failed = [p for _, p in self.persistence if not p.success]
+        if failed:
+            text += f", {len(failed)} bundle(s) failed to persist"
+        return text
+
+    def failure_records(self) -> list[FailureRecord]:
+        """Every rejection and failed bundle, as failure records."""
+        records = [r.to_failure() for r in self.rejected]
+        for patient, persist in self.persistence:
+            if persist.success:
+                continue
+            records.append(
+                FailureRecord(
+                    kind="lab_result",
+                    identifier=None,
+                    patient_identifier=patient,
+                    status="failed",
+                    category="fhir_rejected",
+                    reason=(
+                        f"the FHIR server rejected a lab bundle for patient "
+                        f"'{patient}' ({persist.status}); its rows were not "
+                        f"stored and are retried on the next run"
+                    ),
+                    detail=persist_error_detail(persist.errors),
+                )
+            )
+        return records
+
+
+def _merge_lab_outcomes(
+    outcomes: "list[LabIngestionOutcome]",
+    total: int,
+    skipped: int,
+    rejected: "list[LabRejection]",
+) -> "LabIngestionOutcome":
+    rejected = sorted(
+        [*rejected, *(r for o in outcomes for r in o.rejected)], key=lambda r: r.index
+    )
+    return LabIngestionOutcome(
+        total=total,
+        accepted=sum(o.accepted for o in outcomes),
+        rejected=rejected,
+        persistence=[p for o in outcomes for p in o.persistence],
+        skipped_already_ingested=skipped,
+    )
 
 
 def _require_lab_results(results: list["LabResult"]) -> None:
@@ -363,8 +458,15 @@ class LabIngestionPipeline:
     def __init__(self, client: "CavellClient") -> None:
         self._api: CavellAPI = client._api
         self._fhir: FHIRClient = client._fhir
+        #: The API key passed the pre-flight check; not repeated per chunk.
+        self._key_checked = False
 
-    def ingest(self, results: list[LabResult]) -> LabIngestionOutcome:
+    def ingest(
+        self,
+        results: list[LabResult],
+        *,
+        failures_path: "str | os.PathLike[str] | None" = None,
+    ) -> LabIngestionOutcome:
         """Ingest lab results: validate → resolve references → API → persist.
 
         Rows are processed patient by patient (sorted by identifier, so runs
@@ -379,8 +481,16 @@ class LabIngestionPipeline:
         be re-ingested — already-persisted rows come back as
         ``skipped_existing``.
 
+        Every rejection and failed bundle is logged at ERROR with its
+        category — who has to act: ``data`` (fix the row), ``reference``
+        (patient/encounter/practitioner not in FHIR), ``prism_rejected`` (the
+        API refused the row), ``fhir_rejected`` (your FHIR server refused the
+        bundle) — followed by a summary line.
+
         Args:
             results: LabResult objects (see :meth:`LabResult.from_rows`).
+            failures_path: Append every rejection and failed bundle to this
+                file as JSON Lines.
 
         Returns:
             LabIngestionOutcome with accepted/rejected counts, per-row
@@ -396,8 +506,30 @@ class LabIngestionPipeline:
                 or bundle POST fails at the transport level — infrastructure
                 trouble, not bad data.
         """
+        reporter = FailureReporter(failures_path)
+        outcome = self._ingest(results)
+        reporter.add(outcome.failure_records())
+        reporter.log_summary(f"ingest: {outcome}")
+        return outcome
+
+    def _ingest(
+        self,
+        results: list[LabResult],
+        *,
+        patient_ids: Mapping[str, str] | None = None,
+        practitioner_ids: dict[str, str | None] | None = None,
+    ) -> LabIngestionOutcome:
+        """The body of :meth:`ingest`, without the reporting.
+
+        ``patient_ids`` (identifier -> FHIR id, from a bulk scan) replaces the
+        per-patient FHIR lookup; a patient missing from it is unknown.
+        ``practitioner_ids`` is a practitioner lookup cache to share across
+        calls (it is filled in place).
+        """
         _require_lab_results(results)
-        self._api.check_connection()
+        if not self._key_checked:
+            self._api.check_connection()
+            self._key_checked = True
 
         rejections: list[LabRejection] = []
 
@@ -437,14 +569,19 @@ class LabIngestionPipeline:
         # cache is global: practitioners are shared across patients.
         persistence: list[tuple[str, PersistResult]] = []
         accepted = 0
-        practitioner_ids: dict[str, str | None] = {}
+        if practitioner_ids is None:
+            practitioner_ids = {}
         for patient_identifier in sorted(by_patient):
             patient_rows = by_patient[patient_identifier]
-            found = _fail_closed(
-                f"Patient lookup '{patient_identifier}'",
-                self._fhir.find_patient_by_identifier,
-                patient_identifier,
-            )
+            if patient_ids is not None:
+                known = patient_ids.get(patient_identifier)
+                found = (known, {}) if known is not None else None
+            else:
+                found = _fail_closed(
+                    f"Patient lookup '{patient_identifier}'",
+                    self._fhir.find_patient_by_identifier,
+                    patient_identifier,
+                )
             if found is None:
                 for index, result in patient_rows:
                     reject(
@@ -586,3 +723,202 @@ class LabIngestionPipeline:
             rejected=rejections,
             persistence=persistence,
         )
+
+    def ingest_from_database(
+        self,
+        source: "DatabaseSource",
+        *,
+        columns: Mapping[str, str | None],
+        chunk_size: int = _MAX_ROWS_PER_REQUEST,
+        failures_path: "str | os.PathLike[str] | None" = None,
+        **defaults: Any,
+    ) -> LabIngestionOutcome:
+        """Ingest every not-yet-ingested lab row of a database table.
+
+        The table has the same columns as the lab CSV, and ``columns`` is the
+        same mapping :meth:`LabResult.from_rows` takes. Built for large,
+        growing tables that are ingested again and again:
+
+        1. Your FHIR server is scanned once for the seeded patients and the
+           ``lab_result_id`` of every lab Observation already stored (bulk,
+           paginated — not one query per patient).
+        2. The table is streamed once (only the mapped columns). A row whose
+           ``lab_result_id`` is already stored for its patient is skipped
+           **before** anything is sent; a repeat of an id seen earlier in
+           this run is rejected.
+        3. The remaining rows go through :meth:`ingest` in chunks of
+           ``chunk_size`` — the same validation, reference checks and
+           skip-and-report rules as the CSV path.
+
+        Rejection indexes are the row's 0-based position in the query result.
+        Every rejection and failed bundle is logged at ERROR with its category
+        and reason, the run ends with a summary, and ``failures_path``
+        appends them to a JSON Lines file. Rejected rows are not stored, so
+        the next run looks at them again.
+
+        Args:
+            source: A :class:`~cavell_client.DatabaseSource`.
+            columns: Maps LabResult fields to column names.
+            chunk_size: Rows per :meth:`ingest` call (memory per chunk).
+            failures_path: Append every rejection and failed bundle to this
+                file as JSON Lines, chunk by chunk.
+            **defaults: Literal LabResult values for every row
+                (e.g. ``status="preliminary"``).
+
+        Returns:
+            One :class:`LabIngestionOutcome` for the whole table, with
+            ``skipped_already_ingested`` counting the rows not sent.
+
+        Raises:
+            ValueError: On a mapping mistake (unknown field, unmapped required
+                field, column not in the table).
+            FHIRConnectionError: If the FHIR server cannot be scanned or a
+                bundle cannot be posted — infrastructure, so the run stops;
+                re-run once it is fixed.
+        """
+        if chunk_size < 1:
+            raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
+        flat_columns = _check_lab_columns(columns, defaults)
+        _forbid_key_defaults(defaults, ("patient_identifier", "lab_result_id"))
+        _require_available_columns(flat_columns, set(source.columns()))
+        key_columns = (
+            flat_columns["patient_identifier"],
+            flat_columns["lab_result_id"],
+        )
+        reporter = FailureReporter(failures_path)
+        outcomes: list[LabIngestionOutcome] = []
+        scanned: list[LabRejection] = []
+        total = skipped = 0
+
+        def summary(aborted_by: Exception | None) -> str:
+            merged = _merge_lab_outcomes(outcomes, total, skipped, scanned)
+            if aborted_by is None:
+                return f"ingest_from_database: {merged}"
+            return (
+                f"ingest_from_database ABORTED by {type(aborted_by).__name__}: "
+                f"{aborted_by} — so far: {merged}"
+            )
+
+        with reporter.summarize(summary):
+            try:
+                patient_ids = self._fhir.list_patient_ids()
+                done = self._fhir.list_lab_result_keys()
+            except httpx.HTTPError as e:
+                raise FHIRConnectionError(f"Scanning existing lab results: {e}") from e
+            logger.info(
+                f"ingest_from_database: {len(done):,} lab result(s) already in "
+                f"FHIR for {len(patient_ids):,} patient(s); scanning {source!r}"
+            )
+            pending, scanned, total, skipped = self._scan_lab_keys(
+                source, key_columns, patient_ids, done
+            )
+            del done
+            reporter.add([r.to_failure() for r in scanned])
+            logger.info(
+                f"ingest_from_database: {total:,} row(s) scanned — "
+                f"{skipped:,} already ingested, {len(pending):,} "
+                f"pending, {len(scanned):,} rejected"
+            )
+
+            # Pending rows, a chunk at a time, each chunk read completely
+            # before anything is sent. Grouped by patient (stable, so a
+            # patient's rows keep their table order): _ingest makes one API
+            # call and one FHIR transaction per patient per chunk.
+            pending.sort(key=lambda k: k[0])
+            practitioner_ids: dict[str, str | None] = {}
+            for start in range(0, len(pending), chunk_size):
+                chunk = pending[start : start + chunk_size]
+                fetched = source.fetch_unique(
+                    key_columns,
+                    [(p, i) for p, i, _ in chunk],
+                    compare=flat_columns.values(),
+                )
+                results: list[LabResult] = []
+                rows_at: list[int] = []
+                conflicts: list[LabRejection] = []
+                for raw_pid, raw_id, row_no in chunk:
+                    row = fetched.get((raw_pid, raw_id))
+                    if row is None:
+                        continue  # gone since the scan (logged by fetch_unique)
+                    if isinstance(row, ValueError):
+                        conflicts.append(
+                            LabRejection(
+                                index=row_no,
+                                lab_result_id=_as_text(raw_id),
+                                patient_identifier=_as_text(raw_pid),
+                                reason=str(row),
+                                stage="validation",
+                            )
+                        )
+                        continue
+                    results.append(_lab_from_row(row, flat_columns, defaults))
+                    rows_at.append(row_no)
+                outcome = self._ingest(
+                    results, patient_ids=patient_ids, practitioner_ids=practitioner_ids
+                )
+                # Indexes come back chunk-relative; report query-result rows.
+                outcome.rejected = [
+                    *conflicts,
+                    *(replace(r, index=rows_at[r.index]) for r in outcome.rejected),
+                ]
+                reporter.add(outcome.failure_records())
+                outcomes.append(outcome)
+                logger.info(f"ingest_from_database: chunk — {outcome}")
+        return _merge_lab_outcomes(outcomes, total, skipped, scanned)
+
+    @staticmethod
+    def _scan_lab_keys(
+        source: "DatabaseSource",
+        key_columns: tuple[str, str],
+        patient_ids: Mapping[str, str],
+        done: set[tuple[str, str]],
+    ) -> tuple[list[tuple[str, str, int]], list[LabRejection], int, int]:
+        """Stream the two key columns, so nothing else is read for rows that
+        are already stored.
+
+        Returns:
+            ``(pending, rejected, rows read, rows already stored)``, pending
+            as ``(raw patient, raw id, row)``.
+
+        lab_result_id is unique across a feed (as within one ingest() call):
+        a repeat for another patient stays a rejected duplicate on every run,
+        even once the first is stored.
+        """
+        done_ids = {lab_id for _, lab_id in done}
+        rejected: list[LabRejection] = []
+        total = skipped = 0
+        first_seen: dict[str, int] = {}
+        interned: dict[str, str] = {}
+        pending: list[tuple[str, str, int]] = []
+        for row_no, row in enumerate(source.iter_rows(list(key_columns))):
+            total += 1
+            raw_pid, raw_id = (row.get(c, "") for c in key_columns)
+            pid, lab_id = _as_text(raw_pid), _as_text(raw_id)
+            if not pid or not lab_id:
+                reason = (
+                    f"{'patient_identifier' if not pid else 'lab_result_id'} "
+                    f"must be non-empty"
+                )
+            elif (patient_ids.get(pid), lab_id) in done:
+                skipped += 1
+                continue
+            elif lab_id in done_ids:
+                reason = "duplicate lab_result_id (already stored for another patient)"
+            elif lab_id in first_seen:
+                reason = (
+                    f"duplicate lab_result_id (first used by row {first_seen[lab_id]})"
+                )
+            else:
+                first_seen[lab_id] = row_no
+                pending.append((interned.setdefault(raw_pid, raw_pid), raw_id, row_no))
+                continue
+            rejected.append(
+                LabRejection(
+                    index=row_no,
+                    lab_result_id=lab_id or None,
+                    patient_identifier=pid or None,
+                    reason=reason,
+                    stage="validation",
+                )
+            )
+        return pending, rejected, total, skipped

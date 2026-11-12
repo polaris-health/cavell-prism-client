@@ -171,6 +171,34 @@ is skipped and reported rather than silently dropped, and only the first five
     files: what it means, what it produces in FHIR, and exactly
     [when a row is rejected](csv-reference.md#when-a-lab-row-is-rejected).
 
+## Extract straight from a database
+
+If the notes or lab results live in a database table with the same columns,
+skip the CSV export. Any database works — through a SQLAlchemy URL
+(`pip install 'cavell-prism-client[database]'` plus your driver) or any
+DB-API connection you already have — and each run only reads and extracts
+what is not done yet, so the same call keeps a growing table up to date:
+
+```python
+from cavell_client import DatabaseSource
+
+notes = DatabaseSource(
+    "postgresql+psycopg://reader@db.example.org/clinical", table="notes"
+)
+report = pipeline.extract_from_database(
+    notes,
+    columns={...},  # the same mapping Document.from_rows() takes
+    patient_columns={"name": "patient_name", "birth_date": "birth_date"},
+    failures_path="prism_failures.jsonl",
+)
+print(report)
+```
+
+Bad rows are skipped and reported, and every failure is logged with who has to
+act — your data, Prism, or your FHIR server — and why. The
+[database guide](database.md) covers connecting to each database, large and
+growing tables, and reading the failure report.
+
 ---
 
 ## One record at a time

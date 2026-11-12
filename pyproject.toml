@@ -28,6 +28,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Connect to a database by URL, Engine or Connection. A plain DB-API 2.0
+# connection works without it.
+database = [
+    "sqlalchemy>=2.0",
+]
 notebook = [
     "notebook>=7.6.1",
     "tqdm>=4.70.0",
@@ -71,7 +76,7 @@ select = ["E", "W", "F", "I", "B", "UP", "S"]
 
 [tool.ruff.lint.per-file-ignores]
 # pytest asserts and deliberately fake credentials
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "S608"]
 # demo notebooks and the study script use assert as a readable guard
 "docs/notebooks/*.ipynb" = ["S101"]
 "scripts/**" = ["S101"]
@@ -90,5 +95,6 @@ dev = [
     "pytest>=9.1.1",
     "pytest-timeout>=2.3",
     "ruff>=0.11",
+    "sqlalchemy>=2.0",
     "ty>=0.0.1",
 ]

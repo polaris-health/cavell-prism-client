@@ -43,6 +43,7 @@ nav:
   - Guides:
       - Clinical notes pipeline: ingestion.md
       - Lab results pipeline: labs.md
+      - Extracting from a database: database.md
   - Reference:
       - CSV field reference: csv-reference.md
       - Client API: extract.md

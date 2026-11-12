@@ -1,8 +1,12 @@
 """Python client for Cavell FHIR extraction API."""
 
 from cavell_client.client import CavellClient
+from cavell_client.database import DatabaseSource
 from cavell_client.ingestion import (
+    DatabaseExtractionReport,
     Document,
+    DocumentList,
+    DocumentRejection,
     IngestionOutcome,
     IngestionPipeline,
     Organization,
@@ -29,6 +33,7 @@ from cavell_client.models import (
     PersistResult,
     UsageStats,
 )
+from cavell_client.reporting import FailureCategory, FailureRecord
 
 __all__ = [
     "CavellClient",
@@ -36,7 +41,13 @@ __all__ = [
     "CavellAPIError",
     "CavellAuthError",
     "CavellGatewayUnavailableError",
+    "DatabaseExtractionReport",
+    "DatabaseSource",
     "Document",
+    "DocumentList",
+    "DocumentRejection",
+    "FailureCategory",
+    "FailureRecord",
     "FHIRAuthError",
     "FHIRConnectionError",
     "IngestionOutcome",

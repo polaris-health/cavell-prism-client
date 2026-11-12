@@ -239,7 +239,31 @@ appears in that bundle's `PersistResult.errors` and flips `success`.
 | `CavellGatewayUnavailableError` | The gateway is down |
 | `CavellAPIError` | The API rejected a request. A **404** means the Prism deployment predates structured lab ingestion and needs upgrading |
 
-Everything else is a rejection, not an exception.
+Everything else is a rejection, not an exception. Each rejection is logged at
+ERROR with its category (`data` for a `validation` rejection, `reference`,
+`prism_rejected` for a `server` one — also available as
+`LabRejection.category`), and `ingest(results, failures_path="...")` appends
+them to a JSON Lines file.
+
+## Ingesting straight from a database
+
+A lab table with the CSV's columns can be ingested without exporting it:
+
+```python
+from cavell_client import DatabaseSource
+
+outcome = LabIngestionPipeline(client).ingest_from_database(
+    DatabaseSource(
+        "postgresql+psycopg://reader@db.example.org/clinical", table="lab_results"
+    ),
+    columns={...},  # the same mapping LabResult.from_rows() takes
+    failures_path="prism_lab_failures.jsonl",
+)
+```
+
+Rows whose `lab_result_id` is already stored are skipped **before** anything
+is sent, so re-running against a growing table only sends the new rows. See
+[Extracting from a database](database.md).
 
 ## How it differs from the notes pipeline
 
@@ -248,7 +272,7 @@ Everything else is a rejection, not an exception.
 | Cost | LLM tokens per document | None |
 | Seeding | `pipeline.seed()` creates orgs, practitioners, patients | Nothing is created — all references must exist |
 | Ordering | Chronological per patient; out-of-order notes get split context | Order is irrelevant; rows are independent facts |
-| Bad input | `Document.from_rows()` raises on blank required fields | Rows are skipped and reported |
+| Bad input | Rows are skipped and reported | Rows are skipped and reported |
 | Re-runs | `skip_processed` filters on `document_id` | Conditional creates on `lab_result_id` |
 | Updates | Resources are updated in place as the record evolves | Create-only; an amended result needs a new id |
 | Validation tag | Resources carry `unvalidated` until reviewed | Never tagged `unvalidated` — the feed is a source of truth |
