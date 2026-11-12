@@ -22,7 +22,7 @@ import importlib
 import logging
 import math
 import re
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -481,7 +481,7 @@ class DatabaseSource:
     @contextlib.contextmanager
     def _execute(
         self, sql: str, extra: Sequence[Any] | dict[str, Any]
-    ) -> Iterator[tuple[list[str], Callable[[], list]]]:
+    ) -> Generator[tuple[list[str], Callable[[], list]]]:
         """Run ``sql`` and yield ``(column names, fetch-next-batch)``.
 
         A transaction the read opened is ended afterwards, so a long run does

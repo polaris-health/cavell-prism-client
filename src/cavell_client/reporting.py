@@ -15,7 +15,7 @@ import json
 import logging
 import os
 from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
@@ -238,7 +238,7 @@ class FailureReporter:
             log(f"  Full records appended to {self._path}")
 
     @contextlib.contextmanager
-    def summarize(self, headline: Callable[[Exception | None], str]) -> Iterator[None]:
+    def summarize(self, headline: Callable[[Exception | None], str]) -> Generator[None]:
         """Log the summary when the block ends: ``headline(None)`` — or, if
         the block raises, ``headline(exc)`` before the exception propagates."""
         try:

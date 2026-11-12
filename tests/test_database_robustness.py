@@ -144,7 +144,20 @@ class TestAwkwardKeys:
         assert run().extracted == 1
         assert "42" in _extracted_once(client)
 
-    def test_timestamp_columns_become_the_note_date(self, client):
+    def test_timestamp_columns_become_the_note_date(self, client, monkeypatch):
+        # Explicit TIMESTAMP handling: sqlite3's built-in one is deprecated
+        # (Python 3.12). The column then returns datetime objects, as a
+        # TIMESTAMP column of a real database driver does.
+        monkeypatch.setitem(
+            sqlite3.adapters,
+            (datetime.datetime, sqlite3.PrepareProtocol),
+            lambda d: d.isoformat(" "),
+        )
+        monkeypatch.setitem(
+            sqlite3.converters,
+            "TIMESTAMP",
+            lambda b: datetime.datetime.fromisoformat(b.decode()),
+        )
         db = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES)
         db.execute(
             "CREATE TABLE notes (note_id TEXT, patient_id TEXT, note_date TIMESTAMP, "
