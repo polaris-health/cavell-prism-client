@@ -33,6 +33,12 @@ Extract: For each document:
 Most work starts from an export rather than hand-built objects. All three
 data types provide a `from_rows()` classmethod that builds objects from CSV data (or any list of dicts). The `columns` dict maps SDK field names (left) to your CSV column headers (right). Keyword arguments are applied as literal defaults to every row.
 
+!!! tip "Data in a database table?"
+    The same code works with a table in place of the CSV: the same mappings,
+    with `Practitioner.from_rows()` reading the table directly and
+    `extract_from_database()` in place of `extract_all()`. See
+    [Coming from the CSV workflow](database.md#coming-from-the-csv-workflow).
+
 ```python
 import csv
 from cavell_client import Patient, Practitioner, Document
@@ -420,7 +426,8 @@ except RuntimeError as e:
 
 ### Cross-validation failures
 
-If you reference an unknown identifier, `seed()` raises `ValueError` before making any FHIR calls:
+`seed()` checks references between the things you seed. If you reference an
+unknown identifier there, it raises `ValueError` before making any FHIR calls:
 
 ```python
 # This raises ValueError because "UNKNOWN-ORG" was never provided
@@ -429,6 +436,41 @@ pipeline.seed(
     patients=[Patient(identifier="MRN-1", managing_organization="UNKNOWN-ORG")],
 )
 ```
+
+### Rejected documents
+
+Problems with an individual document never stop the run. `extract()` and
+`extract_all()` **reject** — do not send, and report — a document that:
+
+- references a patient, organization or practitioner that was never seeded,
+  or has no organization and the pipeline no `default_organization`
+  (`category="reference"`);
+- repeats an earlier document's `document_id` for the same patient — the first
+  is kept (`category="data"`).
+
+A rejected document comes back as `IngestionOutcome(success=False,
+rejected=True)` with the reason in `error`, and is counted in
+`pipeline.documents_rejected`. Rows `Document.from_rows()` could not turn into
+documents (blank text, bad date…) are reported by `extract_all()` too.
+
+### Every failure is reported with its cause
+
+Each document that does not land is logged at ERROR, once its retries are
+exhausted, with a **category** saying who has to act — `data`, `reference`,
+`prism_rejected`, `prism_unavailable`, `fhir_rejected`, `fhir_unavailable`,
+`run_aborted` — plus the HTTP status, the number of attempts and the
+underlying detail (the API's message, your FHIR server's `OperationOutcome`):
+
+```text
+FAILED document note-0042 patient=MRN-1 date=2024-03-14 row=41 category=prism_rejected http=422 attempts=1: failed while calling the Prism extraction API: ... -> Prism refused this input — see the detail; ...
+```
+
+The run ends with a summary of counts per category. Pass
+`failures_path="prism_failures.jsonl"` to `extract()`/`extract_all()` to also
+append every failure, rejection and partial extraction to a JSON Lines file.
+The same fields are on each failed `IngestionOutcome`: `category`, `error`,
+`detail`, `http_status`, `attempts`. The full category table is in
+[Extracting from a database](database.md#every-failure-has-a-category).
 
 ### Document extraction failures
 
@@ -479,7 +521,7 @@ stopped.
 
 ### Persistence failures
 
-The pipeline treats these the same as extraction failures: the document gets a failed outcome and the patient's remaining documents continue.
+The pipeline treats these the same as extraction failures: the document gets a failed outcome (`category="fhir_rejected"`, with your FHIR server's diagnostics in `detail`) and the patient's remaining documents continue.
 
 ## How Updates Work
 

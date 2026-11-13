@@ -3266,3 +3266,182 @@ class TestPostBundleTokenRefresh:
             ]
         )
         assert result.status == "failed"
+
+
+class TestBulkIdentifierScans:
+    """FHIRClient.list_patient_ids / list_document_keys / list_lab_result_keys."""
+
+    BASE = "http://localhost:8080/fhir"
+
+    def _auth(self, httpx_mock):
+        httpx_mock.add_response(
+            method="POST",
+            url="http://localhost:8080/auth/token",
+            json={"access_token": "token"},
+        )
+
+    def _url(self, resource_type, system, elements):
+        return (
+            f"{self.BASE}/{resource_type}?identifier={quote(system, safe='')}%7C"
+            f"&_elements={quote(elements, safe='')}&_count=1000"
+        )
+
+    def test_list_patient_ids_maps_identifier_to_fhir_id(self, fhir, httpx_mock):
+        self._auth(httpx_mock)
+        httpx_mock.add_response(
+            method="GET",
+            url=self._url("Patient", IDENTIFIER_SYSTEM, "identifier"),
+            json={
+                "resourceType": "Bundle",
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "Patient",
+                            "id": "p1",
+                            "identifier": [
+                                {"system": "urn:other", "value": "X"},
+                                {"system": IDENTIFIER_SYSTEM, "value": "MRN-1"},
+                            ],
+                        }
+                    },
+                    {
+                        "resource": {
+                            "resourceType": "Patient",
+                            "id": "p2",
+                            "identifier": [
+                                {"system": IDENTIFIER_SYSTEM, "value": "MRN-2"}
+                            ],
+                        }
+                    },
+                ],
+            },
+        )
+        assert fhir.list_patient_ids() == {"MRN-1": "p1", "MRN-2": "p2"}
+
+    def test_list_document_keys_pairs_ids_with_patient_and_paginates(
+        self, fhir, httpx_mock
+    ):
+        self._auth(httpx_mock)
+        next_url = f"{self.BASE}?_getpages=abc&_getpagesoffset=1000&_count=1000"
+
+        def docref(rid, patient, value, date="2024-01-02T10:00:00+01:00"):
+            return {
+                "resource": {
+                    "resourceType": "DocumentReference",
+                    "id": rid,
+                    "subject": {"reference": f"Patient/{patient}"},
+                    "identifier": [
+                        {"system": DOCUMENT_IDENTIFIER_SYSTEM, "value": value}
+                    ],
+                    "date": date,
+                }
+            }
+
+        httpx_mock.add_response(
+            method="GET",
+            url=self._url(
+                "DocumentReference",
+                DOCUMENT_IDENTIFIER_SYSTEM,
+                "identifier,subject,date",
+            ),
+            json={
+                "resourceType": "Bundle",
+                "link": [{"relation": "next", "url": next_url}],
+                "entry": [
+                    docref("d1", "p1", "note-1"),
+                    # An absolute reference names the same patient.
+                    docref("d2", "https://fhir.example.org/fhir/Patient/p2", "note-1"),
+                ],
+            },
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=next_url,
+            json={
+                "resourceType": "Bundle",
+                "entry": [
+                    docref("d3", "p1", "note-2", date=None),
+                    # No subject: cannot be attributed, so it is left out.
+                    {
+                        "resource": {
+                            "resourceType": "DocumentReference",
+                            "id": "d4",
+                            "identifier": [
+                                {"system": DOCUMENT_IDENTIFIER_SYSTEM, "value": "n"}
+                            ],
+                        }
+                    },
+                ],
+            },
+        )
+        assert fhir.list_document_keys() == {
+            ("p1", "note-1"): "2024-01-02",
+            ("p2", "note-1"): "2024-01-02",
+            ("p1", "note-2"): "",
+        }
+
+    def test_scan_that_hits_the_page_cap_raises(self, fhir, httpx_mock, monkeypatch):
+        """A partial "already done" set would make the pipelines re-extract
+        documents that are done — so an incomplete scan is an error."""
+        import cavell_client.fhir as fhir_module
+        from cavell_client.models import FHIRConnectionError
+
+        monkeypatch.setattr(fhir_module, "_BULK_MAX_PAGES", 2)
+        self._auth(httpx_mock)
+        loop_url = f"{self.BASE}?_getpages=loop"
+        page = {
+            "resourceType": "Bundle",
+            "link": [{"relation": "next", "url": loop_url}],
+            "entry": [],
+        }
+        httpx_mock.add_response(
+            method="GET",
+            url=self._url("Patient", IDENTIFIER_SYSTEM, "identifier"),
+            json=page,
+        )
+        for _ in range(2):  # the server keeps answering "next" with itself
+            httpx_mock.add_response(method="GET", url=loop_url, json=page)
+        with pytest.raises(FHIRConnectionError, match="scan is incomplete"):
+            fhir.list_patient_ids()
+
+    def test_list_lab_result_keys(self, fhir, httpx_mock):
+        from cavell_client.fhir import LAB_RESULT_IDENTIFIER_SYSTEM
+
+        self._auth(httpx_mock)
+        httpx_mock.add_response(
+            method="GET",
+            url=self._url(
+                "Observation", LAB_RESULT_IDENTIFIER_SYSTEM, "identifier,subject"
+            ),
+            json={
+                "resourceType": "Bundle",
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "Observation",
+                            "id": "o1",
+                            "subject": {"reference": "Patient/p1"},
+                            "identifier": [
+                                {
+                                    "system": LAB_RESULT_IDENTIFIER_SYSTEM,
+                                    "value": "LAB-1",
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+        )
+        assert fhir.list_lab_result_keys() == {("p1", "LAB-1")}
+
+    def test_bulk_scans_lift_the_default_page_cap(self, fhir, monkeypatch):
+        """The default 10,000-page backstop would stop a 10M-resource scan."""
+        seen = {}
+
+        def fake_iter(method, path, *, max_pages=None, **kwargs):
+            seen["max_pages"] = max_pages
+            return iter(())
+
+        monkeypatch.setattr(fhir, "_iter_bundle_entries", fake_iter)
+        fhir.list_document_keys()
+        assert seen["max_pages"] > FHIRClient._MAX_PAGES

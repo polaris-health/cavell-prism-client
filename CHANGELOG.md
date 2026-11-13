@@ -6,7 +6,67 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Extract straight from a database.** `DatabaseSource` reads a table or a
+  `SELECT` with the same columns as the CSV exports, through a SQLAlchemy URL,
+  Engine or Connection (`pip install 'cavell-prism-client[database]'`) or any
+  DB-API 2.0 connection. Values come back as the text a CSV export would hold,
+  so every `from_rows()` mapping and rule applies unchanged.
+  - `IngestionPipeline.extract_from_database()` extracts every document not
+    yet in FHIR, built for large, growing tables. It scans only the key
+    columns, works out what is already done from two bulk FHIR scans, fetches
+    note text only for pending rows, seeds new patients as it goes, and
+    processes them date-ordered in batches with the usual retries. A re-run
+    with nothing new reads no note text and makes no extraction call. Returns
+    a `DatabaseExtractionReport`.
+  - `LabIngestionPipeline.ingest_from_database()` streams a lab table, skips
+    rows whose `lab_result_id` is already stored before sending anything, and
+    ingests the rest in chunks.
+  - Both read the example CSVs' column names when `columns=` is left out
+    (`DEFAULT_NOTE_COLUMNS`, `DEFAULT_PATIENT_COLUMNS`, `DEFAULT_LAB_COLUMNS`).
+    Every default column must then exist exactly; otherwise the run stops
+    before reading anything, naming the missing columns and the table's
+    unmatched ones.
+  - `Practitioner.from_rows()` and `Patient.from_rows()` accept a
+    `DatabaseSource` in place of the rows, reading only the mapped columns,
+    so the database workflow uses the same calls and mappings as the CSV
+    one. `IngestionPipeline.seed()`'s `patients` argument is now optional,
+    since `extract_from_database()` creates patients as it needs them.
+- **Failure reports that say why.** Every document or lab row that does not
+  land is logged at ERROR, once its retries are exhausted, with a category
+  saying who has to act, the underlying detail, HTTP status and attempts, and
+  what to do. The categories are `data`, `reference`, `prism_rejected`,
+  `prism_unavailable`, `prism_partial`, `fhir_rejected`, `fhir_unavailable`,
+  `run_aborted` and `client_error`; the detail is the API's message or your
+  FHIR server's `OperationOutcome`. Each run ends with a summary per category.
+  `failures_path=` on `extract()`, `extract_all()`, `ingest()` and the
+  database entry points appends the same records to a JSON Lines file.
+  `IngestionOutcome` gains `category`, `detail`, `http_status`, `attempts`,
+  `date` and `rejected`; `LabRejection` gains `category`; `FailureRecord` is
+  exported.
+- `FHIRClient.list_patient_ids()`, `list_document_keys()` and
+  `list_lab_result_keys()`: bulk, paginated identifier scans.
+
 ### Changed
+
+- **Bad rows are skipped and reported instead of raising** (breaking).
+  - `Document.from_rows()` skips a row with a blank `text`,
+    `patient_identifier` or `document_id`, an unparseable `date`, or a
+    `document_id` repeated for the same patient. It returns a `DocumentList`,
+    a plain list with a `.rejected` list of `DocumentRejection`s. Duplicate
+    ids are now checked per patient, matching the FHIR identity.
+  - `extract()`/`extract_all()` reject a document referencing an unseeded
+    patient, organization or practitioner, a document with no organization,
+    or a repeated `document_id`, rather than raising `ValueError`. It comes
+    back as `IngestionOutcome(rejected=True)` and is counted in
+    `documents_rejected`.
+  - Mapping mistakes (unknown field, unmapped required field, missing column)
+    still raise `ValueError`.
+- `Document.date` also accepts an ISO datetime (`2024-01-15T09:30:00`,
+  `2024-01-15 09:30:00+01:00`) and keeps its date part as written.
+- `seed()` writes in transactions of at most 500 resources, so large patient
+  lists no longer go to the FHIR server as one oversized request.
 
 - `docs/notebooks/notes.csv` is now the unified demo dataset for Prism and
   Atlas: 2,414 synthetic documents for 262 patients (cut-off 2026-06-30). It

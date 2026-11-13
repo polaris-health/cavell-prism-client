@@ -28,6 +28,16 @@ PRACTITIONER_ROLE_IDENTIFIER_SYSTEM = "urn:cavell:practitioner-role"
 #: Identifier system the extraction API stamps on every Encounter it creates
 #: from a ``Document.encounter_id``; ``find_encounter`` searches on it.
 ENCOUNTER_IDENTIFIER_SYSTEM = "urn:cavell:encounter"
+#: Identifier system on every lab Observation created from a ``lab_result_id``.
+LAB_RESULT_IDENTIFIER_SYSTEM = "urn:cavell:lab-result"
+
+#: Page size requested by the bulk identifier scans. Servers may cap it lower;
+#: pagination follows whatever they return.
+_BULK_PAGE_SIZE = 1000
+#: Pagination backstop for the bulk scans — 50M resources even on a server
+#: that caps pages at 50. Reaching it raises: a partial scan would make the
+#: pipelines re-extract documents that are already done.
+_BULK_MAX_PAGES = 1_000_000
 
 # Default resource types to fetch for context. Every entry here must be a type
 # the extraction API actually reads (its ``CONTEXT_SLOTS`` map) — anything else
@@ -473,13 +483,22 @@ class FHIRClient:
     _MAX_PAGES = 10_000
 
     def _iter_bundle_entries(
-        self, method: str, path: str, **kwargs: Any
+        self, method: str, path: str, *, max_pages: int | None = None, **kwargs: Any
     ) -> Iterator[dict]:
-        """Yield bundle entries, following FHIR pagination links."""
+        """Yield bundle entries, following FHIR pagination links.
+
+        Stops with a warning after :attr:`_MAX_PAGES` pages. With
+        ``max_pages`` — for scans that must be complete — reaching the limit
+        raises instead.
+
+        Raises:
+            FHIRConnectionError: If ``max_pages`` is given and reached.
+        """
+        limit = self._MAX_PAGES if max_pages is None else max_pages
         response = self._make_request(method, path, **kwargs)
         bundle = response.json()
 
-        for _page in range(self._MAX_PAGES):
+        for _page in range(limit):
             yield from bundle.get("entry", [])
 
             next_url = None
@@ -492,10 +511,90 @@ class FHIRClient:
 
             response = self._make_request("GET", next_url)
             bundle = response.json()
-        logger.warning(
-            f"Pagination stopped after {self._MAX_PAGES} pages for {path} — "
-            f"misbehaving server?"
-        )
+        message = f"Pagination stopped after {limit} pages for {path}"
+        if max_pages is not None:
+            raise FHIRConnectionError(
+                f"{message}: the scan is incomplete, so what is already "
+                f"processed cannot be known — misbehaving server?"
+            )
+        logger.warning(f"{message} — misbehaving server?")
+
+    def _scan_identifiers(
+        self, resource_type: str, system: str, elements: str
+    ) -> Iterator[tuple[str, str, dict]]:
+        """Yield ``(identifier value, subject patient id, resource)`` for every
+        ``resource_type`` carrying an identifier in ``system``.
+
+        One paginated search over the whole server, asking only for
+        ``elements`` — a few hundred bytes per resource, so millions of
+        resources cost thousands of requests rather than one query per
+        patient. The subject id is ``""`` when absent.
+
+        Raises:
+            FHIRConnectionError: If the scan cannot be completed.
+        """
+        params = {
+            "identifier": f"{system}|",
+            "_elements": elements,
+            "_count": str(_BULK_PAGE_SIZE),
+        }
+        subjects: dict[str, str] = {}  # one string per patient, not per resource
+        for entry in self._iter_bundle_entries(
+            "GET", f"/{resource_type}", params=params, max_pages=_BULK_MAX_PAGES
+        ):
+            resource = entry.get("resource", {})
+            ref = (resource.get("subject") or {}).get("reference") or ""
+            # Relative ("Patient/1") or absolute ("https://host/fhir/Patient/1").
+            _, found, rest = ref.rpartition("Patient/")
+            subject = rest.split("/", 1)[0] if found else ""
+            subject = subjects.setdefault(subject, subject)
+            for ident in resource.get("identifier", []):
+                if ident.get("system") == system and ident.get("value"):
+                    yield ident["value"], subject, resource
+
+    def list_patient_ids(self) -> dict[str, str]:
+        """Map every seeded patient identifier (MRN) to its FHIR Patient.id.
+
+        One bulk scan instead of one lookup per patient. Used by the database
+        pipelines to find which patients exist.
+        """
+        return {
+            value: resource.get("id", "")
+            for value, _, resource in self._scan_identifiers(
+                "Patient", IDENTIFIER_SYSTEM, "identifier"
+            )
+        }
+
+    def list_document_keys(self) -> dict[tuple[str, str], str]:
+        """Every processed document: ``(patient FHIR id, document_id)`` ->
+        its date (``YYYY-MM-DD``, ``""`` when it has none).
+
+        The whole-server counterpart of :meth:`list_document_identifiers`
+        (document ids only need to be unique per patient, so each one is
+        paired with its patient) and of :meth:`get_latest_document_date`.
+        """
+        dates: dict[str, str] = {}  # one string per distinct date
+        return {
+            (subject, value): dates.setdefault(
+                d := str(resource.get("date") or "")[:10], d
+            )
+            for value, subject, resource in self._scan_identifiers(
+                "DocumentReference",
+                DOCUMENT_IDENTIFIER_SYSTEM,
+                "identifier,subject,date",
+            )
+            if subject
+        }
+
+    def list_lab_result_keys(self) -> set[tuple[str, str]]:
+        """Every ingested lab result as ``(patient FHIR id, lab_result_id)``."""
+        return {
+            (subject, value)
+            for value, subject, _ in self._scan_identifiers(
+                "Observation", LAB_RESULT_IDENTIFIER_SYSTEM, "identifier,subject"
+            )
+            if subject
+        }
 
     def get_patient_everything(self, patient_id: str) -> list[dict]:
         """Fetch all resources for a patient via $everything.
