@@ -47,6 +47,8 @@ adheres to [Semantic Versioning](https://semver.org/).
   exported.
 - `FHIRClient.list_patient_ids()`, `list_document_keys()` and
   `list_lab_result_keys()`: bulk, paginated identifier scans.
+- `docs/notebooks/notes_lab_results.csv`: 4,989 structured lab rows for the
+  unified demo dataset.
 
 ### Changed
 
@@ -67,26 +69,18 @@ adheres to [Semantic Versioning](https://semver.org/).
   `2024-01-15 09:30:00+01:00`) and keeps its date part as written.
 - `seed()` writes in transactions of at most 500 resources, so large patient
   lists no longer go to the FHIR server as one oversized request.
-
-- `docs/notebooks/notes.csv` is now the unified demo dataset for Prism and
-  Atlas: 2,414 synthetic documents for 262 patients (cut-off 2026-06-30). It
-  merges the original outpatient notes with the curated stays of
-  `hospitalizations.csv` and adds 94 hospital stays, 20 day cases, 25 ED
-  attendances and outpatient work-ups covering quality measurement, MZG
-  coding, trial recruitment, quality-label audits and BI questions. Merging
-  re-keyed the original notes to avoid id collisions (`note-NNNN` + 1000; the
+- `docs/notebooks/notes.csv` is now a unified demo dataset: 2,452 synthetic
+  documents for 281 patients (cut-off 2026-06-30). It merges the original
+  outpatient notes with the curated stays of `hospitalizations.csv` and adds
+  100 hospital stays, 33 day cases, 25 ED attendances and outpatient
+  work-ups. Merging re-keyed the original notes to avoid id collisions (`note-NNNN` + 1000; the
   8 notes on `V-001`–`V-005` moved to their own `V-<mrn>-<seq>` encounters),
   gave each practitioner a single id, corrected 11 stated ages, made patient
   names unique and removed 165 verbatim duplicate notes. Lab-report documents
-  are replaced by structured lab rows. `hospitalizations.csv` and
-  `lab_results.csv` are unchanged, so the hospitalization and lab notebooks
-  behave as before.
-
-### Added
-
-- `docs/notebooks/notes_lab_results.csv` — 4,984 structured lab rows for the
-  unified dataset — and `docs/notebooks/demo_scenarios.md`, the answer key for
-  demos on it.
+  are replaced by structured lab rows.
+- `docs/notebooks/hospitalizations.csv` gains 20 stays (a paediatric stay and
+  19 pain-clinic, spine and maxillofacial stays), with their labs in
+  `lab_results.csv`.
 
 ## [0.9.0] - 2026-09-18
 
