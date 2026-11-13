@@ -163,9 +163,22 @@ class TestFetchMatching:
         conn.executemany("INSERT INTO t VALUES (?, ?, ?)", [(1, 10, "a"), (2, 20, "b")])
         src = DatabaseSource(conn, table="t")
         list(src.iter_rows(["pid", "nid"]))  # observe the column types
-        assert src._key_converter("pid") is int
+        assert src._key_converter("pid")("2") == 2
         got = src.fetch_matching(("pid", "nid"), [("2", "20")])
         assert got == {("2", "20"): [{"pid": "2", "nid": "20", "txt": "b"}]}
+
+    def test_a_column_mixing_numbers_and_text(self):
+        """SQLite stores 1001 and 'A-17' side by side in an untyped column."""
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE t (pid, txt TEXT)")
+        conn.executemany("INSERT INTO t VALUES (?, ?)", [(1001, "a"), ("A-17", "b")])
+        src = DatabaseSource(conn, table="t")
+        list(src.iter_rows(["pid"]))  # observes int first
+        got = src.fetch_matching(("pid",), [("1001",), ("A-17",)])
+        assert {k: [r["txt"] for r in v] for k, v in got.items()} == {
+            ("1001",): ["a"],
+            ("A-17",): ["b"],
+        }
 
 
 class TestFetchUnique:
@@ -410,9 +423,13 @@ class TestQuoting:
     @pytest.mark.parametrize(
         ("name", "sql"),
         [
-            ("note_id", "note_id"),  # plain: the database folds it as it reported it
-            ("NOTE_ID", "NOTE_ID"),  # Oracle/Snowflake report upper case
-            ("NoteId", '"NoteId"'),  # mixed case only exists quoted
+            # Always quoted: the driver reports the name as stored, and a bare
+            # name would be case-folded (PostgreSQL: PATIENT_ID -> patient_id;
+            # Oracle/Snowflake: note_id -> NOTE_ID) or, if reserved, not parse.
+            ("note_id", '"note_id"'),
+            ("NOTE_ID", '"NOTE_ID"'),
+            ("DATE", '"DATE"'),
+            ("NoteId", '"NoteId"'),
             ("note id", '"note id"'),
             ('we"ird', '"we""ird"'),
             ("1st", '"1st"'),
@@ -431,7 +448,7 @@ class TestQuoting:
         monkeypatch.setattr(type(conn), "__module__", "databricks.sql.client")
         src = DatabaseSource(conn, table="t", paramstyle="named")
         assert src._quote("Note Id") == "`Note Id`"
-        assert src._quote("note_id") == "note_id"
+        assert src._quote("note_id") == "`note_id`"
 
     def test_sqlalchemy_quotes_only_when_needed(self, tmp_path):
         """Oracle and Snowflake report NOTE_ID as note_id through SQLAlchemy;
@@ -517,6 +534,36 @@ class TestParamstyleDetection:
         else:
             assert params == ["MRN-1", "1"]
 
+    @pytest.mark.parametrize(
+        ("style", "params"),
+        [
+            ("named", ["MRN-1"]),
+            ("qmark", {"pid": "MRN-1"}),
+            ("format", {"pid": "MRN-1"}),
+            ("numeric", {"pid": "MRN-1"}),
+        ],
+    )
+    def test_params_of_the_wrong_kind_fail_at_construction(self, style, params):
+        """Not at the first key lookup, which only comes after the full scan."""
+        with pytest.raises(ValueError, match="params= must be"):
+            DatabaseSource(
+                _FakeConnection(), query="SELECT 1", params=params, paramstyle=style
+            )
+
+    def test_pyformat_driver_with_positional_params(self):
+        """psycopg declares pyformat but also takes %s with a sequence; the
+        SDK's own lookups then use %s too."""
+        conn = _FakeConnection()
+        src = DatabaseSource(
+            conn,
+            query="SELECT * FROM t WHERE ward = %s",
+            params=("ICU",),
+            paramstyle="pyformat",
+        )
+        src.fetch_matching(("a",), [("1",)])
+        sql, params = conn.log[0][1], conn.log[0][2]
+        assert sql.endswith('WHERE (src."a" = %s)') and params == ["ICU", "1"]
+
     def test_percent_styles_always_pass_params(self):
         """So a literal % in query= is always written %% — with or without the
         SDK's own parameters."""
@@ -575,6 +622,25 @@ class TestSqlAlchemy:
             DatabaseSource(connection, table="notes").rows()
             assert connection.in_transaction()  # left alone
         engine.dispose()
+
+    def test_callers_connection_options_are_left_alone(self, db_url):
+        """Streaming is set per statement; Connection.execution_options()
+        would switch the caller's connection to server-side cursors for
+        good."""
+        import sqlalchemy as sa
+
+        engine = sa.create_engine(db_url)
+        with engine.connect() as connection:
+            before = dict(connection.get_execution_options())
+            src = DatabaseSource(connection, table="notes")
+            src.rows()
+            src.fetch_matching(("patient_id", "note_id"), [("MRN-2", "note-3")])
+            assert dict(connection.get_execution_options()) == before
+        engine.dispose()
+
+    def test_sequence_params_fail_at_construction(self, db_url):
+        with pytest.raises(ValueError, match="a dict of named values"):
+            DatabaseSource(db_url, query="SELECT 1", params=["x"])
 
     def test_url_without_sqlalchemy_names_the_extra(self, monkeypatch):
         monkeypatch.setitem(sys.modules, "sqlalchemy", None)

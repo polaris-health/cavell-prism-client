@@ -228,7 +228,8 @@ class TestRejections:
         with caplog.at_level(logging.WARNING):
             report = _run(client, conn)
 
-        # Row 7 repeats row 0's id with other content: neither is extracted.
+        # Row 7 repeats row 0's id with other content: neither is extracted,
+        # and the key is reported once, at its first row.
         assert report.extracted == 4
         reasons = {r.index: (r.category, r.reason) for r in report.rejected}
         assert reasons[0] == (
@@ -241,7 +242,7 @@ class TestRejections:
             reasons[6][0] == "data"
             and "Invalid date format 'not a date'" in reasons[6][1]
         )
-        assert reasons[7][0] == "data" and "first used by row 0" in reasons[7][1]
+        assert 7 not in reasons
         assert reasons[8] == (
             "reference",
             "unknown practitioner 'DOC-404' (not seeded)",

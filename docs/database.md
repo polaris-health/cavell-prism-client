@@ -345,16 +345,20 @@ Rules for `query=`:
   only ever reads.
 - **Parameters.** With SQLAlchemy, write `:name` placeholders and pass a
   dict. A literal colon inside a string then needs escaping as `\:`. With a
-  raw DB-API connection, use your driver's style: `%(name)s` for psycopg and
-  pymysql, `?` for pyodbc and sqlite3, `:name` for oracledb. With psycopg and
-  pymysql, write a literal `%` as `%%`.
+  raw DB-API connection, use your driver's style: `%(name)s` (dict) or `%s`
+  (tuple) for psycopg and pymysql, `?` for pyodbc and sqlite3, `:name` for
+  oracledb. With psycopg and pymysql, write a literal `%` as `%%`. Params of
+  the wrong kind for the style (a tuple for `:name`, say) are refused when the
+  `DatabaseSource` is created.
 - **No `ORDER BY` inside it on SQL Server**, which forbids it in a
   sub-query. Ordering is applied by the pipeline anyway: by date, globally.
 - **Column names are matched exactly as the database reports them.**
   `notes.columns()` prints them. Oracle and Snowflake report unquoted names
   in UPPER CASE through their own drivers (`NOTE_ID`), and in lower case
   through SQLAlchemy (`note_id`). Map whichever you see, or alias in the
-  query (`SELECT note_id AS "note_id" ...`).
+  query (`SELECT note_id AS "note_id" ...`). Names created quoted
+  (`"PATIENT_ID"` in PostgreSQL, a reserved word like `"DATE"`) work as
+  reported: with a raw DB-API connection the SDK always quotes column names.
 
 ---
 
@@ -382,7 +386,7 @@ hold, so every validation rule applies identically:
 | `TIMESTAMP` at exactly midnight, without a time zone | `2024-03-14` (Oracle and SQL Server return `DATE` columns this way) |
 | other `TIMESTAMP` | `2024-03-14T21:40:00`, plus the offset when the column has one (`+01:00`) |
 | `CLOB` / long text | read in full |
-| bytes | decoded as UTF-8; anything else is an error naming the column |
+| bytes | decoded as UTF-8. A row with bytes that are not UTF-8 is rejected (`data`) with the column named; `rows()` raises instead |
 
 `Document.date` accepts an ISO date **or** an ISO datetime and keeps the date
 part as written, without converting to UTC. So a `TIMESTAMP` note date works
@@ -410,12 +414,13 @@ practitioners = Practitioner.from_rows(
 
 1. **Key scan.** Reads only the identifying columns (document id, patient,
    date, encounter, practitioner, organization, and the patient columns),
-   never the note text. Rows with a blank id, a bad date, a repeated
-   `document_id` for one patient, or an unknown organization or practitioner
-   are rejected here. Of rows that repeat a `document_id` for one patient,
-   the first is kept if the rows are identical. If they differ, none of
-   them is extracted until you make the ids unique, because there is no
-   telling which one is meant.
+   never the note text. Rows with a blank id or a bad date are rejected
+   here. Rows that repeat a `document_id` for one patient count once: if
+   they are identical, one document is extracted; if they differ, none of
+   them is until you make the ids unique, because there is no telling which
+   one is meant. An unknown organization or practitioner rejects a row only
+   while its document is still pending, so a document extracted long ago is
+   not reported again.
 2. **What is already done.** Two bulk, paginated scans of your FHIR server
    (seeded patients, extracted documents) rather than one query per patient.
    A document is *done* only if it was extracted and persisted successfully.
@@ -576,7 +581,7 @@ Re-run once it is fixed: nothing is lost or duplicated.
 | `already_extracted` | Rows skipped because their document is in FHIR |
 | `pending` | Rows that needed extracting this run |
 | `extracted` / `partial` | Extracted and persisted in this run (and how many were partial) |
-| `duplicates_skipped` | Pending rows whose text repeats another pending row's for the same patient and date |
+| `duplicates_skipped` | Pending rows whose text repeats another row's for the same patient and date, whether that row is pending or was extracted in an earlier run |
 | `failed` | `IngestionOutcome`s of documents that were attempted and failed: `category`, `error`, `detail`, `http_status`, `attempts` |
 | `rejected` | `DocumentRejection`s: `index` (row), `document_id`, `patient_identifier`, `reason`, `category` |
 | `total_cost` | Estimated cost of this run |
@@ -611,9 +616,6 @@ stored, and each rejection's `index` is its position in the query result.
   once, at the start of a run.
 - **Patients are created once.** Demographics of a patient already in FHIR
   are not updated from the table. Use `pipeline.seed()` to update them.
-- **Text duplicates are caught among pending rows only.** A row repeating the
-  text of a note extracted in an *earlier* run, under a new id, is extracted
-  again.
 - **Read-only.** The SDK only runs `SELECT` statements, so a read-only
   database user is enough, and recommended. For a large historical load,
   point it at a reporting replica rather than the production database.

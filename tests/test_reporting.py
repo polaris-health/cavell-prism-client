@@ -134,9 +134,8 @@ class TestCsvPathReporting:
     def _no_backoff(self, monkeypatch):
         monkeypatch.setattr(ingestion_module.time, "sleep", lambda s: None)
 
-    def test_extract_all_reports_from_rows_rejections_and_failures(
-        self, tmp_path, caplog
-    ):
+    @pytest.mark.parametrize("method", ["extract_all", "extract"])
+    def test_reports_from_rows_rejections_and_failures(self, tmp_path, caplog, method):
         client = fake_client()
         pipeline = IngestionPipeline(client, default_organization="ORG-1")
         pipeline.seed(
@@ -172,7 +171,7 @@ class TestCsvPathReporting:
         path = tmp_path / "failures.jsonl"
 
         with caplog.at_level(logging.ERROR):
-            outcomes = pipeline.extract_all(docs, failures_path=path)
+            outcomes = getattr(pipeline, method)(docs, failures_path=path)
 
         records = {
             r["identifier"]: r for r in map(json.loads, path.read_text().splitlines())
@@ -182,7 +181,7 @@ class TestCsvPathReporting:
         assert records["d"]["category"] == "prism_rejected"
         assert records["d"]["detail"] == "unsupported language"
         assert [o.document_id for o in outcomes if o.success] == ["a"]
-        assert "extract_all: 1 extracted" in caplog.text
+        assert f"{method}: 1 extracted" in caplog.text
         assert "3 row(s) need attention" in caplog.text
         assert pipeline.documents_rejected == 2  # the from_rows row counts too
         assert pipeline.documents_failed == 1

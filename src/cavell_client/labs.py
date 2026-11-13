@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import httpx
 
 from cavell_client.api import CavellAPI
-from cavell_client.database import cell_to_text
+from cavell_client.database import UnreadableRow, cell_to_text
 from cavell_client.fhir import FHIRClient
 from cavell_client.ingestion import (
     _forbid_key_defaults,
@@ -890,11 +890,13 @@ class LabIngestionPipeline:
         first_seen: dict[str, int] = {}
         interned: dict[str, str] = {}
         pending: list[tuple[str, str, int]] = []
-        for row_no, row in enumerate(source.iter_rows(list(key_columns))):
+        for row_no, row in enumerate(source._scan(list(key_columns))):
             total += 1
             raw_pid, raw_id = (row.get(c, "") for c in key_columns)
             pid, lab_id = _as_text(raw_pid), _as_text(raw_id)
-            if not pid or not lab_id:
+            if isinstance(row, UnreadableRow):
+                reason = str(row.error)
+            elif not pid or not lab_id:
                 reason = (
                     f"{'patient_identifier' if not pid else 'lab_result_id'} "
                     f"must be non-empty"

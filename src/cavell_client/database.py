@@ -36,9 +36,6 @@ _TABLE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*(\.[A-Za-z_][A-Za-z0-9_$]*){0,2
 #: under SQL Server's 2100-parameter limit.
 _KEYS_PER_STATEMENT = 250
 
-#: A column name every database accepts unquoted.
-_PLAIN_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
 #: Rows fetched per round trip when streaming.
 _FETCH_SIZE = 10_000
 
@@ -115,6 +112,26 @@ def cell_to_text(value: Any, column: str = "?") -> str:
     if callable(read):  # LOB handle (oracledb CLOB/BLOB)
         return cell_to_text(read(), column)
     return str(value)
+
+
+class UnreadableRow(dict[str, str]):
+    """A row with a cell that cannot be read as text (``bytes`` that are not
+    UTF-8): its readable cells (the others are ``""``) and the error, so the
+    pipelines reject this one row instead of stopping the run."""
+
+    error: ValueError
+
+    @classmethod
+    def of(cls, columns: list[str], values: Sequence[Any]) -> UnreadableRow:
+        row = cls()
+        for col, value in zip(columns, values, strict=True):
+            try:
+                row[col] = cell_to_text(value, col)
+            except ValueError as e:
+                row[col] = ""
+                if not hasattr(row, "error"):
+                    row.error = e
+        return row
 
 
 class DatabaseSource:
@@ -198,7 +215,7 @@ class DatabaseSource:
         if fetch_size < 1:
             raise ValueError("fetch_size must be >= 1")
 
-        self._params = params
+        self._params = params or None
         self._fetch_size = fetch_size
         self._owned_engine: Any = None
         self._sa: Any = None  # the sqlalchemy module, when used
@@ -228,12 +245,29 @@ class DatabaseSource:
             )
 
         if self._dbapi is not None:
-            self._paramstyle = paramstyle or _detect_paramstyle(self._dbapi)
+            style = paramstyle or _detect_paramstyle(self._dbapi)
+            if style == "pyformat" and params and not isinstance(params, Mapping):
+                # pyformat drivers (psycopg, …) also take %s with a sequence;
+                # the SDK's own placeholders then follow suit.
+                style = "format"
+            self._paramstyle = style
             module = type(self._dbapi).__module__.split(".", 1)[0]
             self._quote_char = "`" if module in _BACKTICK_DRIVERS else '"'
         else:
             self._paramstyle = "named"  # SQLAlchemy text() binds
             self._quote_char = '"'
+        # Checked here rather than at the first key lookup, which only comes
+        # after the full key scan.
+        wants_mapping = self._paramstyle in ("named", "pyformat")
+        if self._params is not None and wants_mapping != isinstance(
+            self._params, Mapping
+        ):
+            raise ValueError(
+                f"params= must be "
+                f"{'a dict of named values' if wants_mapping else 'a sequence'} "
+                f"for the {self._paramstyle!r} placeholder style"
+                + ("" if self._dbapi is not None else " (SQLAlchemy text())")
+            )
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -284,7 +318,20 @@ class DatabaseSource:
         Args:
             columns: Only read these columns (names as :meth:`columns` reports
                 them). ``None`` reads every column.
+
+        Raises:
+            ValueError: At a cell that cannot be read as text (``bytes`` that
+                are not UTF-8).
         """
+        for row in self._scan(columns):
+            if isinstance(row, UnreadableRow):
+                raise row.error
+            yield row
+
+    def _scan(self, columns: Sequence[str] | None) -> Iterator[dict[str, str]]:
+        """:meth:`iter_rows` for the pipelines' key scans: a row with a cell
+        that cannot be read comes back as an :class:`UnreadableRow` (to be
+        rejected) instead of stopping the scan."""
         if columns is None:
             # Wrapped even here: anything but a SELECT then fails to parse
             # instead of running.
@@ -370,6 +417,10 @@ class DatabaseSource:
             )
         resolved: dict[tuple[str, ...], dict[str, str] | ValueError] = {}
         for key, rows in found.items():
+            unreadable = next((r for r in rows if isinstance(r, UnreadableRow)), None)
+            if unreadable is not None:
+                resolved[key] = unreadable.error
+                continue
             first = [rows[0].get(c) for c in cols]
             if all([r.get(c) for c in cols] == first for r in rows[1:]):
                 resolved[key] = rows[0]
@@ -389,26 +440,38 @@ class DatabaseSource:
         bound as numbers, everything else as text."""
         kind = self._observed_types.get(column)
         if kind is not None and issubclass(kind, int) and not issubclass(kind, bool):
-            return int
-        if kind is not None and issubclass(kind, decimal.Decimal):
-            return decimal.Decimal
-        return str
+            number: Callable[[str], Any] = int
+        elif kind is not None and issubclass(kind, decimal.Decimal):
+            number = decimal.Decimal
+        else:
+            return str
+
+        def convert(text: str) -> Any:
+            # A column can mix types (SQLite stores 1001 and 'A-17' side by
+            # side): what is not a number is bound as the text it is.
+            try:
+                return number(text)
+            except (ValueError, decimal.InvalidOperation):
+                return text
+
+        return convert
 
     # -- SQL plumbing ------------------------------------------------------
 
     def _quote(self, name: str) -> str:
         """A column name, as SQL that refers to the column the driver reported.
 
-        Plain names stay unquoted, so the database folds their case the way
-        it folded them when reporting them (Oracle and Snowflake report
-        ``NOTE_ID`` — or ``note_id`` through SQLAlchemy — for the same
-        column). Anything else is quoted.
+        A DB-API driver reports a column's name exactly as stored (Oracle and
+        Snowflake: ``NOTE_ID`` for an unquoted column; PostgreSQL:
+        ``PATIENT_ID`` for one created quoted in upper case), so the name is
+        always quoted — left bare, the database would fold its case, and a
+        reserved word (``DATE``) would not parse. SQLAlchemy normalizes names
+        per dialect (Oracle's ``NOTE_ID`` becomes ``note_id``), so there the
+        dialect decides.
         """
         if self._sa is not None:
             dialect = (self._sa_engine or self._sa_connection).dialect
             return dialect.identifier_preparer.quote(name)
-        if _PLAIN_NAME_RE.match(name) and (name.islower() or name.isupper()):
-            return name
         q = self._quote_char
         return f"{q}{name.replace(q, q * 2)}{q}"
 
@@ -441,22 +504,11 @@ class DatabaseSource:
                 # parameters of its own.
                 return {} if self._paramstyle == "pyformat" else []
             return user
-        if isinstance(extra, dict):
-            if user is None:
-                return extra
-            if not isinstance(user, Mapping):
-                raise ValueError(
-                    f"params= must be a mapping for the {self._paramstyle!r} "
-                    f"placeholder style"
-                )
-            return {**user, **extra}
         if user is None:
-            return list(extra)
-        if isinstance(user, Mapping):
-            raise ValueError(
-                f"params= must be a sequence for the {self._paramstyle!r} "
-                f"placeholder style"
-            )
+            return extra
+        # Same kind as `extra`: __init__ matched params= to the style.
+        if isinstance(user, Mapping) and isinstance(extra, dict):
+            return {**user, **extra}
         return [*user, *extra]
 
     def _stream(
@@ -473,10 +525,14 @@ class DatabaseSource:
                                 observed.setdefault(cols[i], type(raw[i]))
                     unseen = [i for i in unseen if cols[i] not in observed]
                 for raw in batch:
-                    yield {
-                        col: cell_to_text(value, col)
-                        for col, value in zip(cols, raw, strict=True)
-                    }
+                    try:
+                        row = {
+                            col: cell_to_text(value, col)
+                            for col, value in zip(cols, raw, strict=True)
+                        }
+                    except ValueError:
+                        row = UnreadableRow.of(cols, raw)
+                    yield row
 
     @contextlib.contextmanager
     def _execute(
@@ -510,8 +566,6 @@ class DatabaseSource:
                     conn.rollback()
             return
 
-        if params is not None and not isinstance(params, Mapping):
-            raise ValueError("With SQLAlchemy, params= must be a dict of :name values")
         stmt = self._sa.text(sql)
         with contextlib.ExitStack() as stack:
             conn = self._sa_connection
@@ -521,8 +575,12 @@ class DatabaseSource:
                 stack.callback(conn.rollback)  # ours to end, not the caller's
             # Server-side cursors where the driver supports them, so a large
             # scan streams instead of landing in client memory at once.
-            result = conn.execution_options(stream_results=True).execute(
-                stmt, dict(params or {})
+            # Set on this statement only: Connection.execution_options() would
+            # change a caller's connection for good.
+            result = conn.execute(
+                stmt,
+                dict(params) if isinstance(params, Mapping) else {},  # see __init__
+                execution_options={"stream_results": True},
             )
             stack.callback(result.close)
             if not result.returns_rows:

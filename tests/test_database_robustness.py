@@ -20,13 +20,19 @@ from collections import Counter
 import httpx
 import pytest
 
-from cavell_client import DatabaseSource, IngestionPipeline, LabIngestionPipeline
+from cavell_client import (
+    DatabaseSource,
+    IngestionPipeline,
+    LabIngestionPipeline,
+    Organization,
+)
 from cavell_client.models import CavellAuthError
 from tests.fakes import prism_error
 from tests.test_database_pipeline import (  # noqa: F401 - fixtures
     DOCUMENT_MAPPING,
     LAB_MAPPING,
     NOTE_COLUMNS,
+    PATIENT_MAPPING,
     _insert,
     _no_backoff,
     _note,
@@ -181,23 +187,146 @@ class TestAwkwardKeys:
 
 
 class TestDuplicates:
-    def test_identical_copy_is_extracted_once_and_reported_every_run(
-        self, client, conn
-    ):
+    def test_identical_copy_is_extracted_once_and_not_reported(self, client, conn):
         _insert(conn, [_note("n1", "MRN-1", "2024-01-10")])
         for _ in range(2):
             report = _run(client, conn)
-            assert [r.document_id for r in report.rejected] == ["n1"]
+            assert report.rejected == [] and report.success
+        assert report.rows_scanned == 6 and report.already_extracted == 5
         assert _extracted_once(client)["n1"] == 1
 
     def test_conflicting_copy_blocks_both_until_fixed(self, client, conn):
         _insert(conn, [_note("n1", "MRN-1", "2024-01-10", text="Different text.")])
-        report = _run(client, conn)
-        assert "n1" not in client._api.extracted
-        assert {r.index for r in report.rejected if r.document_id == "n1"} == {0, 5}
+        for _ in range(2):
+            report = _run(client, conn)
+            assert "n1" not in client._api.extracted
+            assert [(r.index, r.document_id) for r in report.rejected] == [(0, "n1")]
+            assert "2 rows share" in report.rejected[0].reason
         conn.execute("DELETE FROM notes WHERE note_text = 'Different text.'")
         assert _run(client, conn).extracted == 1
         assert _extracted_once(client)["n1"] == 1
+
+    def test_copy_of_a_note_extracted_in_an_earlier_run_is_never_extracted(
+        self, client, conn
+    ):
+        """Run 1 skips the copy as a duplicate of n1; on run 2 n1 is done, and
+        the copy must still count as a duplicate rather than as new."""
+        text = "Same note, exported twice under two ids."
+        conn.execute("UPDATE notes SET note_text = ? WHERE note_id = 'n1'", (text,))
+        _insert(conn, [_note("n1-copy", "MRN-1", "2024-01-10", text=text)])
+        for _ in range(2):
+            report = _run(client, conn)
+            assert report.duplicates_skipped == 1
+        assert "n1-copy" not in client._api.extracted
+        assert _extracted_once(client)["n1"] == 1
+
+    def test_copy_added_after_its_original_was_extracted(self, client, conn):
+        _run(client, conn)
+        original = conn.execute(
+            "SELECT note_text FROM notes WHERE note_id = 'n2'"
+        ).fetchone()[0]
+        _insert(conn, [_note("n2-copy", "MRN-1", "2024-02-10", text=original)])
+        report = _run(client, conn)
+        assert (report.pending, report.duplicates_skipped, report.extracted) == (
+            1,
+            1,
+            0,
+        )
+        assert "n2-copy" not in client._api.extracted
+
+    def test_same_text_on_another_day_or_patient_is_extracted(self, client, conn):
+        _run(client, conn)
+        original = conn.execute(
+            "SELECT note_text FROM notes WHERE note_id = 'n2'"
+        ).fetchone()[0]
+        _insert(
+            conn,
+            [
+                _note("later", "MRN-1", "2024-02-11", text=original),
+                _note("other", "MRN-2", "2024-02-10", text=original),
+            ],
+        )
+        report = _run(client, conn)
+        assert (report.extracted, report.duplicates_skipped) == (2, 0)
+
+
+class TestReferencesOfExtractedDocuments:
+    def test_not_reported_again_when_the_seed_list_shrinks(self, client, conn):
+        """A practitioner left out of a later seed() makes its *pending*
+        documents unresolvable — not the ones extracted long ago."""
+        _run(client, conn)
+        _insert(conn, [_note("n6", "MRN-1", "2024-06-01")])
+        pipeline = IngestionPipeline(client, default_organization="ORG-1")
+        pipeline.seed(
+            organizations=[Organization(identifier="ORG-1", name="General Hospital")],
+            patients=[],
+        )
+        report = pipeline.extract_from_database(
+            DatabaseSource(conn, table="notes"),
+            columns=DOCUMENT_MAPPING,
+            patient_columns=PATIENT_MAPPING,
+        )
+        assert report.already_extracted == 5
+        assert [(r.document_id, r.category) for r in report.rejected] == [
+            ("n6", "reference")
+        ]
+
+    def test_padded_reference_is_rejected_by_the_scan_not_failed(self, client, conn):
+        """A CHAR column pads 'DOC-1' to 'DOC-1   '. The scan checks the value
+        the Document carries, so the row is a rejection naming the padded
+        value — not a failure after its text was fetched."""
+        _insert(conn, [_note("n6", "MRN-1", "2024-06-01", practitioner_id="DOC-1   ")])
+        report = _run(client, conn)
+        assert report.failed == []
+        assert [(r.document_id, r.reason) for r in report.rejected] == [
+            ("n6", "unknown practitioner 'DOC-1   ' (not seeded)")
+        ]
+
+
+class TestUnreadableCells:
+    def _with_bytes(self, conn, note_id, column, value):
+        sql = f"UPDATE notes SET {column} = ? WHERE note_id = ?"
+        conn.execute(sql, (value, note_id))
+        conn.commit()
+
+    def test_non_utf8_note_text_rejects_only_its_row(self, client, conn):
+        self._with_bytes(conn, "n2", "note_text", "Café note".encode("latin-1"))
+        self._with_bytes(conn, "n3", "note_text", b"UTF-8 note text, fine.")
+        for _ in range(2):  # and keeps doing so, without blocking later rows
+            report = _run(client, conn)
+            assert [(r.document_id, r.category) for r in report.rejected] == [
+                ("n2", "data")
+            ]
+            assert "not valid UTF-8" in report.rejected[0].reason
+        assert sorted(_extracted_once(client)) == ["n1", "n3", "n4", "n5"]
+
+    def test_non_utf8_key_rejects_only_its_row(self, client, conn):
+        conn.execute(
+            "UPDATE notes SET patient_id = ? WHERE note_id = 'n5'", (b"MRN-\xff",)
+        )
+        conn.commit()
+        report = _run(client, conn)
+        assert [r.index for r in report.rejected] == [4]
+        assert "not valid UTF-8" in report.rejected[0].reason
+        assert report.extracted == 4
+
+    def test_iter_rows_still_raises(self, conn):
+        self._with_bytes(conn, "n2", "note_text", b"\xff")
+        with pytest.raises(ValueError, match="not valid UTF-8"):
+            DatabaseSource(conn, table="notes").rows()
+
+    def test_lab_row_with_a_non_utf8_id(self, client, lab_conn):
+        lab_conn.execute(
+            "UPDATE labs SET lab_result_id = ? WHERE rowid = 1", (b"\xffL",)
+        )
+        lab_conn.commit()
+        _seed_lab_patients(client, "MRN-1", "MRN-2")
+        outcome = LabIngestionPipeline(client).ingest_from_database(
+            DatabaseSource(lab_conn, table="labs"), columns=LAB_MAPPING
+        )
+        unreadable = [r for r in outcome.rejected if "not valid UTF-8" in r.reason]
+        assert [r.index for r in unreadable] == [0]
+        assert outcome.created == 3  # L2, L3, and L1 of MRN-2 (no longer a repeat)
 
 
 class TestFailuresPartWay:

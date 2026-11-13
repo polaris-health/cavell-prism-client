@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 import httpx
 
 from cavell_client.api import CavellAPI
-from cavell_client.database import cell_to_text
+from cavell_client.database import UnreadableRow, cell_to_text
 from cavell_client.fhir import (
     IDENTIFIER_SYSTEM,
     ORGANIZATION_IDENTIFIER_SYSTEM,
@@ -474,14 +474,18 @@ class _DocumentColumns:
         kwargs.update(self.defaults)
         return Document(**kwargs)
 
+    def value(self, row: Mapping[str, Any], name: str) -> Any:
+        """One field of a row as :meth:`build` passes it to the Document
+        (``None`` when blank/unmapped)."""
+        if name in self.defaults:
+            return self.defaults[name]
+        if name in self.flat:
+            return _cell(row.get(self.flat[name])) or None
+        return None
+
     def text(self, row: Mapping[str, Any], name: str) -> str:
         """One field of a row as stripped text (``""`` when blank/unmapped)."""
-        if name in self.defaults:
-            value = self.defaults[name]
-        elif name in self.flat:
-            value = _cell(row.get(self.flat[name]))
-        else:
-            return ""
+        value = self.value(row, name)
         return "" if value is None else str(value).strip()
 
     def rejection(
@@ -970,6 +974,23 @@ class _RowKey(NamedTuple):
 
 
 @dataclass
+class _KeyScan:
+    """What the key scan of :meth:`IngestionPipeline.extract_from_database`
+    found."""
+
+    #: Rows read.
+    rows: int = 0
+    #: One key per distinct (patient, document_id), its first row.
+    keys: list[_RowKey] = field(default_factory=list)
+    #: Each patient's first-seen ``patient_columns`` values.
+    demographics: dict[str, dict[str, str]] = field(default_factory=dict)
+    #: Rows that cannot be extracted (in row order).
+    rejected: list["DocumentRejection"] = field(default_factory=list)
+    #: Row -> its reference problem; reported only if the document is pending.
+    held: dict[int, "DocumentRejection"] = field(default_factory=dict)
+
+
+@dataclass
 class DatabaseExtractionReport:
     """What :meth:`IngestionPipeline.extract_from_database` did."""
 
@@ -983,8 +1004,9 @@ class DatabaseExtractionReport:
     extracted: int = 0
     #: Of those, extractions where some extraction step failed.
     partial: int = 0
-    #: Pending documents skipped because their text repeats another pending
-    #: document's for the same patient and date.
+    #: Pending documents skipped because their text repeats another
+    #: document's for the same patient and date — pending, or extracted in
+    #: an earlier run.
     duplicates_skipped: int = 0
     total_cost: float = 0.0
     #: Documents that were attempted and failed (see each one's
@@ -1732,6 +1754,8 @@ class IngestionPipeline:
             raise ValueError(f"limit must be >= 1 if set, got {limit}")
         run = _Run("extract", failures_path, self._totals)
         with run.summarize():
+            # Rows Document.from_rows skipped, when given its DocumentList.
+            run.reject(list(getattr(documents, "rejected", [])))
             return self._extract(
                 documents, skip_processed=skip_processed, limit=limit, run=run
             )
@@ -1781,8 +1805,10 @@ class IngestionPipeline:
             patient_defaults: Literal Patient values for every new patient
                 (e.g. ``{"managing_organization": "CGH-001"}``).
             batch_size: Documents per extraction batch (and per text fetch).
-            dedupe_content: Skip a pending document whose text repeats an
-                earlier pending document's for the same patient and date.
+            dedupe_content: Skip a pending document whose text repeats
+                another one's for the same patient and date — an earlier
+                pending document, or one already extracted (whose text is
+                then fetched too, for the days that have pending documents).
             failures_path: Append every failure, rejection and partial
                 extraction to this file as JSON Lines, batch by batch.
             on_batch: Called with each batch's outcomes as it finishes.
@@ -1852,15 +1878,22 @@ class IngestionPipeline:
             report.rejected.extend(rejections)
             run.reject(rejections)
 
-        keys, demographics, rejections = self._scan_document_keys(
-            source, mapping, patient_cols
+        scan = self._scan_document_keys(source, mapping, patient_cols)
+        pending, watermarks, demographics = self._pending_documents(
+            scan.keys, scan.demographics
         )
-        report.rows_scanned = len(keys) + len(rejections)
-        reject(rejections)
-        pending, watermarks, demographics = self._pending_documents(keys, demographics)
+        report.rows_scanned = scan.rows
+        report.already_extracted = run.stats.skipped = len(scan.keys) - len(pending)
+        extracted_same_day = (
+            self._extracted_same_day(scan.keys, pending) if dedupe_content else {}
+        )
+        # A held reference problem counts only for a document still pending.
+        held = [scan.held[k.row] for k in pending if k.row in scan.held]
+        if held:
+            pending = [k for k in pending if k.row not in scan.held]
+        reject(sorted(scan.rejected + held, key=lambda r: r.index or 0))
         report.pending = len(pending)
-        report.already_extracted = run.stats.skipped = len(keys) - len(pending)
-        del keys
+        del scan
         logger.info(
             f"extract_from_database: {report.rows_scanned:,} row(s) scanned — "
             f"{report.already_extracted:,} already extracted, "
@@ -1883,6 +1916,17 @@ class IngestionPipeline:
                 # Pending is date-ordered and the key holds the date, so
                 # entries older than this batch can never match again.
                 content_seen = {k for k in content_seen if k[1] >= batch[0].date}
+                # Documents extracted in earlier runs on this batch's days
+                # count as seen, so a copy of one is not extracted either.
+                earlier = [
+                    k
+                    for day in dict.fromkeys((k.patient, k.date) for k in batch)
+                    for k in extracted_same_day.pop(day, [])
+                ]
+                if earlier:
+                    _dedupe_documents_by_content(
+                        self._fetch_documents(source, mapping, earlier), content_seen
+                    )
                 docs, dropped = _dedupe_documents_by_content(docs, content_seen)
                 report.duplicates_skipped += dropped
             # skip_processed=False and pre-fetched watermarks: the bulk scans
@@ -1910,15 +1954,16 @@ class IngestionPipeline:
         source: "DatabaseSource",
         mapping: _DocumentColumns,
         patient_cols: dict[str, str],
-    ) -> "tuple[list[_RowKey], dict[str, dict[str, str]], list[DocumentRejection]]":
+    ) -> "_KeyScan":
         """Step 1 of :meth:`extract_from_database`: stream the identifying
         columns (never the note text) and reject the rows that cannot be
         extracted.
 
-        Returns:
-            ``(keys, demographics, rejections)``: one key per usable row,
-            each patient's first-seen ``patient_cols`` values, and the rows
-            rejected (in row order).
+        A ``(patient, document_id)`` on several rows becomes one key, its
+        first row: the text fetch uses it when the rows agree and rejects it
+        when they differ. A row whose organization or practitioner is
+        unknown is *held*, not rejected — whether to report it waits for the
+        bulk scans, as a document already extracted is not reported again.
         """
         flat = mapping.flat
         pid_col, did_col = flat["patient_identifier"], flat["document_id"]
@@ -1933,58 +1978,80 @@ class IngestionPipeline:
             *patient_cols.values(),
         ]
         logger.info(f"extract_from_database: scanning keys of {source!r}")
-        rejections: list[DocumentRejection] = []
-        keys: list[_RowKey] = []
-        demographics: dict[str, dict[str, str]] = {}
+        scan = _KeyScan()
+        keys = scan.keys
         interned: dict[str, str] = {}  # one string per distinct patient/date
-        for row_no, row in enumerate(source.iter_rows(list(dict.fromkeys(scan_cols)))):
+        for row_no, row in enumerate(source._scan(list(dict.fromkeys(scan_cols)))):
+            scan.rows += 1
             # Raw values, not stripped: they are the keys the text fetch
             # matches on.
             pid, did = row.get(pid_col, ""), row.get(did_col, "")
             try:
+                if isinstance(row, UnreadableRow):
+                    raise row.error
                 if not pid.strip():
                     raise ValueError("Document.patient_identifier must not be empty")
                 if not did.strip():
                     raise ValueError("Document.document_id must not be empty")
                 date = _normalize_document_date(mapping.text(row, "date"))
             except ValueError as e:
-                rejections.append(mapping.rejection(row, row_no, str(e)))
+                scan.rejected.append(mapping.rejection(row, row_no, str(e)))
                 continue
+            pid = interned.setdefault(pid, pid)
+            if pid not in scan.demographics:
+                scan.demographics[pid] = {
+                    f: row.get(c, "") for f, c in patient_cols.items()
+                }
+            keys.append(_RowKey(pid, did, row_no, interned.setdefault(date, date)))
+            # The values the Document will carry (not stripped), so the check
+            # here and the one before extraction agree.
             _, problem = self._reference_problem(
                 pid,
-                mapping.text(row, "organization_identifier") or None,
-                mapping.text(row, "practitioner_identifier") or None,
+                mapping.value(row, "organization_identifier"),
+                mapping.value(row, "practitioner_identifier"),
                 check_patient=False,
             )
             if problem is not None:
-                rejections.append(mapping.rejection(row, row_no, problem, "reference"))
-                continue
-            pid = interned.setdefault(pid, pid)
-            if pid not in demographics:
-                demographics[pid] = {f: row.get(c, "") for f, c in patient_cols.items()}
-            keys.append(_RowKey(pid, did, row_no, interned.setdefault(date, date)))
+                scan.held[row_no] = mapping.rejection(row, row_no, problem, "reference")
 
-        # A (patient, document_id) on several rows: keep the first, reject the
-        # rest. Sorting (natively, on the tuple) finds them without a dict
-        # over every key.
+        # Repeats of a key, found by sorting (natively, on the tuple) rather
+        # than a dict over every key: keep each key's first row.
         keys.sort()
-        unique: list[_RowKey] = []
+        scan.keys = [k for i, k in enumerate(keys) if not i or keys[i - 1][:2] != k[:2]]
+        return scan
+
+    @staticmethod
+    def _extracted_same_day(
+        keys: "list[_RowKey]", pending: "list[_RowKey]"
+    ) -> "dict[tuple[str, str], list[_RowKey]]":
+        """The already-extracted documents dated on a pending document's
+        day, by ``(patient, date)`` — the only ones a pending document can
+        duplicate."""
+        days = {(k.patient, k.date) for k in pending}
+        pending_rows = {k.row for k in pending}
+        found: dict[tuple[str, str], list[_RowKey]] = {}
         for k in keys:
-            first = unique[-1] if unique else None
-            if first is not None and (first.patient, first.document) == (
-                k.patient,
-                k.document,
-            ):
-                rejections.append(
-                    k.rejection(
-                        f"duplicate document_id '{k.document}' for patient "
-                        f"'{k.patient}' (first used by row {first.row})"
-                    )
-                )
-            else:
-                unique.append(k)
-        rejections.sort(key=lambda r: r.index or 0)
-        return unique, demographics, rejections
+            if (k.patient, k.date) in days and k.row not in pending_rows:
+                found.setdefault((k.patient, k.date), []).append(k)
+        return found
+
+    @staticmethod
+    def _fetch_documents(
+        source: "DatabaseSource", mapping: _DocumentColumns, keys: "list[_RowKey]"
+    ) -> list[Document]:
+        """The Documents of ``keys``'s rows; rows that are gone or unusable
+        are left out."""
+        fetched = source.fetch_unique(
+            (mapping.flat["patient_identifier"], mapping.flat["document_id"]),
+            [(k.patient, k.document) for k in keys],
+            compare=mapping.all_columns().values(),
+        )
+        docs = []
+        for row in fetched.values():
+            if isinstance(row, dict):
+                with contextlib.suppress(ValueError):
+                    docs.append(mapping.build(row))
+        return docs
 
     def _pending_documents(
         self, keys: "list[_RowKey]", demographics: dict[str, dict[str, str]]
