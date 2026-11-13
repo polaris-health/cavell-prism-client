@@ -374,6 +374,42 @@ The columns are those of the CSV, and the mapping is the same:
 - **Labs:** `columns=` takes exactly what [`LabResult.from_rows()`](csv-reference.md#lab-columns)
   takes.
 
+### Default column names
+
+Leave `columns=` out and the table is read with the example CSVs' column
+names. Every one of them must then be in the table under exactly that name.
+Extra columns are ignored.
+
+| Pipeline | Columns the table must have |
+|----------|-----------------------------|
+| Notes (`DEFAULT_NOTE_COLUMNS`) | `note_id`, `patient_id`, `note_date`, `note_text`, `encounter_id`, `practitioner_id`, `department` |
+| New patients (`DEFAULT_PATIENT_COLUMNS`) | `patient_name`, `birth_date`, `gender`, used only when `patient_columns=` is left out too |
+| Labs (`DEFAULT_LAB_COLUMNS`) | `lab_result_id`, `patient_id`, `test_name`, `value`, `collected_datetime`, `loinc_code`, `unit`, `reference_low`, `reference_high`, `encounter_id`, `practitioner_id` |
+
+```python
+report = pipeline.extract_from_database(notes)  # the notes CSV's column names
+```
+
+If any column is missing, the run stops before reading anything. The error
+names each column not found (and a column with the same name in another case,
+such as `NOTE_ID` on Oracle or Snowflake), plus the table's columns that match
+no default, which are usually the renamed ones:
+
+```text
+ValueError: No columns= given, so the table must have the default columns
+['note_id', ...]. Not found: 'note_id' (the table has 'NOTE_ID'), 'note_text'.
+Table columns matching no default: ['NOTE_ID', 'body']. Pass columns= to map
+your own column names, or rename them with aliases in query=.
+```
+
+To change only a few names, start from the default:
+
+```python
+from cavell_client import DEFAULT_NOTE_COLUMNS
+
+columns = {**DEFAULT_NOTE_COLUMNS, "text": "body", "encounter_id": None}
+```
+
 Database values are converted to the text a CSV export of the table would
 hold, so every validation rule applies identically:
 

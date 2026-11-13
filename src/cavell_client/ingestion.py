@@ -12,6 +12,7 @@ import time
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, fields
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import httpx
@@ -327,6 +328,58 @@ def _require_available_columns(
                 f"Column '{col_name}' (mapped from '{field_name}') "
                 f"not found in rows. Available columns: {sorted(available)}"
             )
+
+
+#: The ``columns`` a notes table is read with when none are given: the
+#: example notes CSV's column names (``docs/notebooks/notes.csv``).
+DEFAULT_NOTE_COLUMNS: "Mapping[str, str | dict[str, str]]" = MappingProxyType(
+    {
+        "document_id": "note_id",
+        "patient_identifier": "patient_id",
+        "date": "note_date",
+        "text": "note_text",
+        "encounter_id": "encounter_id",
+        "practitioner_identifier": "practitioner_id",
+        "meta": {"Department": "department"},
+    }
+)
+
+#: The ``patient_columns`` used alongside :data:`DEFAULT_NOTE_COLUMNS`.
+DEFAULT_PATIENT_COLUMNS: Mapping[str, str] = MappingProxyType(
+    {"name": "patient_name", "birth_date": "birth_date", "gender": "gender"}
+)
+
+
+def _require_default_columns(
+    expected: Iterable[str], available: Iterable[str], argument: str
+) -> None:
+    """With the default mapping, every column it reads must be in the table
+    under exactly that name.
+
+    Raises:
+        ValueError: Naming each column not found (and a same-name column in
+            another case, if there is one) and the table's columns no
+            default refers to — usually the renamed ones.
+    """
+    available = list(available)
+    expected = list(dict.fromkeys(expected))
+    missing = [c for c in expected if c not in available]
+    if not missing:
+        return
+    by_lower = {c.lower(): c for c in available}
+
+    def describe(column: str) -> str:
+        other = by_lower.get(column.lower())
+        return f"'{column}'" + (f" (the table has '{other}')" if other else "")
+
+    not_found = ", ".join(describe(c) for c in missing)
+    unmatched = [c for c in available if c not in expected]
+    raise ValueError(
+        f"No {argument}= given, so the table must have the default columns "
+        f"{expected}. Not found: {not_found}. Table columns matching no "
+        f"default: {unmatched or 'none'}. Pass {argument}= to map your own "
+        f"column names, or rename them with aliases in query=."
+    )
 
 
 def _forbid_key_defaults(defaults: Mapping[str, Any], names: Iterable[str]) -> None:
@@ -1764,7 +1817,7 @@ class IngestionPipeline:
         self,
         source: "DatabaseSource",
         *,
-        columns: "Mapping[str, str | dict[str, str] | None]",
+        columns: "Mapping[str, str | dict[str, str] | None] | None" = None,
         patient_columns: "Mapping[str, str | None] | None" = None,
         patient_defaults: "Mapping[str, Any] | None" = None,
         batch_size: int = 1000,
@@ -1795,13 +1848,18 @@ class IngestionPipeline:
         Args:
             source: A :class:`~cavell_client.DatabaseSource`.
             columns: Maps Document fields to column names — as for
-                :meth:`Document.from_rows`.
+                :meth:`Document.from_rows`. ``None`` reads the example notes
+                CSV's columns (:data:`DEFAULT_NOTE_COLUMNS`, and
+                :data:`DEFAULT_PATIENT_COLUMNS` unless ``patient_columns`` is
+                given); every one of them must then be in the table under
+                exactly that name.
             patient_columns: Maps Patient fields (``name``, ``birth_date``,
                 ``gender``, ``managing_organization``,
                 ``general_practitioners``) to column names, for seeding
                 patients that are not in FHIR yet. The patient identifier is
                 always the ``patient_identifier`` column. ``None`` seeds new
-                patients with their identifier only.
+                patients with their identifier only — or, when ``columns``
+                is ``None`` too, with :data:`DEFAULT_PATIENT_COLUMNS`.
             patient_defaults: Literal Patient values for every new patient
                 (e.g. ``{"managing_organization": "CGH-001"}``).
             batch_size: Documents per extraction batch (and per text fetch).
@@ -1837,15 +1895,26 @@ class IngestionPipeline:
                 "your organizations and practitioners; patients are seeded "
                 "from the table"
             )
+        use_default = columns is None
+        if columns is None:
+            columns = DEFAULT_NOTE_COLUMNS
+            if patient_columns is None:
+                patient_columns = DEFAULT_PATIENT_COLUMNS
         mapping = _DocumentColumns.parse(columns, defaults)
         _forbid_key_defaults(defaults, ("patient_identifier", "document_id"))
         key_columns = (mapping.flat["patient_identifier"], mapping.flat["document_id"])
         patient_cols = _check_patient_columns(
             patient_columns, patient_defaults, key_columns[0]
         )
-        available = set(source.columns())
-        _require_available_columns(mapping.all_columns(), available)
-        _require_available_columns(patient_cols, available)
+        available = source.columns()
+        if use_default:
+            _require_default_columns(
+                [*mapping.all_columns().values(), *patient_cols.values()],
+                available,
+                "columns",
+            )
+        _require_available_columns(mapping.all_columns(), set(available))
+        _require_available_columns(patient_cols, set(available))
 
         run = _Run("extract_from_database", failures_path, self._totals)
         report = DatabaseExtractionReport()

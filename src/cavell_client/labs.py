@@ -21,6 +21,7 @@ import re
 from collections import defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, fields, replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
@@ -31,6 +32,7 @@ from cavell_client.fhir import FHIRClient
 from cavell_client.ingestion import (
     _forbid_key_defaults,
     _require_available_columns,
+    _require_default_columns,
     _validate_columns,
 )
 from cavell_client.models import FHIRConnectionError, PersistResult
@@ -114,6 +116,25 @@ def _coerce_bound(value: Any) -> float | str | None:
 
 #: How many offending items to name before truncating the error message.
 _MAX_LISTED_NON_RESULTS = 10
+
+
+#: The ``columns`` a lab table is read with when none are given: the example
+#: lab CSV's column names (``docs/notebooks/lab_results.csv``).
+DEFAULT_LAB_COLUMNS: Mapping[str, str] = MappingProxyType(
+    {
+        "lab_result_id": "lab_result_id",
+        "patient_identifier": "patient_id",
+        "test_name": "test_name",
+        "value": "value",
+        "collected_datetime": "collected_datetime",
+        "loinc_code": "loinc_code",
+        "unit": "unit",
+        "reference_low": "reference_low",
+        "reference_high": "reference_high",
+        "encounter_id": "encounter_id",
+        "practitioner_id": "practitioner_id",
+    }
+)
 
 
 def _check_lab_columns(
@@ -728,7 +749,7 @@ class LabIngestionPipeline:
         self,
         source: "DatabaseSource",
         *,
-        columns: Mapping[str, str | None],
+        columns: Mapping[str, str | None] | None = None,
         chunk_size: int = _MAX_ROWS_PER_REQUEST,
         failures_path: "str | os.PathLike[str] | None" = None,
         **defaults: Any,
@@ -758,7 +779,10 @@ class LabIngestionPipeline:
 
         Args:
             source: A :class:`~cavell_client.DatabaseSource`.
-            columns: Maps LabResult fields to column names.
+            columns: Maps LabResult fields to column names. ``None`` reads
+                the example lab CSV's columns (:data:`DEFAULT_LAB_COLUMNS`);
+                every one of them must then be in the table under exactly
+                that name.
             chunk_size: Rows per :meth:`ingest` call (memory per chunk).
             failures_path: Append every rejection and failed bundle to this
                 file as JSON Lines, chunk by chunk.
@@ -778,9 +802,13 @@ class LabIngestionPipeline:
         """
         if chunk_size < 1:
             raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
+        available = source.columns()
+        if columns is None:
+            columns = DEFAULT_LAB_COLUMNS
+            _require_default_columns(columns.values(), available, "columns")
         flat_columns = _check_lab_columns(columns, defaults)
         _forbid_key_defaults(defaults, ("patient_identifier", "lab_result_id"))
-        _require_available_columns(flat_columns, set(source.columns()))
+        _require_available_columns(flat_columns, set(available))
         key_columns = (
             flat_columns["patient_identifier"],
             flat_columns["lab_result_id"],

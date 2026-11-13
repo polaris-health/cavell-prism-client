@@ -23,6 +23,11 @@ adheres to [Semantic Versioning](https://semver.org/).
   - `LabIngestionPipeline.ingest_from_database()` streams a lab table, skips
     rows whose `lab_result_id` is already stored before sending anything, and
     ingests the rest in chunks.
+  - Both read the example CSVs' column names when `columns=` is left out
+    (`DEFAULT_NOTE_COLUMNS`, `DEFAULT_PATIENT_COLUMNS`, `DEFAULT_LAB_COLUMNS`).
+    Every default column must then exist exactly; otherwise the run stops
+    before reading anything, naming the missing columns and the table's
+    unmatched ones.
 - **Failure reports that say why.** Every document or lab row that does not
   land is logged at ERROR, once its retries are exhausted, with a category
   saying who has to act, the underlying detail, HTTP status and attempts, and

@@ -15,6 +15,9 @@ import pytest
 
 import cavell_client.ingestion as ingestion_module
 from cavell_client import (
+    DEFAULT_LAB_COLUMNS,
+    DEFAULT_NOTE_COLUMNS,
+    DEFAULT_PATIENT_COLUMNS,
     DatabaseSource,
     Document,
     IngestionPipeline,
@@ -288,3 +291,113 @@ class TestLabsEndToEnd:
             "LAB-DB-NEW"
         ]
         conn.close()
+
+
+class TestDefaultColumns:
+    """No columns= given: the table is read with the example CSVs' names."""
+
+    def _notes_run(self, source, **kwargs):
+        client = fake_client()
+        seeded: list[dict] = []
+        seed = client._fhir.seed_bundle
+
+        def record(resources):
+            seeded.extend(r for r in resources if r["resourceType"] == "Patient")
+            return seed(resources)
+
+        client._fhir.seed_bundle = record
+        pipeline = _seeded_pipeline(client, read_csv("notes.csv"))
+        report = pipeline.extract_from_database(source, **kwargs)
+        return report, client, seeded
+
+    def test_notes_default_is_the_explicit_csv_mapping(self, source_for):
+        default, default_client, default_patients = self._notes_run(source_for("notes"))
+        explicit, explicit_client, explicit_patients = self._notes_run(
+            source_for("notes"),
+            columns=DEFAULT_NOTE_COLUMNS,
+            patient_columns=DEFAULT_PATIENT_COLUMNS,
+        )
+        assert default.extracted > 0 and default.failed == []
+        # Patients run concurrently, so compare as sets.
+        assert sorted(default_client._api.extracted) == sorted(
+            explicit_client._api.extracted
+        )
+        assert default.rejected == explicit.rejected
+        # New patients get their name, birth date and gender, not just an id.
+        assert default_patients == explicit_patients
+        assert all("name" in p and "birthDate" in p for p in default_patients)
+
+    def test_labs_default_is_the_explicit_csv_mapping(self, source_for):
+        def run(**kwargs):
+            client = fake_client()
+            _seed_patients(client, read_csv("notes_lab_results.csv"))
+            outcome = LabIngestionPipeline(client).ingest_from_database(
+                source_for("notes_lab_results"), **kwargs
+            )
+            return outcome, client._api.lab_requests
+
+        default, default_requests = run()
+        explicit, explicit_requests = run(columns=DEFAULT_LAB_COLUMNS)
+        assert default.accepted > 0
+        assert default_requests == explicit_requests
+        assert default.rejected == explicit.rejected
+
+    def test_missing_columns_are_named_with_the_unmatched_ones(self, db_path):
+        conn = sqlite3.connect(db_path)
+        source = DatabaseSource(
+            conn,
+            query="SELECT note_id AS NOTE_ID, patient_id, patient_name, birth_date, "
+            "note_date, encounter_id, department, practitioner_id, "
+            "note_text AS body FROM notes",
+        )
+        client = fake_client()
+        pipeline = _seeded_pipeline(client, read_csv("notes.csv"))
+        with pytest.raises(ValueError) as error:
+            pipeline.extract_from_database(source)
+        message = str(error.value)
+        assert (
+            "Not found: 'note_id' (the table has 'NOTE_ID'), 'note_text', 'gender'."
+            in message
+        )
+        assert "Table columns matching no default: ['NOTE_ID', 'body']" in message
+        assert "Pass columns= to map your own column names" in message
+        # Refused before anything was scanned or sent.
+        assert "list_document_keys" not in client._fhir.calls
+        assert client._api.extracted == []
+        conn.close()
+
+    def test_explicit_patient_columns_drop_the_patient_defaults(self, db_path):
+        conn = sqlite3.connect(db_path)
+        source = DatabaseSource(
+            conn,
+            query="SELECT note_id, patient_id, note_date, encounter_id, department, "
+            "practitioner_id, note_text FROM notes",
+        )
+        client = fake_client()
+        report = _seeded_pipeline(client, read_csv("notes.csv")).extract_from_database(
+            source, patient_columns={}
+        )
+        assert report.extracted > 0 and report.failed == []
+        conn.close()
+
+    def test_lab_columns_missing(self, db_path):
+        conn = sqlite3.connect(db_path)
+        source = DatabaseSource(
+            conn, query="SELECT lab_result_id, patient_id, test_name FROM lab_results"
+        )
+        missing = r"Not found: 'value', 'collected_datetime'"
+        with pytest.raises(ValueError, match=missing):
+            LabIngestionPipeline(fake_client()).ingest_from_database(source)
+        conn.close()
+
+
+def _seed_patients(client, rows):
+    client._fhir.seed_bundle(
+        [
+            {
+                "resourceType": "Patient",
+                "identifier": [{"system": "urn:cavell:patient", "value": p}],
+            }
+            for p in sorted({r["patient_id"] for r in rows})
+        ]
+    )

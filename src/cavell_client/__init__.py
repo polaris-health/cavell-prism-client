@@ -3,6 +3,8 @@
 from cavell_client.client import CavellClient
 from cavell_client.database import DatabaseSource
 from cavell_client.ingestion import (
+    DEFAULT_NOTE_COLUMNS,
+    DEFAULT_PATIENT_COLUMNS,
     DatabaseExtractionReport,
     Document,
     DocumentList,
@@ -14,6 +16,7 @@ from cavell_client.ingestion import (
     Practitioner,
 )
 from cavell_client.labs import (
+    DEFAULT_LAB_COLUMNS,
     LabIngestionOutcome,
     LabIngestionPipeline,
     LabRejection,
@@ -42,6 +45,9 @@ __all__ = [
     "CavellAuthError",
     "CavellGatewayUnavailableError",
     "DatabaseExtractionReport",
+    "DEFAULT_LAB_COLUMNS",
+    "DEFAULT_NOTE_COLUMNS",
+    "DEFAULT_PATIENT_COLUMNS",
     "DatabaseSource",
     "Document",
     "DocumentList",
