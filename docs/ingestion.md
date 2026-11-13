@@ -33,6 +33,12 @@ Extract: For each document:
 Most work starts from an export rather than hand-built objects. All three
 data types provide a `from_rows()` classmethod that builds objects from CSV data (or any list of dicts). The `columns` dict maps SDK field names (left) to your CSV column headers (right). Keyword arguments are applied as literal defaults to every row.
 
+!!! tip "Data in a database table?"
+    The same code works with a table in place of the CSV: the same mappings,
+    with `Practitioner.from_rows()` reading the table directly and
+    `extract_from_database()` in place of `extract_all()`. See
+    [Coming from the CSV workflow](database.md#coming-from-the-csv-workflow).
+
 ```python
 import csv
 from cavell_client import Patient, Practitioner, Document

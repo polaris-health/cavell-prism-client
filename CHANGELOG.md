@@ -28,6 +28,11 @@ adheres to [Semantic Versioning](https://semver.org/).
     Every default column must then exist exactly; otherwise the run stops
     before reading anything, naming the missing columns and the table's
     unmatched ones.
+  - `Practitioner.from_rows()` and `Patient.from_rows()` accept a
+    `DatabaseSource` in place of the rows, reading only the mapped columns,
+    so the database workflow uses the same calls and mappings as the CSV
+    one. `IngestionPipeline.seed()`'s `patients` argument is now optional,
+    since `extract_from_database()` creates patients as it needs them.
 - **Failure reports that say why.** Every document or lab row that does not
   land is logged at ERROR, once its retries are exhausted, with a category
   saying who has to act, the underlying detail, HTTP status and attempts, and

@@ -19,7 +19,10 @@ The database path is built for **large tables that keep growing**:
 
 The table has the **same columns as the CSV**. Everything in the
 [CSV field reference](csv-reference.md) applies unchanged: field meanings,
-formats, and rejection rules.
+formats, and rejection rules. The code is also almost the same as the
+[CSV workflow](ingestion.md#start-from-a-csv): the same mappings, the same
+`from_rows()` calls. [Coming from the CSV workflow](#coming-from-the-csv-workflow)
+lists the few differences and why each one exists.
 
 ---
 
@@ -93,25 +96,23 @@ client = CavellClient(
     fhir_api_path="/fhir",
 )
 
-notes = DatabaseSource("sqlite:///clinical.db", table="notes")
+notes = DatabaseSource("sqlite:///clinical.db", table="notes")  # reads nothing yet
 
 pipeline = IngestionPipeline(client, default_organization="CGH-001")
 pipeline.seed(
     organizations=[Organization(identifier="CGH-001", name="City General Hospital")],
-    patients=[],  # seeded from the table as they are needed
-    practitioners=Practitioner.from_rows(
-        DatabaseSource(
-            "sqlite:///clinical.db",
-            query="SELECT DISTINCT practitioner_id, practitioner_name FROM notes",
-        ).rows(),
+    practitioners=Practitioner.from_rows(  # as with the CSV, with the table as rows
+        notes,
         columns={"identifier": "practitioner_id", "name": "practitioner_name"},
         organization_identifier="CGH-001",
     ),
+    # No patients=: each patient is created from the table just before their
+    # first note is extracted (see "Coming from the CSV workflow" below).
 )
 
 report = pipeline.extract_from_database(
     notes,
-    columns={  # the same mapping Document.from_rows() takes
+    columns={  # the mapping you would give Document.from_rows()
         "document_id": "note_id",
         "patient_identifier": "patient_id",
         "date": "note_date",
@@ -120,12 +121,13 @@ report = pipeline.extract_from_database(
         "practitioner_identifier": "practitioner_id",
         "meta": {"Department": "department"},
     },
-    patient_columns={
+    patient_columns={  # the mapping you would give Patient.from_rows()
+        "identifier": "patient_id",
         "name": "patient_name",
         "birth_date": "birth_date",
         "gender": "gender",
     },
-    patient_defaults={"managing_organization": "CGH-001"},
+    patient_defaults={"managing_organization": "CGH-001"},  # its keyword defaults
     batch_size=1000,
     failures_path="prism_failures.jsonl",
 )
@@ -161,6 +163,101 @@ outcome = LabIngestionPipeline(client).ingest_from_database(
 )
 print(outcome)
 ```
+
+As with the CSV, the patients must already be in FHIR before their lab
+results are ingested. Extracting the notes first takes care of that.
+
+### Coming from the CSV workflow
+
+If you already extract a CSV, the database version keeps the same steps,
+mappings and calls. Side by side:
+
+```python
+# CSV                                         # Database
+rows = list(csv.DictReader(f))                notes = DatabaseSource(engine, table="notes")
+
+practitioners = Practitioner.from_rows(       practitioners = Practitioner.from_rows(
+    rows, columns=PRAC_COLS, **org)               notes, columns=PRAC_COLS, **org)
+patients = Patient.from_rows(                 # (no patients step)
+    rows, columns=PATIENT_COLS, **patient_org)
+documents = Document.from_rows(               # (no documents step)
+    rows, columns=DOC_COLS, **doc_defaults)
+
+pipeline.seed(organizations,                  pipeline.seed(organizations,
+              patients, practitioners)                      practitioners=practitioners)
+
+pipeline.extract_all(documents)               pipeline.extract_from_database(
+                                                  notes, columns=DOC_COLS,
+                                                  patient_columns=PATIENT_COLS,
+                                                  patient_defaults=patient_org,
+                                                  **doc_defaults)
+```
+
+| | CSV | Database | Why |
+|---|---|---|---|
+| Read the data | `csv.DictReader` loads every row | `DatabaseSource` reads nothing until a step needs it | A table can hold millions of notes. Only what a step needs is read |
+| Practitioners | `Practitioner.from_rows(rows, ...)` | `Practitioner.from_rows(notes, ...)`: same call, same mapping | Given a source, `from_rows()` reads only the mapped columns, streamed, never the note text. Repeated practitioners are removed the same way: first row wins |
+| Patients | `Patient.from_rows(rows, ...)`, passed to `seed()` | The same mapping, passed as `patient_columns=` (and its keyword defaults as `patient_defaults=`) | Patients are created during extraction, not up front. See below |
+| Documents | `Document.from_rows(rows, ...)`, passed to `extract_all()` | The same mapping, passed as `columns=` (and its keyword defaults as keywords) | The documents are built batch by batch, only for notes not extracted yet, so the note text is never all in memory |
+| Extract | `extract_all(documents)` | `extract_from_database(notes, ...)` | It works out what is pending from the table and your FHIR server, and only fetches that |
+| Bad rows | skipped and reported | skipped and reported, with their row number | |
+
+#### Why patients are not seeded up front
+
+With a CSV, `seed()` sends every patient in the file on every run. For a
+table that keeps growing and is extracted every night, that is hundreds of
+thousands of unchanged patients written again each time. So
+`extract_from_database()` creates patients itself, batch by batch, from the
+`patient_columns` of the patient's first row, and only for patients that have a
+note to extract and are not in FHIR yet. A re-run with nothing new creates
+none.
+
+You can still seed patients up front, exactly as with the CSV. Pass the
+table to `Patient.from_rows()`, which reads only the mapped columns:
+
+```python
+pipeline.seed(
+    organizations,
+    patients=Patient.from_rows(
+        notes, columns=PATIENT_COLS, managing_organization="CGH-001"
+    ),
+    practitioners=practitioners,
+)
+```
+
+Either way, nothing is duplicated, because patients are matched on their
+identifier. Seeding up front costs a write per patient per run. In exchange, it
+updates the demographics of patients already in FHIR, which
+`extract_from_database()` never does (see [Limits](#11-limits)).
+
+#### Why practitioners are seeded up front
+
+Prism reads the practitioners named in the note text, and the SDK links them
+to the practitioners already in FHIR. A doctor named in a note but not its
+author is not in that note's `practitioner_id`, so they can only be linked if
+the full list was seeded first. The list is also small, so seeding it once per
+run costs little. It can come from the notes table, as above, or from a staff
+table:
+
+```python
+staff = DatabaseSource(engine, table="clinical.staff")
+practitioners = Practitioner.from_rows(
+    staff,
+    columns={"identifier": "staff_id", "name": "full_name"},
+    organization_identifier="CGH-001",
+)
+```
+
+A note whose `practitioner_id` is not seeded is rejected (`reference`) and
+picked up again by the next run once the practitioner is seeded.
+
+#### Smaller tables
+
+For a table that fits in memory, `DatabaseSource.rows()` returns every row
+exactly as `csv.DictReader` would. You can then run the CSV workflow
+unchanged, from `Document.from_rows(rows, ...)` to `extract_all()`. You lose what
+`extract_from_database()` adds: a re-run still reads every row, and every
+patient is sent again.
 
 ---
 
@@ -367,10 +464,13 @@ Rules for `query=`:
 The columns are those of the CSV, and the mapping is the same:
 
 - **Notes:** `columns=` takes exactly what [`Document.from_rows()`](csv-reference.md#document-columns)
-  takes. `patient_columns=` maps the [`Patient`](csv-reference.md#patient-practitioner-and-organization-columns)
-  fields used to create patients that are not in FHIR yet: `name`,
+  takes. `patient_columns=` takes what [`Patient.from_rows()`](csv-reference.md#patient-practitioner-and-organization-columns)
+  takes, and is used to create patients that are not in FHIR yet: `name`,
   `birth_date`, `gender`, `managing_organization`, `general_practitioners`.
-  The patient identifier is always the `patient_identifier` column.
+  The patient identifier is always the `patient_identifier` column, so
+  `identifier` can be left out.
+- **Practitioners:** `Practitioner.from_rows()` takes the source itself, with
+  the CSV mapping.
 - **Labs:** `columns=` takes exactly what [`LabResult.from_rows()`](csv-reference.md#lab-columns)
   takes.
 
@@ -430,17 +530,12 @@ as-is. Lab `collected_datetime` still needs a timezone offset whenever it
 carries a time ([why](csv-reference.md#datetimes-and-timezones)). Use
 `TIMESTAMP WITH TIME ZONE`, or cast to a date in `query=`.
 
-Bring practitioners (and, for small tables, anything else) in with
-`DatabaseSource.rows()`. It returns the whole result as `csv.DictReader`
-would, ready for any `from_rows()`:
-
-```python
-practitioners = Practitioner.from_rows(
-    DatabaseSource(engine, table="clinical.staff").rows(),
-    columns={"identifier": "staff_id", "name": "full_name"},
-    organization_identifier="CGH-001",
-)
-```
+`Practitioner.from_rows()` and `Patient.from_rows()` accept a
+`DatabaseSource` in place of the rows. They read only the mapped columns and
+stream them, so this works on a notes table of any size. A row with a cell
+that cannot be read as text is skipped with a warning. For anything else
+small, `DatabaseSource.rows()` returns the whole result as `csv.DictReader`
+would, ready for any `from_rows()`.
 
 ---
 
@@ -651,7 +746,9 @@ stored, and each rejection's `index` is its position in the query result.
 - **Run one extraction per table at a time.** What is pending is decided
   once, at the start of a run.
 - **Patients are created once.** Demographics of a patient already in FHIR
-  are not updated from the table. Use `pipeline.seed()` to update them.
+  are not updated from the table. To update them, seed patients up front with
+  `Patient.from_rows(source, ...)` (see
+  [Why patients are not seeded up front](#why-patients-are-not-seeded-up-front)).
 - **Read-only.** The SDK only runs `SELECT` statements, so a read-only
   database user is enough, and recommended. For a large historical load,
   point it at a reporting replica rather than the production database.

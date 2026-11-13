@@ -161,16 +161,32 @@ skip the CSV export. Any database works — through a SQLAlchemy URL
 DB-API connection you already have — and each run only reads and extracts
 what is not done yet, so the same call keeps a growing table up to date:
 
+The code is the CSV example above with the table in place of `rows`:
+
 ```python
 from cavell_client import DatabaseSource
 
 notes = DatabaseSource(
     "postgresql+psycopg://reader@db.example.org/clinical", table="notes"
 )
+
+pipeline.seed(
+    organizations=[Organization(identifier="CGH-001", name="City General")],
+    practitioners=Practitioner.from_rows(  # same call; reads only these columns
+        notes,
+        columns={"identifier": "practitioner_id", "name": "practitioner_name"},
+        organization_identifier="CGH-001",
+    ),
+)  # no patients: they are created from the table as their notes come up
+
 report = pipeline.extract_from_database(
     notes,
-    columns={...},  # the same mapping Document.from_rows() takes
-    patient_columns={"name": "patient_name", "birth_date": "birth_date"},
+    columns={...},  # the mapping you gave Document.from_rows()
+    patient_columns={  # ...and the one you gave Patient.from_rows()
+        "identifier": "patient_id",
+        "name": "patient_name",
+    },
+    patient_defaults={"managing_organization": "CGH-001"},
     failures_path="prism_failures.jsonl",
 )
 print(report)

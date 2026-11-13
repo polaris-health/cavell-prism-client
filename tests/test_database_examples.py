@@ -147,11 +147,94 @@ class TestSameAsCsv:
         )
 
 
+class TestFromRowsOnASource:
+    """``Practitioner/Patient.from_rows`` take a DatabaseSource in place of the
+    CSV rows, read only the mapped columns, and build the same objects."""
+
+    PRACTITIONER_COLUMNS = {
+        "identifier": "practitioner_id",
+        "name": "practitioner_name",
+    }
+
+    def _spy(self, monkeypatch, source):
+        read: list = []
+        scan = source._scan
+
+        def spy(columns):
+            read.append(columns)
+            return scan(columns)
+
+        monkeypatch.setattr(source, "_scan", spy)
+        return read
+
+    @pytest.mark.parametrize("name", NOTE_FILES)
+    def test_practitioners_same_as_csv_and_only_mapped_columns_read(
+        self, source_for, monkeypatch, name
+    ):
+        source = source_for(name.removesuffix(".csv"))
+        read = self._spy(monkeypatch, source)
+        from_source = Practitioner.from_rows(
+            source, columns=self.PRACTITIONER_COLUMNS, organization_identifier=ORG_ID
+        )
+        assert from_source == Practitioner.from_rows(
+            read_csv(name),
+            columns=self.PRACTITIONER_COLUMNS,
+            organization_identifier=ORG_ID,
+        )
+        assert read == [["practitioner_id", "practitioner_name"]]
+
+    @pytest.mark.parametrize("name", NOTE_FILES)
+    def test_patients_same_as_csv(self, source_for, monkeypatch, name):
+        columns = {"identifier": "patient_id", **PATIENT_COLUMNS}
+        source = source_for(name.removesuffix(".csv"))
+        read = self._spy(monkeypatch, source)
+        assert Patient.from_rows(
+            source, columns=columns, managing_organization=ORG_ID
+        ) == Patient.from_rows(
+            read_csv(name), columns=columns, managing_organization=ORG_ID
+        )
+        assert read == [["patient_id", "patient_name", "birth_date", "gender"]]
+
+    def test_missing_column_named(self, source_for):
+        with pytest.raises(ValueError, match="'staff_name'.*mapped from 'name'"):
+            Practitioner.from_rows(
+                source_for("notes"),
+                columns={"identifier": "practitioner_id", "name": "staff_name"},
+                organization_identifier=ORG_ID,
+            )
+
+    def test_empty_table(self):
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE staff (practitioner_id, practitioner_name)")
+        source = DatabaseSource(conn, table="staff")
+        assert Practitioner.from_rows(source, columns=self.PRACTITIONER_COLUMNS) == []
+
+    def test_unreadable_row_is_skipped_with_a_warning(self, caplog):
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE staff (practitioner_id TEXT, practitioner_name)")
+        conn.executemany(
+            "INSERT INTO staff VALUES (?, ?)",
+            [
+                ("DOC-1", "Ann Smith"),
+                ("DOC-2", "Ren\xe9 Dubois".encode("latin-1")),
+                ("DOC-3", "Lena Peeters"),
+            ],
+        )
+        caplog.set_level(logging.WARNING)
+        pracs = Practitioner.from_rows(
+            DatabaseSource(conn, table="staff"),
+            columns=self.PRACTITIONER_COLUMNS,
+            organization_identifier=ORG_ID,
+        )
+        assert [p.identifier for p in pracs] == ["DOC-1", "DOC-3"]
+        assert "Practitioner.from_rows: skipping row 1" in caplog.text
+
+
 def _seeded_pipeline(client, practitioner_rows):
+    """Seed like the guide: organizations and practitioners, no patients."""
     pipeline = IngestionPipeline(client, default_organization=ORG_ID, max_concurrency=8)
     pipeline.seed(
         organizations=[Organization(identifier=ORG_ID, name="City General Hospital")],
-        patients=[],
         practitioners=Practitioner.from_rows(
             practitioner_rows,
             columns={"identifier": "practitioner_id", "name": "practitioner_name"},
@@ -170,9 +253,7 @@ class TestNotesEndToEnd:
         client = fake_client()
 
         def run():
-            pipeline = _seeded_pipeline(
-                client, DatabaseSource(conn, query="SELECT * FROM notes").rows()
-            )
+            pipeline = _seeded_pipeline(client, DatabaseSource(conn, table="notes"))
             return pipeline.extract_from_database(
                 DatabaseSource(conn, table="notes"),
                 columns=DOCUMENT_COLUMNS,

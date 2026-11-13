@@ -10,7 +10,7 @@ import os
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, fields
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 import httpx
 
 from cavell_client.api import CavellAPI
-from cavell_client.database import UnreadableRow, cell_to_text
+from cavell_client.database import DatabaseSource, UnreadableRow, cell_to_text
 from cavell_client.fhir import (
     IDENTIFIER_SYSTEM,
     ORGANIZATION_IDENTIFIER_SYSTEM,
@@ -47,7 +47,6 @@ from cavell_client.reporting import (
 
 if TYPE_CHECKING:
     from cavell_client.client import CavellClient
-    from cavell_client.database import DatabaseSource
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +304,9 @@ def _apply_update_guard(
     return kept, dropped
 
 
-def _validate_columns(columns: dict[str, str], rows: list[dict[str, str]]) -> None:
+def _validate_columns(
+    columns: Mapping[str, str | None], rows: list[dict[str, str]]
+) -> None:
     """Check that all mapped column names exist in the rows.
 
     Args:
@@ -328,6 +329,32 @@ def _require_available_columns(
                 f"Column '{col_name}' (mapped from '{field_name}') "
                 f"not found in rows. Available columns: {sorted(available)}"
             )
+
+
+def _mapped_rows(
+    rows: "list[dict[str, str]] | DatabaseSource",
+    columns: Mapping[str, str | None],
+    kind: str,
+) -> "Iterable[Mapping[str, str]]":
+    """The rows a ``from_rows()`` iterates: ``rows`` itself, checked against
+    ``columns``, or for a :class:`DatabaseSource` a stream of just the mapped
+    columns, so a notes table's text is never read. A database row with a cell
+    that cannot be read as text is skipped with a warning."""
+    if not isinstance(rows, DatabaseSource):
+        if rows:
+            _validate_columns(columns, rows)
+        return rows
+    _require_available_columns(columns, set(rows.columns()))
+    wanted = list(dict.fromkeys(c for c in columns.values() if c is not None))
+
+    def stream() -> Iterator[Mapping[str, str]]:
+        for n, row in enumerate(rows._scan(wanted)):
+            if isinstance(row, UnreadableRow):
+                logger.warning(f"{kind}.from_rows: skipping row {n}: {row.error}")
+                continue
+            yield row
+
+    return stream()
 
 
 #: The ``columns`` a notes table is read with when none are given: the
@@ -654,14 +681,17 @@ class Practitioner:
     @classmethod
     def from_rows(
         cls,
-        rows: list[dict[str, str]],
+        rows: "list[dict[str, str]] | DatabaseSource",
         columns: dict[str, str],
         **defaults: str,
     ) -> "list[Practitioner]":
         """Build a deduplicated list of Practitioners from CSV/dict rows.
 
         Args:
-            rows: List of dicts (e.g. from csv.DictReader).
+            rows: List of dicts (e.g. from csv.DictReader), or a
+                :class:`~cavell_client.DatabaseSource` — of the notes table
+                itself, for instance. A source is streamed and only the
+                mapped columns are read, so it works on a table of any size.
             columns: Maps Practitioner field names to column names.
                 Must include "identifier". Supports a virtual "name" column
                 that splits "Given Family" into given_name/family_name.
@@ -693,15 +723,11 @@ class Practitioner:
             if key not in valid_fields:
                 raise ValueError(f"Unknown Practitioner field in defaults: '{key}'")
 
-        if not rows:
-            return []
-
-        _validate_columns(columns, rows)
-
+        mapped_rows = _mapped_rows(rows, columns, "Practitioner")
         seen: set[str] = set()
         practitioners: list[Practitioner] = []
 
-        for row in rows:
+        for row in mapped_rows:
             identifier = row.get(columns["identifier"])
             if not identifier or identifier in seen:
                 continue
@@ -748,14 +774,21 @@ class Patient:
     @classmethod
     def from_rows(
         cls,
-        rows: list[dict[str, str]],
+        rows: "list[dict[str, str]] | DatabaseSource",
         columns: dict[str, str],
         **defaults: str,
     ) -> "list[Patient]":
         """Build a deduplicated list of Patients from CSV/dict rows.
 
+        With a database, you usually do not need this:
+        :meth:`IngestionPipeline.extract_from_database` takes the same
+        mapping as ``patient_columns`` and creates each patient when it
+        reaches their first pending note.
+
         Args:
-            rows: List of dicts (e.g. from csv.DictReader).
+            rows: List of dicts (e.g. from csv.DictReader), or a
+                :class:`~cavell_client.DatabaseSource`, streamed with only the
+                mapped columns read.
             columns: Maps Patient field names to column names in the rows.
                 Must include "identifier". ``None`` values are skipped.
             **defaults: Literal values applied to every patient.
@@ -775,15 +808,11 @@ class Patient:
             if key not in valid_fields:
                 raise ValueError(f"Unknown Patient field in defaults: '{key}'")
 
-        if not rows:
-            return []
-
-        _validate_columns(columns, rows)
-
+        mapped_rows = _mapped_rows(rows, columns, "Patient")
         seen: set[str] = set()
         patients: list[Patient] = []
 
-        for row in rows:
+        for row in mapped_rows:
             identifier = row.get(columns["identifier"])
             if not identifier or identifier in seen:
                 continue
@@ -1267,7 +1296,7 @@ class IngestionPipeline:
     def seed(
         self,
         organizations: list[Organization],
-        patients: list[Patient],
+        patients: list[Patient] | None = None,
         practitioners: list[Practitioner] | None = None,
     ) -> None:
         """Seed organizations, practitioners, and patients into the FHIR server.
@@ -1277,7 +1306,9 @@ class IngestionPipeline:
 
         Args:
             organizations: Organizations to create/update
-            patients: Patients to create/update
+            patients: Patients to create/update. Leave out before
+                :meth:`extract_from_database`, which creates patients from
+                the table as it needs them.
             practitioners: Practitioners to create/update (linked to orgs)
 
         Raises:
@@ -1292,6 +1323,7 @@ class IngestionPipeline:
             raise ValueError("At least one organization is required")
 
         practitioners = practitioners or []
+        patients = patients or []
 
         # Cross-validate practitioner org references
         org_ids = {org.identifier for org in organizations}
@@ -1842,8 +1874,11 @@ class IngestionPipeline:
         (:data:`~cavell_client.reporting.FailureCategory`), row number and
         detail, and the run ends with a summary.
 
-        Call :meth:`seed` first with your organizations and practitioners;
-        patients are seeded from the table as they are needed.
+        Call :meth:`seed` first with your organizations and practitioners
+        (``Practitioner.from_rows(source, ...)`` reads them straight from the
+        table). Unlike the CSV workflow, patients are not seeded up front:
+        each one is created, from ``patient_columns``, just before their
+        first pending note, so a re-run never re-sends unchanged patients.
 
         Args:
             source: A :class:`~cavell_client.DatabaseSource`.
@@ -1853,11 +1888,12 @@ class IngestionPipeline:
                 :data:`DEFAULT_PATIENT_COLUMNS` unless ``patient_columns`` is
                 given); every one of them must then be in the table under
                 exactly that name.
-            patient_columns: Maps Patient fields (``name``, ``birth_date``,
-                ``gender``, ``managing_organization``,
-                ``general_practitioners``) to column names, for seeding
-                patients that are not in FHIR yet. The patient identifier is
-                always the ``patient_identifier`` column. ``None`` seeds new
+            patient_columns: The mapping :meth:`Patient.from_rows` takes
+                (``name``, ``birth_date``, ``gender``,
+                ``managing_organization``, ``general_practitioners``), for
+                creating patients that are not in FHIR yet. The patient
+                identifier is always the ``patient_identifier`` column, so
+                ``identifier`` may be left out. ``None`` seeds new
                 patients with their identifier only — or, when ``columns``
                 is ``None`` too, with :data:`DEFAULT_PATIENT_COLUMNS`.
             patient_defaults: Literal Patient values for every new patient
@@ -1891,7 +1927,7 @@ class IngestionPipeline:
         if self._phase not in (_Phase.PATIENTS_SEEDED, _Phase.EXTRACTING):
             raise RuntimeError(
                 "extract_from_database() requires seed() first — call "
-                "seed(organizations, patients=[], practitioners=...) to seed "
+                "seed(organizations, practitioners=...) to seed "
                 "your organizations and practitioners; patients are seeded "
                 "from the table"
             )
