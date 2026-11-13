@@ -97,3 +97,16 @@ def mock_watermark(
         replace=True,
         repeat=repeat,
     )
+
+
+def load_table(conn, rows: list[dict[str, str]], table: str = "notes") -> None:
+    """Create ``table`` in a sqlite3 connection with the rows' columns (all
+    TEXT) and insert them. Blank cells become NULL — what a real database
+    export would hold."""
+    cols = list(rows[0])
+    conn.execute(f"CREATE TABLE {table} ({', '.join(f'{c} TEXT' for c in cols)})")
+    conn.executemany(
+        f"INSERT INTO {table} VALUES ({', '.join('?' for _ in cols)})",
+        [tuple(r[c] or None for c in cols) for r in rows],
+    )
+    conn.commit()

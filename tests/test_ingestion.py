@@ -355,7 +355,7 @@ class TestDefaultOrganization:
         assert len(outcomes) == 1
         assert outcomes[0].success
 
-    def test_no_org_no_default_raises(self, client, httpx_mock):
+    def test_no_org_no_default_is_rejected(self, client, httpx_mock):
         """Document without org_identifier and no default raises ValueError."""
         mock_fhir_auth(httpx_mock)
         mock_empty_document_identifiers(httpx_mock)
@@ -370,18 +370,21 @@ class TestDefaultOrganization:
             patients=[Patient(identifier="MRN-1")],
         )
 
-        with pytest.raises(ValueError, match="no organization_identifier"):
-            for _ in pipeline.extract(
-                [
-                    Document(
-                        text="test",
-                        patient_identifier="MRN-1",
-                        date="2024-01-01",
-                        document_id="doc-1",
-                    ),
-                ]
-            ):
-                pass
+        outcomes = pipeline.extract(
+            [
+                Document(
+                    text="test",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    document_id="doc-1",
+                ),
+            ]
+        )
+        assert len(outcomes) == 1
+        assert outcomes[0].rejected and not outcomes[0].success
+        assert outcomes[0].category == "reference"
+        assert "no organization_identifier" in (outcomes[0].error or "")
+        assert pipeline.documents_rejected == 1
 
     def test_explicit_org_overrides_default(self, client, httpx_mock):
         """Explicit org on document takes precedence over default."""
@@ -486,7 +489,7 @@ class TestCrossValidation:
                 ],
             )
 
-    def test_document_unknown_patient_raises(self, client, httpx_mock):
+    def test_document_unknown_patient_is_rejected(self, client, httpx_mock):
         mock_fhir_auth(httpx_mock)
         mock_empty_document_identifiers(httpx_mock)
         mock_seed_response(
@@ -500,21 +503,23 @@ class TestCrossValidation:
             patients=[Patient(identifier="MRN-1")],
         )
 
-        with pytest.raises(ValueError, match="unknown patient"):
-            for _ in pipeline.extract(
-                [
-                    Document(
-                        text="test",
-                        patient_identifier="UNKNOWN-MRN",
-                        date="2024-01-01",
-                        organization_identifier="CGH-001",
-                        document_id="doc-1",
-                    ),
-                ]
-            ):
-                pass
+        outcomes = pipeline.extract(
+            [
+                Document(
+                    text="test",
+                    patient_identifier="UNKNOWN-MRN",
+                    date="2024-01-01",
+                    organization_identifier="CGH-001",
+                    document_id="doc-1",
+                ),
+            ]
+        )
+        assert len(outcomes) == 1
+        assert outcomes[0].rejected
+        assert outcomes[0].category == "reference"
+        assert "unknown patient 'UNKNOWN-MRN'" in (outcomes[0].error or "")
 
-    def test_document_unknown_org_raises(self, client, httpx_mock):
+    def test_document_unknown_org_is_rejected(self, client, httpx_mock):
         mock_fhir_auth(httpx_mock)
         mock_empty_document_identifiers(httpx_mock)
         mock_seed_response(
@@ -528,21 +533,23 @@ class TestCrossValidation:
             patients=[Patient(identifier="MRN-1")],
         )
 
-        with pytest.raises(ValueError, match="unknown organization"):
-            for _ in pipeline.extract(
-                [
-                    Document(
-                        text="test",
-                        patient_identifier="MRN-1",
-                        date="2024-01-01",
-                        organization_identifier="UNKNOWN-ORG",
-                        document_id="doc-1",
-                    ),
-                ]
-            ):
-                pass
+        outcomes = pipeline.extract(
+            [
+                Document(
+                    text="test",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    organization_identifier="UNKNOWN-ORG",
+                    document_id="doc-1",
+                ),
+            ]
+        )
+        assert len(outcomes) == 1
+        assert outcomes[0].rejected
+        assert outcomes[0].category == "reference"
+        assert "unknown organization 'UNKNOWN-ORG'" in (outcomes[0].error or "")
 
-    def test_duplicate_document_id_raises(self, client, httpx_mock):
+    def test_duplicate_document_id_is_rejected(self, client, httpx_mock, monkeypatch):
         mock_fhir_auth(httpx_mock)
         mock_empty_document_identifiers(httpx_mock)
         mock_seed_response(
@@ -556,26 +563,45 @@ class TestCrossValidation:
             patients=[Patient(identifier="MRN-1")],
         )
 
-        with pytest.raises(ValueError, match="Duplicate document_id.*note-001"):
-            for _ in pipeline.extract(
-                [
-                    Document(
-                        text="First note with some clinical content",
-                        patient_identifier="MRN-1",
-                        date="2024-01-01",
-                        organization_identifier="CGH-001",
-                        document_id="note-001",
-                    ),
-                    Document(
-                        text="Second note with different content",
-                        patient_identifier="MRN-1",
-                        date="2024-01-02",
-                        organization_identifier="CGH-001",
-                        document_id="note-001",
-                    ),
-                ]
-            ):
-                pass
+        # Only the rejection is under test: stub out the extraction itself.
+        monkeypatch.setattr(pipeline._fhir, "get_patient", lambda fhir_id: {})
+        monkeypatch.setattr(
+            pipeline, "_check_chronology", lambda docs, known=None: ({}, [])
+        )
+        monkeypatch.setattr(
+            pipeline,
+            "_process_single_document",
+            lambda doc, index, org, watermark=None, on_fatal=None: IngestionOutcome(
+                success=True,
+                patient_identifier=doc.patient_identifier,
+                document_index=index,
+                document_id=doc.document_id,
+            ),
+        )
+
+        outcomes = pipeline.extract(
+            [
+                Document(
+                    text="First note with some clinical content",
+                    patient_identifier="MRN-1",
+                    date="2024-01-01",
+                    organization_identifier="CGH-001",
+                    document_id="note-001",
+                ),
+                Document(
+                    text="Second note with different content",
+                    patient_identifier="MRN-1",
+                    date="2024-01-02",
+                    organization_identifier="CGH-001",
+                    document_id="note-001",
+                ),
+            ]
+        )
+        rejected = [o for o in outcomes if o.rejected]
+        assert len(rejected) == 1
+        assert rejected[0].document_index == 1
+        assert rejected[0].category == "data"
+        assert "duplicate document_id 'note-001'" in (rejected[0].error or "")
 
     def test_short_text_warns(self, client, httpx_mock, caplog):
         mock_fhir_auth(httpx_mock)
@@ -1135,7 +1161,7 @@ class TestExtract:
 
         assert len(outcomes) == 1
         assert not outcomes[0].success
-        assert "Persist failed" in outcomes[0].error
+        assert "Persist failed" in (outcomes[0].error or "")
 
     def test_transient_failure_retried_in_place(self, client, httpx_mock, monkeypatch):
         """A transient extract failure (500) is retried in place and then succeeds."""
@@ -2829,13 +2855,32 @@ class TestDocumentFromRows:
         docs = Document.from_rows([], columns=self.REQUIRED)
         assert docs == []
 
-    def test_duplicate_document_id_raises(self):
+    def test_duplicate_document_id_same_patient_is_rejected(self, caplog):
+        """The first row is kept; the repeat is skipped and reported."""
+        rows = [
+            self._row(doc_id="N1"),
+            self._row(doc_id="N1", note_text="A different note for the same id."),
+        ]
+        with caplog.at_level(logging.WARNING):
+            docs = Document.from_rows(rows, columns=self.REQUIRED)
+        assert [d.document_id for d in docs] == ["N1"]
+        assert len(docs.rejected) == 1
+        rejection = docs.rejected[0]
+        assert rejection.index == 1
+        assert rejection.category == "data"
+        assert "duplicate document_id 'N1'" in rejection.reason
+        assert "first used by row 0" in rejection.reason
+        assert "Skipping row 1" in caplog.text
+
+    def test_same_document_id_for_different_patients_is_allowed(self):
+        """Document ids only need to be unique per patient — the FHIR identity."""
         rows = [
             self._row(doc_id="N1"),
             self._row(doc_id="N1", patient_id="MRN-2"),
         ]
-        with pytest.raises(ValueError, match="Duplicate document_id.*N1"):
-            Document.from_rows(rows, columns=self.REQUIRED)
+        docs = Document.from_rows(rows, columns=self.REQUIRED)
+        assert len(docs) == 2
+        assert docs.rejected == []
 
     def test_short_text_warns(self, caplog):
         rows = [self._row(note_text="Short.")]
@@ -2857,11 +2902,55 @@ class TestDocumentFromRows:
         assert docs[0].practitioner_identifier is None
         assert docs[0].encounter_id is None
 
-    def test_empty_document_id_raises(self):
-        """A blank id is not silently coerced to None — it is a required field."""
-        rows = [self._row(doc_id="")]
-        with pytest.raises(ValueError, match="document_id must not be empty"):
-            Document.from_rows(rows, columns=self.REQUIRED)
+    def test_empty_document_id_is_rejected(self):
+        """A blank id is not silently coerced to None — the row is skipped and
+        reported, and the other rows are still built."""
+        rows = [self._row(doc_id=""), self._row(doc_id="N2")]
+        docs = Document.from_rows(rows, columns=self.REQUIRED)
+        assert [d.document_id for d in docs] == ["N2"]
+        assert len(docs.rejected) == 1
+        assert docs.rejected[0].index == 0
+        assert "document_id must not be empty" in docs.rejected[0].reason
+
+    def test_bad_rows_are_rejected_with_reasons(self):
+        rows = [
+            self._row(doc_id="N1", note_text="   "),
+            self._row(doc_id="N2", patient_id=""),
+            self._row(doc_id="N3", note_date="15/01/2024"),
+            self._row(doc_id="N4"),
+        ]
+        docs = Document.from_rows(rows, columns=self.REQUIRED)
+        assert [d.document_id for d in docs] == ["N4"]
+        reasons = {r.index: r.reason for r in docs.rejected}
+        assert "text must not be empty" in reasons[0]
+        assert "patient_identifier must not be empty" in reasons[1]
+        assert "Invalid date format '15/01/2024'" in reasons[2]
+        assert docs.rejected[2].document_id == "N3"
+        assert docs.rejected[2].date == "15/01/2024"
+
+    def test_returns_a_plain_list(self):
+        docs = Document.from_rows([self._row()], columns=self.REQUIRED)
+        assert isinstance(docs, list)
+        assert docs == [docs[0]]
+        assert docs.rejected == []
+
+    def test_dataframe_style_values(self):
+        """NaN blanks and numeric ids from a dataframe behave like CSV text."""
+        rows = [
+            {"nid": 101, "pid": "MRN-1", "d": "2024-01-15", "t": "A long enough note."},
+            {"nid": 102, "pid": "MRN-1", "d": "2024-01-16", "t": float("nan")},
+        ]
+        docs = Document.from_rows(
+            rows,
+            columns={
+                "document_id": "nid",
+                "patient_identifier": "pid",
+                "date": "d",
+                "text": "t",
+            },
+        )
+        assert [d.document_id for d in docs] == ["101"]
+        assert "text must not be empty" in docs.rejected[0].reason
 
     def test_date_conversion(self):
         """Date strings are validated through Document.__post_init__."""
@@ -4251,7 +4340,8 @@ class TestExtractAll(_PipelineHarness):
     def test_validation_runs_before_any_batch_spends(
         self, client, httpx_mock, monkeypatch
     ):
-        """A bad reference in the last batch raises before the first one runs."""
+        """A bad reference anywhere is rejected up front, and only that
+        document: every other one is still extracted."""
         pipeline = self._seed_for_batches(client, httpx_mock)
         seen = self._record(pipeline, monkeypatch)
 
@@ -4261,10 +4351,17 @@ class TestExtractAll(_PipelineHarness):
             _note("MRN-UNSEEDED", "2024-03-01", "bad"),
         ]
 
-        with pytest.raises(ValueError, match="unknown patient 'MRN-UNSEEDED'"):
-            pipeline.extract_all(docs, batch_size=1)
+        batches: list[list[IngestionOutcome]] = []
+        outcomes = pipeline.extract_all(docs, batch_size=1, on_batch=batches.append)
 
-        assert seen == []
+        assert [d.document_id for d in seen] == ["ok-1", "ok-2"]
+        # The rejection is reported before any batch runs.
+        assert [o.document_id for o in batches[0]] == ["bad"]
+        rejected = [o for o in outcomes if o.rejected]
+        assert len(rejected) == 1
+        assert rejected[0].category == "reference"
+        assert "unknown patient 'MRN-UNSEEDED'" in (rejected[0].error or "")
+        assert rejected[0].document_index == 2
 
     def test_duplicate_document_ids_split_across_batches_are_rejected(
         self, client, httpx_mock, monkeypatch
@@ -4279,10 +4376,17 @@ class TestExtractAll(_PipelineHarness):
             _note("MRN-1", "2024-03-01", "dupe"),
         ]
 
-        with pytest.raises(ValueError, match="Duplicate document_id values"):
-            pipeline.extract_all(docs, batch_size=1)
+        outcomes = pipeline.extract_all(docs, batch_size=1)
 
-        assert seen == []
+        # The first occurrence is extracted; the later repeat is rejected.
+        assert [(d.document_id, d.date) for d in seen] == [
+            ("dupe", "2024-01-01"),
+            ("other", "2024-02-01"),
+        ]
+        rejected = [o for o in outcomes if o.rejected]
+        assert len(rejected) == 1
+        assert rejected[0].document_index == 2
+        assert rejected[0].category == "data"
 
     def test_same_document_id_across_patients_is_allowed(
         self, client, httpx_mock, monkeypatch

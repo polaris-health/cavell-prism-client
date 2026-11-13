@@ -153,6 +153,49 @@ every row is a conditional create keyed on your own `lab_result_id`.
 **What every column means, and exactly when a row is rejected:**
 [CSV field reference](https://polaris-health.github.io/cavell-prism-client/csv-reference/).
 
+## Extract straight from a database
+
+If the notes or lab results live in a database table with the same columns,
+skip the CSV export. Any database works — through a SQLAlchemy URL
+(`pip install 'cavell-prism-client[database]'` plus your driver) or any
+DB-API connection you already have — and each run only reads and extracts
+what is not done yet, so the same call keeps a growing table up to date:
+
+The code is the CSV example above with the table in place of `rows`:
+
+```python
+from cavell_client import DatabaseSource
+
+notes = DatabaseSource(
+    "postgresql+psycopg://reader@db.example.org/clinical", table="notes"
+)
+
+pipeline.seed(
+    organizations=[Organization(identifier="CGH-001", name="City General")],
+    practitioners=Practitioner.from_rows(  # same call; reads only these columns
+        notes,
+        columns={"identifier": "practitioner_id", "name": "practitioner_name"},
+        organization_identifier="CGH-001",
+    ),
+)  # no patients: they are created from the table as their notes come up
+
+report = pipeline.extract_from_database(
+    notes,
+    columns={...},  # the mapping you gave Document.from_rows()
+    patient_columns={  # ...and the one you gave Patient.from_rows()
+        "identifier": "patient_id",
+        "name": "patient_name",
+    },
+    patient_defaults={"managing_organization": "CGH-001"},
+    failures_path="prism_failures.jsonl",
+)
+print(report)
+```
+
+Bad rows are skipped and reported, and every failure is logged with who has to
+act — your data, Prism, or your FHIR server — and why. See
+[Extracting from a database](https://polaris-health.github.io/cavell-prism-client/database/).
+
 ## One record at a time
 
 The same objects built by hand — for a queue consumer, a webhook, or a quick
@@ -232,6 +275,7 @@ truth.
 | [CSV field reference](https://polaris-health.github.io/cavell-prism-client/csv-reference/) | Every column of both file types, what it does, and the rejection rules |
 | [Clinical notes pipeline](https://polaris-health.github.io/cavell-prism-client/ingestion/) | Seeding, chronological ordering, out-of-order notes, updates, error handling |
 | [Lab results pipeline](https://polaris-health.github.io/cavell-prism-client/labs/) | Fail-closed reference checks, the rejection report, idempotent re-runs |
+| [Extracting from a database](https://polaris-health.github.io/cavell-prism-client/database/) | Connecting to any database, incremental runs on large tables, the failure report |
 | [Client API](https://polaris-health.github.io/cavell-prism-client/extract/) | The lower-level client: direct extraction, resource queries, validation tags |
 
 Runnable demo notebooks on synthetic data live in
