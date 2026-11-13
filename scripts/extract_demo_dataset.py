@@ -443,7 +443,7 @@ def main() -> None:
         "--patient",
         nargs="+",
         metavar="MRN",
-        help="only these patients (e.g. a demo subset from demo_scenarios.md)",
+        help="only these patients (e.g. a demo subset)",
     )
     parser.add_argument(
         "--skip-labs", action="store_true", help="don't ingest notes_lab_results.csv"
