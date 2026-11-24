@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-24
+
+### Security
+
+- **Development lockfile moved off vulnerable soupsieve and tornado.**
+  `uv.lock` now pins soupsieve 4.1.3 (GHSA-mmhr-3c5m-f64f,
+  GHSA-6655-6qjp-jx7x, GHSA-4j63-6c4x-wfg4, GHSA-7g44-g9rc-x53w) and
+  tornado 6.6.1 (GHSA-5cjw-f85j-cv6r). Both reach the project only through
+  the `notebook` extra and the docs toolchain; the core client does not use
+  them. The installed package is unchanged: pip resolves these at install
+  time, so if you use the `notebook` extra, upgrade them in your environment
+  (`pip install -U soupsieve tornado`).
+
+### Changed
+
+- The lockfile is resolved for Python 3.11.5 and newer, because the patched
+  soupsieve releases require it. `uv sync` for development needs 3.11.5+;
+  the package itself still supports Python 3.11 and later.
+
 ## [0.10.0] - 2026-11-13
 
 ### Added
