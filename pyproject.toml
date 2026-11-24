@@ -99,6 +99,14 @@ dev = [
     "ty>=0.0.1",
 ]
 
+[tool.uv]
+# Resolve the lockfile for Python >= 3.11.5 only. soupsieve (pulled in by the
+# notebook extra and the docs toolchain) ships security fixes only in releases
+# that require 3.11.5+, so a lock that also covers 3.11.0-3.11.4 keeps a
+# vulnerable version. This affects development installs from uv.lock; the
+# published package still declares requires-python >= 3.11.
+environments = ["python_full_version >= '3.11.5'"]
+
 [[tool.ty.overrides]]
 # The demo notebooks' settings cells use `if COL_X:` so a reader can set an
 # optional column to None; ty sees the default string and calls the check
