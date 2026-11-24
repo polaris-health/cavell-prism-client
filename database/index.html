@@ -1,0 +1,2484 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python client for Cavell FHIR extraction API">
+      
+      
+      
+        <link rel="canonical" href="https://polaris-health.github.io/cavell-prism-client/database/">
+      
+      
+        <link rel="prev" href="../labs/">
+      
+      
+        <link rel="next" href="../csv-reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Extracting from a database - Cavell Prism Client</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Extracting from a database - Cavell Prism Client" />
+<meta property="og:description" content="Python client for Cavell FHIR extraction API" />
+<meta property="og:image" content="https://polaris-health.github.io/cavell-prism-client/assets/images/social/database.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://polaris-health.github.io/cavell-prism-client/database/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Extracting from a database - Cavell Prism Client" />
+<meta property="twitter:description" content="Python client for Cavell FHIR extraction API" />
+<meta property="twitter:image" content="https://polaris-health.github.io/cavell-prism-client/assets/images/social/database.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#extracting-from-a-database" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cavell Prism Client" class="md-header__button md-logo" aria-label="Cavell Prism Client" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cavell Prism Client
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Extracting from a database
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/polaris-health/cavell-prism-client" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    polaris-health/cavell-prism-client
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cavell Prism Client" class="md-nav__button md-logo" aria-label="Cavell Prism Client" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cavell Prism Client
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/polaris-health/cavell-prism-client" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    polaris-health/cavell-prism-client
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clinical notes pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../labs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab results pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extracting from a database
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extracting from a database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Quick start
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Quick start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-the-csv-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from the CSV workflow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Coming from the CSV workflow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-patients-are-not-seeded-up-front" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why patients are not seeded up front
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-practitioners-are-seeded-up-front" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why practitioners are seeded up front
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#smaller-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Smaller tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-connecting-with-sqlalchemy-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Connecting with SQLAlchemy (recommended)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Connecting with SQLAlchemy (recommended)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-the-url-safely" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build the URL safely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-example-per-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One example per database
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reuse-an-engine-you-already-have" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reuse an Engine you already have
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-connecting-without-sqlalchemy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Connecting without SQLAlchemy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-choosing-the-rows-table-or-query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Choosing the rows: table= or query=
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-the-table-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The table schema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. The table schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#default-column-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default column names
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-large-and-growing-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Large and growing tables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Large and growing tables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-one-run-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What one run does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-it-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it costs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-it-on-a-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running it on a schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-when-something-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. When something fails
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. When something fails">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#every-failure-has-a-category" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every failure has a category
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-failures-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The failures file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-retried-and-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is retried, and when
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-raises-instead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What raises instead
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-return-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Return values
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../csv-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV field reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/extraction_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notes extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/hospitalization_extraction_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hospital stays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/lab_results_ingestion_demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notebooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Quick start
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Quick start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-the-csv-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from the CSV workflow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Coming from the CSV workflow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-patients-are-not-seeded-up-front" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why patients are not seeded up front
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-practitioners-are-seeded-up-front" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why practitioners are seeded up front
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#smaller-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Smaller tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-connecting-with-sqlalchemy-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Connecting with SQLAlchemy (recommended)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Connecting with SQLAlchemy (recommended)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build-the-url-safely" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build the URL safely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-example-per-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One example per database
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reuse-an-engine-you-already-have" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reuse an Engine you already have
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-connecting-without-sqlalchemy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Connecting without SQLAlchemy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-choosing-the-rows-table-or-query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Choosing the rows: table= or query=
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-the-table-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The table schema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. The table schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#default-column-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default column names
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-large-and-growing-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Large and growing tables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Large and growing tables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-one-run-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What one run does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-it-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it costs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-it-on-a-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running it on a schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-when-something-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. When something fails
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. When something fails">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#every-failure-has-a-category" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every failure has a category
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-failures-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The failures file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-retried-and-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is retried, and when
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-raises-instead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What raises instead
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-return-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Return values
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="extracting-from-a-database">Extracting from a Database</h1>
+<p>If your notes or lab results already live in a database table, you do not need
+to export them to CSV first. Point the SDK at the table (or at a <code>SELECT</code>), map
+the columns exactly as you would for the CSV, and run.</p>
+<p>The database path is built for <strong>large tables that keep growing</strong>:</p>
+<ul>
+<li><strong>Only new work is read.</strong> Each run first reads a handful of identifying
+  columns, asks your FHIR server what is already extracted, and then fetches
+  the note text only for the rows that still need it. A re-run with nothing
+  new reads no note text and makes no extraction call.</li>
+<li><strong>What failed is retried.</strong> A row that was not extracted successfully, for
+  whatever reason, is not marked as done, so the next run picks it up again.</li>
+<li><strong>Bad rows never stop a run.</strong> A row with a blank note, a malformed date or
+  an unknown reference is skipped and reported. Everything else is extracted.</li>
+<li><strong>Every failure says why and who has to act</strong>: your data, Prism, your FHIR
+  server, or the run itself. See <a href="#8-when-something-fails">When something fails</a>.</li>
+</ul>
+<p>The table has the <strong>same columns as the CSV</strong>. Everything in the
+<a href="../csv-reference/">CSV field reference</a> applies unchanged: field meanings,
+formats, and rejection rules. The code is also almost the same as the
+<a href="../ingestion/#start-from-a-csv">CSV workflow</a>: the same mappings, the same
+<code>from_rows()</code> calls. <a href="#coming-from-the-csv-workflow">Coming from the CSV workflow</a>
+lists the few differences and why each one exists.</p>
+<hr />
+<h2 id="1-install">1. Install</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;cavell-prism-client[database]&#39;</span>
+</code></pre></div>
+<p>The <code>database</code> extra installs <a href="https://www.sqlalchemy.org/">SQLAlchemy</a>, which
+can connect to almost any database from a single URL. You also need the
+<strong>driver</strong> for your database:</p>
+<table>
+<thead>
+<tr>
+<th>Database</th>
+<th>Driver to install</th>
+<th>SQLAlchemy URL prefix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL</td>
+<td><code>pip install psycopg[binary]</code></td>
+<td><code>postgresql+psycopg://</code></td>
+</tr>
+<tr>
+<td>Microsoft SQL Server / Azure SQL</td>
+<td><code>pip install pyodbc</code> + Microsoft ODBC Driver 18</td>
+<td><code>mssql+pyodbc://</code></td>
+</tr>
+<tr>
+<td>Oracle</td>
+<td><code>pip install oracledb</code></td>
+<td><code>oracle+oracledb://</code></td>
+</tr>
+<tr>
+<td>MySQL / MariaDB</td>
+<td><code>pip install pymysql</code></td>
+<td><code>mysql+pymysql://</code></td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td>built into Python</td>
+<td><code>sqlite:///</code></td>
+</tr>
+<tr>
+<td>Snowflake</td>
+<td><code>pip install snowflake-sqlalchemy</code></td>
+<td><code>snowflake://</code></td>
+</tr>
+<tr>
+<td>Databricks</td>
+<td><code>pip install databricks-sqlalchemy</code></td>
+<td><code>databricks://</code></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">No SQLAlchemy? That works too</p>
+<p>Any standard Python database connection (DB-API 2.0) is accepted as-is,
+with no extra install. See <a href="#4-connecting-without-sqlalchemy">Connecting without SQLAlchemy</a>.</p>
+</div>
+<hr />
+<h2 id="2-quick-start">2. Quick start</h2>
+<p>This runs end to end on your machine. It loads the demo <code>notes.csv</code> into a
+local SQLite database, which stands in for your real one, and extracts it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cavell_client</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">CavellClient</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">DatabaseSource</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">IngestionPipeline</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">Organization</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">Practitioner</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># --- Stand-in for your database: the demo CSVs loaded into SQLite once ----</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="s2">&quot;clinical.db&quot;</span><span class="p">):</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="n">db</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;clinical.db&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="k">for</span> <span class="n">table</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="p">[</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>        <span class="p">(</span><span class="s2">&quot;notes&quot;</span><span class="p">,</span> <span class="s2">&quot;docs/notebooks/notes.csv&quot;</span><span class="p">),</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>        <span class="p">(</span><span class="s2">&quot;lab_results&quot;</span><span class="p">,</span> <span class="s2">&quot;docs/notebooks/notes_lab_results.csv&quot;</span><span class="p">),</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    <span class="p">]:</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8-sig&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>            <span class="n">rows</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>        <span class="n">cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>        <span class="n">db</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;CREATE TABLE </span><span class="si">{</span><span class="n">table</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>        <span class="n">db</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>            <span class="sa">f</span><span class="s2">&quot;INSERT INTO </span><span class="si">{</span><span class="n">table</span><span class="si">}</span><span class="s2"> VALUES (</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;?&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">cols</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>            <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">],</span>  <span class="c1"># blank -&gt; NULL</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>        <span class="p">)</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>    <span class="n">db</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>    <span class="n">db</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="c1"># --- The part you keep ----------------------------------------------------</span>
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="n">client</span> <span class="o">=</span> <span class="n">CavellClient</span><span class="p">(</span>
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>    <span class="n">api_url</span><span class="o">=</span><span class="s2">&quot;https://prd.prism.cavell.app/api&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>    <span class="n">api_key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;PRISM_API_KEY&quot;</span><span class="p">],</span>  <span class="c1"># your LLM Gateway key</span>
+<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a>    <span class="n">fhir_base_url</span><span class="o">=</span><span class="s2">&quot;http://localhost:8090&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a>    <span class="n">fhir_api_path</span><span class="o">=</span><span class="s2">&quot;/fhir&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="p">)</span>
+<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a>
+<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a><span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="s2">&quot;sqlite:///clinical.db&quot;</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;notes&quot;</span><span class="p">)</span>  <span class="c1"># reads nothing yet</span>
+<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a>
+<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a><span class="n">pipeline</span> <span class="o">=</span> <span class="n">IngestionPipeline</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">default_organization</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span>
+<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a>    <span class="n">organizations</span><span class="o">=</span><span class="p">[</span><span class="n">Organization</span><span class="p">(</span><span class="n">identifier</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;City General Hospital&quot;</span><span class="p">)],</span>
+<a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a>    <span class="n">practitioners</span><span class="o">=</span><span class="n">Practitioner</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>  <span class="c1"># as with the CSV, with the table as rows</span>
+<a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a>        <span class="n">notes</span><span class="p">,</span>
+<a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a>        <span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_id&quot;</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_name&quot;</span><span class="p">},</span>
+<a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a>        <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a>    <span class="p">),</span>
+<a id="__codelineno-1-49" name="__codelineno-1-49" href="#__codelineno-1-49"></a>    <span class="c1"># No patients=: each patient is created from the table just before their</span>
+<a id="__codelineno-1-50" name="__codelineno-1-50" href="#__codelineno-1-50"></a>    <span class="c1"># first note is extracted (see &quot;Coming from the CSV workflow&quot; below).</span>
+<a id="__codelineno-1-51" name="__codelineno-1-51" href="#__codelineno-1-51"></a><span class="p">)</span>
+<a id="__codelineno-1-52" name="__codelineno-1-52" href="#__codelineno-1-52"></a>
+<a id="__codelineno-1-53" name="__codelineno-1-53" href="#__codelineno-1-53"></a><span class="n">report</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract_from_database</span><span class="p">(</span>
+<a id="__codelineno-1-54" name="__codelineno-1-54" href="#__codelineno-1-54"></a>    <span class="n">notes</span><span class="p">,</span>
+<a id="__codelineno-1-55" name="__codelineno-1-55" href="#__codelineno-1-55"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span>  <span class="c1"># the mapping you would give Document.from_rows()</span>
+<a id="__codelineno-1-56" name="__codelineno-1-56" href="#__codelineno-1-56"></a>        <span class="s2">&quot;document_id&quot;</span><span class="p">:</span> <span class="s2">&quot;note_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-57" name="__codelineno-1-57" href="#__codelineno-1-57"></a>        <span class="s2">&quot;patient_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-58" name="__codelineno-1-58" href="#__codelineno-1-58"></a>        <span class="s2">&quot;date&quot;</span><span class="p">:</span> <span class="s2">&quot;note_date&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-59" name="__codelineno-1-59" href="#__codelineno-1-59"></a>        <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;note_text&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-60" name="__codelineno-1-60" href="#__codelineno-1-60"></a>        <span class="s2">&quot;encounter_id&quot;</span><span class="p">:</span> <span class="s2">&quot;encounter_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-61" name="__codelineno-1-61" href="#__codelineno-1-61"></a>        <span class="s2">&quot;practitioner_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-62" name="__codelineno-1-62" href="#__codelineno-1-62"></a>        <span class="s2">&quot;meta&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Department&quot;</span><span class="p">:</span> <span class="s2">&quot;department&quot;</span><span class="p">},</span>
+<a id="__codelineno-1-63" name="__codelineno-1-63" href="#__codelineno-1-63"></a>    <span class="p">},</span>
+<a id="__codelineno-1-64" name="__codelineno-1-64" href="#__codelineno-1-64"></a>    <span class="n">patient_columns</span><span class="o">=</span><span class="p">{</span>  <span class="c1"># the mapping you would give Patient.from_rows()</span>
+<a id="__codelineno-1-65" name="__codelineno-1-65" href="#__codelineno-1-65"></a>        <span class="s2">&quot;identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-66" name="__codelineno-1-66" href="#__codelineno-1-66"></a>        <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_name&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-67" name="__codelineno-1-67" href="#__codelineno-1-67"></a>        <span class="s2">&quot;birth_date&quot;</span><span class="p">:</span> <span class="s2">&quot;birth_date&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-68" name="__codelineno-1-68" href="#__codelineno-1-68"></a>        <span class="s2">&quot;gender&quot;</span><span class="p">:</span> <span class="s2">&quot;gender&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-69" name="__codelineno-1-69" href="#__codelineno-1-69"></a>    <span class="p">},</span>
+<a id="__codelineno-1-70" name="__codelineno-1-70" href="#__codelineno-1-70"></a>    <span class="n">patient_defaults</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;managing_organization&quot;</span><span class="p">:</span> <span class="s2">&quot;CGH-001&quot;</span><span class="p">},</span>  <span class="c1"># its keyword defaults</span>
+<a id="__codelineno-1-71" name="__codelineno-1-71" href="#__codelineno-1-71"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+<a id="__codelineno-1-72" name="__codelineno-1-72" href="#__codelineno-1-72"></a>    <span class="n">failures_path</span><span class="o">=</span><span class="s2">&quot;prism_failures.jsonl&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-73" name="__codelineno-1-73" href="#__codelineno-1-73"></a><span class="p">)</span>
+<a id="__codelineno-1-74" name="__codelineno-1-74" href="#__codelineno-1-74"></a><span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="p">)</span>
+<a id="__codelineno-1-75" name="__codelineno-1-75" href="#__codelineno-1-75"></a><span class="c1"># 2,452 rows scanned: 0 already extracted, 2,452 extracted now (0 partial),</span>
+<a id="__codelineno-1-76" name="__codelineno-1-76" href="#__codelineno-1-76"></a><span class="c1"># 0 failed, 0 rejected, 0 duplicate(s) skipped — estimated cost $...</span>
+</code></pre></div>
+<p>Run the last call again and it reports <code>2,452 already extracted, 0 extracted
+now</code>. Insert new rows into <code>notes</code> and only those are extracted.</p>
+<p>Lab results work the same way:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cavell_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">LabIngestionPipeline</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">outcome</span> <span class="o">=</span> <span class="n">LabIngestionPipeline</span><span class="p">(</span><span class="n">client</span><span class="p">)</span><span class="o">.</span><span class="n">ingest_from_database</span><span class="p">(</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">DatabaseSource</span><span class="p">(</span><span class="s2">&quot;sqlite:///clinical.db&quot;</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;lab_results&quot;</span><span class="p">),</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span>  <span class="c1"># the same mapping LabResult.from_rows() takes</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="s2">&quot;lab_result_id&quot;</span><span class="p">:</span> <span class="s2">&quot;lab_result_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="s2">&quot;patient_identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;patient_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="s2">&quot;test_name&quot;</span><span class="p">:</span> <span class="s2">&quot;test_name&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;value&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="s2">&quot;collected_datetime&quot;</span><span class="p">:</span> <span class="s2">&quot;collected_datetime&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="s2">&quot;loinc_code&quot;</span><span class="p">:</span> <span class="s2">&quot;loinc_code&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="s2">&quot;unit&quot;</span><span class="p">:</span> <span class="s2">&quot;unit&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="s2">&quot;reference_low&quot;</span><span class="p">:</span> <span class="s2">&quot;reference_low&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="s2">&quot;reference_high&quot;</span><span class="p">:</span> <span class="s2">&quot;reference_high&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>        <span class="s2">&quot;encounter_id&quot;</span><span class="p">:</span> <span class="s2">&quot;encounter_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>        <span class="s2">&quot;practitioner_id&quot;</span><span class="p">:</span> <span class="s2">&quot;practitioner_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="p">},</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    <span class="n">failures_path</span><span class="o">=</span><span class="s2">&quot;prism_lab_failures.jsonl&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="p">)</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">outcome</span><span class="p">)</span>
+</code></pre></div>
+<p>As with the CSV, the patients must already be in FHIR before their lab
+results are ingested. Extracting the notes first takes care of that.</p>
+<h3 id="coming-from-the-csv-workflow">Coming from the CSV workflow</h3>
+<p>If you already extract a CSV, the database version keeps the same steps,
+mappings and calls. Side by side:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># CSV                                         # Database</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">rows</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>                <span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="n">engine</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;notes&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">practitioners</span> <span class="o">=</span> <span class="n">Practitioner</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>       <span class="n">practitioners</span> <span class="o">=</span> <span class="n">Practitioner</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">PRAC_COLS</span><span class="p">,</span> <span class="o">**</span><span class="n">org</span><span class="p">)</span>               <span class="n">notes</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">PRAC_COLS</span><span class="p">,</span> <span class="o">**</span><span class="n">org</span><span class="p">)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">patients</span> <span class="o">=</span> <span class="n">Patient</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>                 <span class="c1"># (no patients step)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">PATIENT_COLS</span><span class="p">,</span> <span class="o">**</span><span class="n">patient_org</span><span class="p">)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">documents</span> <span class="o">=</span> <span class="n">Document</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>               <span class="c1"># (no documents step)</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">DOC_COLS</span><span class="p">,</span> <span class="o">**</span><span class="n">doc_defaults</span><span class="p">)</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">organizations</span><span class="p">,</span>                  <span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">organizations</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>              <span class="n">patients</span><span class="p">,</span> <span class="n">practitioners</span><span class="p">)</span>                      <span class="n">practitioners</span><span class="o">=</span><span class="n">practitioners</span><span class="p">)</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">extract_all</span><span class="p">(</span><span class="n">documents</span><span class="p">)</span>               <span class="n">pipeline</span><span class="o">.</span><span class="n">extract_from_database</span><span class="p">(</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>                                                  <span class="n">notes</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">DOC_COLS</span><span class="p">,</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>                                                  <span class="n">patient_columns</span><span class="o">=</span><span class="n">PATIENT_COLS</span><span class="p">,</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>                                                  <span class="n">patient_defaults</span><span class="o">=</span><span class="n">patient_org</span><span class="p">,</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>                                                  <span class="o">**</span><span class="n">doc_defaults</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>CSV</th>
+<th>Database</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Read the data</td>
+<td><code>csv.DictReader</code> loads every row</td>
+<td><code>DatabaseSource</code> reads nothing until a step needs it</td>
+<td>A table can hold millions of notes. Only what a step needs is read</td>
+</tr>
+<tr>
+<td>Practitioners</td>
+<td><code>Practitioner.from_rows(rows, ...)</code></td>
+<td><code>Practitioner.from_rows(notes, ...)</code>: same call, same mapping</td>
+<td>Given a source, <code>from_rows()</code> reads only the mapped columns, streamed, never the note text. Repeated practitioners are removed the same way: first row wins</td>
+</tr>
+<tr>
+<td>Patients</td>
+<td><code>Patient.from_rows(rows, ...)</code>, passed to <code>seed()</code></td>
+<td>The same mapping, passed as <code>patient_columns=</code> (and its keyword defaults as <code>patient_defaults=</code>)</td>
+<td>Patients are created during extraction, not up front. See below</td>
+</tr>
+<tr>
+<td>Documents</td>
+<td><code>Document.from_rows(rows, ...)</code>, passed to <code>extract_all()</code></td>
+<td>The same mapping, passed as <code>columns=</code> (and its keyword defaults as keywords)</td>
+<td>The documents are built batch by batch, only for notes not extracted yet, so the note text is never all in memory</td>
+</tr>
+<tr>
+<td>Extract</td>
+<td><code>extract_all(documents)</code></td>
+<td><code>extract_from_database(notes, ...)</code></td>
+<td>It works out what is pending from the table and your FHIR server, and only fetches that</td>
+</tr>
+<tr>
+<td>Bad rows</td>
+<td>skipped and reported</td>
+<td>skipped and reported, with their row number</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="why-patients-are-not-seeded-up-front">Why patients are not seeded up front</h4>
+<p>With a CSV, <code>seed()</code> sends every patient in the file on every run. For a
+table that keeps growing and is extracted every night, that is hundreds of
+thousands of unchanged patients written again each time. So
+<code>extract_from_database()</code> creates patients itself, batch by batch, from the
+<code>patient_columns</code> of the patient's first row, and only for patients that have a
+note to extract and are not in FHIR yet. A re-run with nothing new creates
+none.</p>
+<p>You can still seed patients up front, exactly as with the CSV. Pass the
+table to <code>Patient.from_rows()</code>, which reads only the mapped columns:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">organizations</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">patients</span><span class="o">=</span><span class="n">Patient</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="n">notes</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">PATIENT_COLS</span><span class="p">,</span> <span class="n">managing_organization</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="p">),</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">practitioners</span><span class="o">=</span><span class="n">practitioners</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span>
+</code></pre></div>
+<p>Either way, nothing is duplicated, because patients are matched on their
+identifier. Seeding up front costs a write per patient per run. In exchange, it
+updates the demographics of patients already in FHIR, which
+<code>extract_from_database()</code> never does (see <a href="#11-limits">Limits</a>).</p>
+<h4 id="why-practitioners-are-seeded-up-front">Why practitioners are seeded up front</h4>
+<p>Prism reads the practitioners named in the note text, and the SDK links them
+to the practitioners already in FHIR. A doctor named in a note but not its
+author is not in that note's <code>practitioner_id</code>, so they can only be linked if
+the full list was seeded first. The list is also small, so seeding it once per
+run costs little. It can come from the notes table, as above, or from a staff
+table:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">staff</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="n">engine</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;clinical.staff&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">practitioners</span> <span class="o">=</span> <span class="n">Practitioner</span><span class="o">.</span><span class="n">from_rows</span><span class="p">(</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">staff</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;identifier&quot;</span><span class="p">:</span> <span class="s2">&quot;staff_id&quot;</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;full_name&quot;</span><span class="p">},</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">organization_identifier</span><span class="o">=</span><span class="s2">&quot;CGH-001&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">)</span>
+</code></pre></div>
+<p>A note whose <code>practitioner_id</code> is not seeded is rejected (<code>reference</code>) and
+picked up again by the next run once the practitioner is seeded.</p>
+<h4 id="smaller-tables">Smaller tables</h4>
+<p>For a table that fits in memory, <code>DatabaseSource.rows()</code> returns every row
+exactly as <code>csv.DictReader</code> would. You can then run the CSV workflow
+unchanged, from <code>Document.from_rows(rows, ...)</code> to <code>extract_all()</code>. You lose what
+<code>extract_from_database()</code> adds: a re-run still reads every row, and every
+patient is sent again.</p>
+<hr />
+<h2 id="3-connecting-with-sqlalchemy-recommended">3. Connecting with SQLAlchemy (recommended)</h2>
+<p><code>DatabaseSource</code> takes a <strong>SQLAlchemy URL</strong>, an <strong>Engine</strong>, or a
+<strong>Connection</strong>.</p>
+<h3 id="build-the-url-safely">Build the URL safely</h3>
+<p>Do not paste passwords into code, and do not hand-build URL strings:
+passwords containing <code>@</code>, <code>/</code> or <code>%</code> then need escaping. Use <code>URL.create</code>
+with values read from environment variables:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="n">URL</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cavell_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabaseSource</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">url</span> <span class="o">=</span> <span class="n">URL</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="s2">&quot;postgresql+psycopg&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">username</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;DB_USER&quot;</span><span class="p">],</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">password</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;DB_PASSWORD&quot;</span><span class="p">],</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">host</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;DB_HOST&quot;</span><span class="p">],</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">port</span><span class="o">=</span><span class="mi">5432</span><span class="p">,</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="n">database</span><span class="o">=</span><span class="s2">&quot;clinical&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="p">)</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="n">url</span><span class="o">.</span><span class="n">render_as_string</span><span class="p">(</span><span class="n">hide_password</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;notes&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="one-example-per-database">One example per database</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># PostgreSQL</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">URL</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="s2">&quot;postgresql+psycopg&quot;</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="n">u</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">h</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">5432</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="s2">&quot;clinical&quot;</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># SQL Server / Azure SQL (ODBC Driver 18)</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">URL</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="s2">&quot;mssql+pyodbc&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">username</span><span class="o">=</span><span class="n">u</span><span class="p">,</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    <span class="n">password</span><span class="o">=</span><span class="n">p</span><span class="p">,</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    <span class="n">host</span><span class="o">=</span><span class="n">h</span><span class="p">,</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="n">port</span><span class="o">=</span><span class="mi">1433</span><span class="p">,</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    <span class="n">database</span><span class="o">=</span><span class="s2">&quot;clinical&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>    <span class="n">query</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;driver&quot;</span><span class="p">:</span> <span class="s2">&quot;ODBC Driver 18 for SQL Server&quot;</span><span class="p">,</span> <span class="s2">&quot;Encrypt&quot;</span><span class="p">:</span> <span class="s2">&quot;yes&quot;</span><span class="p">},</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="p">)</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="c1"># Oracle (service name)</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="n">URL</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>    <span class="s2">&quot;oracle+oracledb&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>    <span class="n">username</span><span class="o">=</span><span class="n">u</span><span class="p">,</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>    <span class="n">password</span><span class="o">=</span><span class="n">p</span><span class="p">,</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>    <span class="n">host</span><span class="o">=</span><span class="n">h</span><span class="p">,</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>    <span class="n">port</span><span class="o">=</span><span class="mi">1521</span><span class="p">,</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>    <span class="n">query</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;service_name&quot;</span><span class="p">:</span> <span class="s2">&quot;CLINICAL&quot;</span><span class="p">},</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="p">)</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="c1"># MySQL / MariaDB</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="n">URL</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a>    <span class="s2">&quot;mysql+pymysql&quot;</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="n">u</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">h</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">3306</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="s2">&quot;clinical&quot;</span>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="p">)</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="c1"># SQLite (a file)</span>
+<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="s2">&quot;sqlite:////absolute/path/to/clinical.db&quot;</span>
+</code></pre></div>
+<p>For Snowflake and Databricks, follow the URL format documented by their
+SQLAlchemy dialect packages.</p>
+<h3 id="reuse-an-engine-you-already-have">Reuse an Engine you already have</h3>
+<p>If your application already has an Engine (with TLS settings, a connection
+pool, a proxy…), pass it directly. The SDK never disposes an Engine or closes
+a Connection it did not create.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_engine</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">create_engine</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">connect_args</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;sslmode&quot;</span><span class="p">:</span> <span class="s2">&quot;require&quot;</span><span class="p">})</span>  <span class="c1"># PostgreSQL TLS</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="n">engine</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;clinical.notes&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>A <code>DatabaseSource</code> built from a URL owns its Engine. Use it as a context
+manager (or call <code>close()</code>) to release it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">with</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;notes&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">notes</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">report</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract_from_database</span><span class="p">(</span><span class="n">notes</span><span class="p">,</span> <span class="n">columns</span><span class="o">=...</span><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h2 id="4-connecting-without-sqlalchemy">4. Connecting without SQLAlchemy</h2>
+<p>Any <strong>DB-API 2.0</strong> connection works: the standard interface every Python
+database driver implements. No extra install is needed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">psycopg</span>  <span class="c1"># PostgreSQL</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="n">psycopg</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;DB_DSN&quot;</span><span class="p">]),</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;notes&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pyodbc</span>  <span class="c1"># SQL Server</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">conn</span> <span class="o">=</span> <span class="n">pyodbc</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="s2">&quot;Driver={ODBC Driver 18 for SQL Server};Server=...;Database=clinical;&quot;</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="s2">&quot;UID=...;PWD=...;Encrypt=yes&quot;</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="p">)</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;dbo.notes&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="kn">import</span><span class="w"> </span><span class="nn">oracledb</span>  <span class="c1"># Oracle</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>    <span class="n">oracledb</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">u</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">dsn</span><span class="o">=</span><span class="s2">&quot;host/CLINICAL&quot;</span><span class="p">),</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;NOTES&quot;</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="p">)</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>  <span class="c1"># SQLite</span>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span><span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;clinical.db&quot;</span><span class="p">),</span> <span class="n">table</span><span class="o">=</span><span class="s2">&quot;notes&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>The SDK detects the driver's placeholder style for its own lookups. With a
+driver that does not declare one, pass <code>paramstyle=</code> (<code>qmark</code>, <code>numeric</code>,
+<code>named</code>, <code>format</code> or <code>pyformat</code>).</p>
+<div class="admonition note">
+<p class="admonition-title">Transactions on a connection you pass in</p>
+<p>Most drivers open a transaction with the first statement. So that a
+long run does not leave your session "idle in transaction" between
+batches (where a server's idle timeout can cut it off), the SDK ends the
+transactions its own reads opened. It only reads, so it rolls them back.
+A transaction you had open yourself is left alone.</p>
+<p>With psycopg, psycopg2, oracledb and sqlite3 the SDK can tell whether a
+transaction was open. With other drivers it does not touch the
+connection's transactions. Open the connection in autocommit mode, for
+example <code>pyodbc.connect(..., autocommit=True)</code>, or connect through
+SQLAlchemy.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">SQLAlchemy streams large scans; raw drivers may not</p>
+<p>With SQLAlchemy, the SDK reads with server-side cursors where the driver
+supports them, so a multi-million-row key scan streams. Some raw DB-API
+drivers (psycopg's default cursor, for example) download a whole result
+before returning the first row. The key scan is small (a few short
+columns), but for very large tables SQLAlchemy is the better choice.</p>
+</div>
+<hr />
+<h2 id="5-choosing-the-rows-table-or-query">5. Choosing the rows: <code>table=</code> or <code>query=</code></h2>
+<p><strong><code>table=</code></strong> reads a table or view: <code>"notes"</code>, <code>"clinical.notes"</code> or
+<code>"warehouse.clinical.notes"</code>. Only plain names are accepted. For anything
+else, use <code>query=</code>.</p>
+<p><strong><code>query=</code></strong> reads the result of your own <code>SELECT</code>. Use it to:</p>
+<ul>
+<li><strong>filter</strong>: only one department, only notes from 2020 onwards</li>
+<li><strong>join</strong>: notes and patients in separate tables</li>
+<li><strong>rename</strong> columns so they match what you want to map</li>
+<li><strong>convert</strong> values, e.g. <code>CAST(note_ts AS DATE)</code></li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">notes</span> <span class="o">=</span> <span class="n">DatabaseSource</span><span class="p">(</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="n">engine</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="n">query</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="s2">        SELECT n.note_id, n.patient_id, p.full_name AS patient_name, p.birth_date,</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="s2">               n.note_date, n.encounter_id, n.author_id AS practitioner_id,</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="s2">               n.department, n.body AS note_text</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="s2">        FROM clinical.notes n</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s2">        JOIN clinical.patients p ON p.patient_id = n.patient_id</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="s2">        WHERE n.note_date &gt;= :since</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="s2">    &quot;&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>    <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;since&quot;</span><span class="p">:</span> <span class="s2">&quot;2020-01-01&quot;</span><span class="p">},</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="p">)</span>
+</code></pre></div>
+<p>Rules for <code>query=</code>:</p>
+<ul>
+<li>It is used as a <strong>sub-query</strong>, so it must be a single <code>SELECT</code>, without a
+  trailing <code>;</code>. Anything else fails to parse rather than running: the SDK
+  only ever reads.</li>
+<li><strong>Parameters.</strong> With SQLAlchemy, write <code>:name</code> placeholders and pass a
+  dict. A literal colon inside a string then needs escaping as <code>\:</code>. With a
+  raw DB-API connection, use your driver's style: <code>%(name)s</code> (dict) or <code>%s</code>
+  (tuple) for psycopg and pymysql, <code>?</code> for pyodbc and sqlite3, <code>:name</code> for
+  oracledb. With psycopg and pymysql, write a literal <code>%</code> as <code>%%</code>. Params of
+  the wrong kind for the style (a tuple for <code>:name</code>, say) are refused when the
+  <code>DatabaseSource</code> is created.</li>
+<li><strong>No <code>ORDER BY</code> inside it on SQL Server</strong>, which forbids it in a
+  sub-query. Ordering is applied by the pipeline anyway: by date, globally.</li>
+<li><strong>Column names are matched exactly as the database reports them.</strong>
+  <code>notes.columns()</code> prints them. Oracle and Snowflake report unquoted names
+  in UPPER CASE through their own drivers (<code>NOTE_ID</code>), and in lower case
+  through SQLAlchemy (<code>note_id</code>). Map whichever you see, or alias in the
+  query (<code>SELECT note_id AS "note_id" ...</code>). Names created quoted
+  (<code>"PATIENT_ID"</code> in PostgreSQL, a reserved word like <code>"DATE"</code>) work as
+  reported: with a raw DB-API connection the SDK always quotes column names.</li>
+</ul>
+<hr />
+<h2 id="6-the-table-schema">6. The table schema</h2>
+<p>The columns are those of the CSV, and the mapping is the same:</p>
+<ul>
+<li><strong>Notes:</strong> <code>columns=</code> takes exactly what <a href="../csv-reference/#document-columns"><code>Document.from_rows()</code></a>
+  takes. <code>patient_columns=</code> takes what <a href="../csv-reference/#patient-practitioner-and-organization-columns"><code>Patient.from_rows()</code></a>
+  takes, and is used to create patients that are not in FHIR yet: <code>name</code>,
+  <code>birth_date</code>, <code>gender</code>, <code>managing_organization</code>, <code>general_practitioners</code>.
+  The patient identifier is always the <code>patient_identifier</code> column, so
+  <code>identifier</code> can be left out.</li>
+<li><strong>Practitioners:</strong> <code>Practitioner.from_rows()</code> takes the source itself, with
+  the CSV mapping.</li>
+<li><strong>Labs:</strong> <code>columns=</code> takes exactly what <a href="../csv-reference/#lab-columns"><code>LabResult.from_rows()</code></a>
+  takes.</li>
+</ul>
+<h3 id="default-column-names">Default column names</h3>
+<p>Leave <code>columns=</code> out and the table is read with the example CSVs' column
+names. Every one of them must then be in the table under exactly that name.
+Extra columns are ignored.</p>
+<table>
+<thead>
+<tr>
+<th>Pipeline</th>
+<th>Columns the table must have</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Notes (<code>DEFAULT_NOTE_COLUMNS</code>)</td>
+<td><code>note_id</code>, <code>patient_id</code>, <code>note_date</code>, <code>note_text</code>, <code>encounter_id</code>, <code>practitioner_id</code>, <code>department</code></td>
+</tr>
+<tr>
+<td>New patients (<code>DEFAULT_PATIENT_COLUMNS</code>)</td>
+<td><code>patient_name</code>, <code>birth_date</code>, <code>gender</code>, used only when <code>patient_columns=</code> is left out too</td>
+</tr>
+<tr>
+<td>Labs (<code>DEFAULT_LAB_COLUMNS</code>)</td>
+<td><code>lab_result_id</code>, <code>patient_id</code>, <code>test_name</code>, <code>value</code>, <code>collected_datetime</code>, <code>loinc_code</code>, <code>unit</code>, <code>reference_low</code>, <code>reference_high</code>, <code>encounter_id</code>, <code>practitioner_id</code></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">report</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">extract_from_database</span><span class="p">(</span><span class="n">notes</span><span class="p">)</span>  <span class="c1"># the notes CSV&#39;s column names</span>
+</code></pre></div>
+<p>If any column is missing, the run stops before reading anything. The error
+names each column not found (and a column with the same name in another case,
+such as <code>NOTE_ID</code> on Oracle or Snowflake), plus the table's columns that match
+no default, which are usually the renamed ones:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>ValueError: No columns= given, so the table must have the default columns
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[&#39;note_id&#39;, ...]. Not found: &#39;note_id&#39; (the table has &#39;NOTE_ID&#39;), &#39;note_text&#39;.
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>Table columns matching no default: [&#39;NOTE_ID&#39;, &#39;body&#39;]. Pass columns= to map
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>your own column names, or rename them with aliases in query=.
+</code></pre></div>
+<p>To change only a few names, start from the default:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">cavell_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_NOTE_COLUMNS</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">columns</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">DEFAULT_NOTE_COLUMNS</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;body&quot;</span><span class="p">,</span> <span class="s2">&quot;encounter_id&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+</code></pre></div>
+<p>Database values are converted to the text a CSV export of the table would
+hold, so every validation rule applies identically:</p>
+<table>
+<thead>
+<tr>
+<th>Database value</th>
+<th>Becomes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NULL</code></td>
+<td>empty, so it counts as blank exactly like an empty CSV cell</td>
+</tr>
+<tr>
+<td>text</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>integer, decimal, float</td>
+<td>its digits (<code>4.50</code>, <code>12</code>), never in exponent form</td>
+</tr>
+<tr>
+<td><code>DATE</code></td>
+<td><code>2024-03-14</code></td>
+</tr>
+<tr>
+<td><code>TIMESTAMP</code> at exactly midnight, without a time zone</td>
+<td><code>2024-03-14</code> (Oracle and SQL Server return <code>DATE</code> columns this way)</td>
+</tr>
+<tr>
+<td>other <code>TIMESTAMP</code></td>
+<td><code>2024-03-14T21:40:00</code>, plus the offset when the column has one (<code>+01:00</code>)</td>
+</tr>
+<tr>
+<td><code>CLOB</code> / long text</td>
+<td>read in full</td>
+</tr>
+<tr>
+<td>bytes</td>
+<td>decoded as UTF-8. A row with bytes that are not UTF-8 is rejected (<code>data</code>) with the column named; <code>rows()</code> raises instead</td>
+</tr>
+</tbody>
+</table>
+<p><code>Document.date</code> accepts an ISO date <strong>or</strong> an ISO datetime and keeps the date
+part as written, without converting to UTC. So a <code>TIMESTAMP</code> note date works
+as-is. Lab <code>collected_datetime</code> still needs a timezone offset whenever it
+carries a time (<a href="../csv-reference/#datetimes-and-timezones">why</a>). Use
+<code>TIMESTAMP WITH TIME ZONE</code>, or cast to a date in <code>query=</code>.</p>
+<p><code>Practitioner.from_rows()</code> and <code>Patient.from_rows()</code> accept a
+<code>DatabaseSource</code> in place of the rows. They read only the mapped columns and
+stream them, so this works on a notes table of any size. A row with a cell
+that cannot be read as text is skipped with a warning. For anything else
+small, <code>DatabaseSource.rows()</code> returns the whole result as <code>csv.DictReader</code>
+would, ready for any <code>from_rows()</code>.</p>
+<hr />
+<h2 id="7-large-and-growing-tables">7. Large and growing tables</h2>
+<h3 id="what-one-run-does">What one run does</h3>
+<ol>
+<li><strong>Key scan.</strong> Reads only the identifying columns (document id, patient,
+   date, encounter, practitioner, organization, and the patient columns),
+   never the note text. Rows with a blank id or a bad date are rejected
+   here. Rows that repeat a <code>document_id</code> for one patient count once: if
+   they are identical, one document is extracted; if they differ, none of
+   them is until you make the ids unique, because there is no telling which
+   one is meant. An unknown organization or practitioner rejects a row only
+   while its document is still pending, so a document extracted long ago is
+   not reported again.</li>
+<li><strong>What is already done.</strong> Two bulk, paginated scans of your FHIR server
+   (seeded patients, extracted documents) rather than one query per patient.
+   A document is <em>done</em> only if it was extracted and persisted successfully.</li>
+<li><strong>Pending documents.</strong> Sorted by date across the whole table, then
+   processed in batches of <code>batch_size</code>. For each batch:<ul>
+<li>new patients are created from <code>patient_columns</code></li>
+<li>the full rows, note text included, are fetched for exactly that batch's
+  keys</li>
+<li>the batch is extracted with the usual in-place and deferred retries</li>
+</ul>
+</li>
+</ol>
+<p>Labs follow the same idea. A single scan of your FHIR server finds every
+stored <code>lab_result_id</code>, the table is streamed once, and rows already stored
+are skipped before anything is sent.</p>
+<h3 id="what-it-costs">What it costs</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>First (historical) run</th>
+<th>Re-run with nothing new</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Database</td>
+<td>key scan + text for every row, batch by batch</td>
+<td>key scan only</td>
+</tr>
+<tr>
+<td>FHIR server</td>
+<td>bulk scans + the extraction's own reads and writes</td>
+<td>bulk scans only</td>
+</tr>
+<tr>
+<td>Prism</td>
+<td>one extraction per document</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>keys (≈150–300 bytes per row) + one batch of text</td>
+<td>keys</td>
+</tr>
+</tbody>
+</table>
+<p>For scale: a key scan of a 1-million-row table, including working out the
+pending rows, takes about 10 seconds and under 300 MB of memory on a laptop.
+On a real deployment, the bulk FHIR scan (one request per 1,000 stored
+documents) is usually the largest fixed cost of a re-run.</p>
+<p><strong>Index the key columns.</strong> An index on <code>(patient_id, note_id)</code>, or whatever
+your two key columns are, makes fetching a batch's notes a direct lookup.</p>
+<h3 id="running-it-on-a-schedule">Running it on a schedule</h3>
+<p>Because each run only does what is not done yet, the simplest way to keep up
+with a growing table is to run the same script on a schedule, such as a
+nightly cron job. Run <strong>one extraction per table at a time</strong>: a run decides
+what is pending when it starts.</p>
+<p>A run that is interrupted (crash, reboot, <code>Ctrl-C</code>) loses nothing. Whatever
+was persisted is skipped next time, and whatever was not is still pending.</p>
+<hr />
+<h2 id="8-when-something-fails">8. When something fails</h2>
+<h3 id="every-failure-has-a-category">Every failure has a category</h3>
+<p>Each row that does not land is classified by <strong>who has to act</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Meaning</th>
+<th>Typical cause</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>The row itself is unusable</td>
+<td>Blank text or id, unparseable date, repeated id, a patient record your FHIR server refuses (e.g. an invalid birth date)</td>
+<td>Fix the row in your table. It is picked up on the next run</td>
+</tr>
+<tr>
+<td><code>reference</code></td>
+<td>The row points at something that does not exist</td>
+<td>Unknown organization or practitioner; for labs, unknown patient or encounter</td>
+<td>Seed it, or fix the reference</td>
+</tr>
+<tr>
+<td><code>prism_rejected</code></td>
+<td>Prism refused this document or row</td>
+<td>A 4xx response; the detail says why</td>
+<td>Fix the row if the detail names a content problem; otherwise contact Cavell support with the log line</td>
+</tr>
+<tr>
+<td><code>prism_unavailable</code></td>
+<td>Prism or the network failed transiently, through every retry</td>
+<td>Timeouts, connection errors, 429, 5xx</td>
+<td>Nothing; it is retried on the next run</td>
+</tr>
+<tr>
+<td><code>prism_partial</code></td>
+<td>Extracted, but some extraction steps failed</td>
+<td>Some resources may be missing</td>
+<td>Not retried automatically; contact Cavell support if it recurs</td>
+</tr>
+<tr>
+<td><code>fhir_rejected</code></td>
+<td>Your FHIR server refused the extracted resources</td>
+<td>Validation or profile rules on your server; the detail carries its <code>OperationOutcome</code></td>
+<td>Check your FHIR server's validation settings</td>
+</tr>
+<tr>
+<td><code>fhir_unavailable</code></td>
+<td>Your FHIR server could not be reached, or errored</td>
+<td>Connection refused, 5xx, authentication</td>
+<td>Check the FHIR server; picked up on the next run</td>
+</tr>
+<tr>
+<td><code>run_aborted</code></td>
+<td>The run stopped</td>
+<td>API key rejected, LLM Gateway unreachable</td>
+<td>Fix the cause and re-run</td>
+</tr>
+<tr>
+<td><code>client_error</code></td>
+<td>An unexpected error inside the SDK</td>
+<td></td>
+<td>Report it to Cavell support with the log line</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reading-the-log">Reading the log</h3>
+<p>Each failure is logged at <code>ERROR</code> as one self-contained line: the identifier,
+patient, date, the row's position in the query result, the category, the
+HTTP status, the number of attempts, the reason, the underlying detail, and
+what to do.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>FAILED document note-0042 patient=MRN-1 date=2024-03-14 row=18231 category=prism_rejected http=422 attempts=1: failed while calling the Prism extraction API: Cavell API error (422): ... -&gt; Prism refused this input — see the detail; ...
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>FAILED document note-0107 patient=MRN-7 date=2024-05-02 row=40112 category=fhir_rejected attempts=1: Persist failed: the FHIR server rejected the extracted bundle (1 resource error(s)) | detail: Condition: ... -&gt; your FHIR server refused the data — check its validation/profile settings ...
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>REJECTED document note-0200 patient=MRN-9 date=2024-06-30 row=51007 category=data: Document.text must not be empty -&gt; fix the row in the source data; it is picked up again on the next run
+</code></pre></div>
+<p><code>row</code> is the 0-based position in the query result, so you can find the row
+again with the same query.</p>
+<p>The run ends with a summary: counts per outcome, failures per category, then
+every failure grouped by category, up to 200 lines.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>extract_from_database: 69,410 extracted (12 partial), 3,050,000 already processed, 37 failed, 553 rejected, estimated cost $... — 602 row(s) need attention: data=540, prism_unavailable=30, reference=13, prism_partial=12, fhir_rejected=7
+</code></pre></div>
+<p>Make sure your application's logging shows <code>cavell_client</code> messages, for
+example with <code>logging.basicConfig(level=logging.INFO)</code>.</p>
+<h3 id="the-failures-file">The failures file</h3>
+<p><code>failures_path="prism_failures.jsonl"</code> also appends every failure, rejection
+and partial extraction to a <a href="https://jsonlines.org/">JSON Lines</a> file, one
+object per line. It is written batch by batch, so it survives a crash. It is
+append-only, so one file can hold the history of every run, each record
+stamped with its run's <code>run_started_at</code>. A path that cannot be written fails
+the run at once, before any work.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kind</code></td>
+<td><code>document</code> or <code>lab_result</code></td>
+</tr>
+<tr>
+<td><code>identifier</code></td>
+<td>Your <code>document_id</code> / <code>lab_result_id</code></td>
+</tr>
+<tr>
+<td><code>patient_identifier</code>, <code>date</code>, <code>row</code></td>
+<td>Where to find it</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>failed</code> (attempted), <code>rejected</code> (never sent), <code>partial</code></td>
+</tr>
+<tr>
+<td><code>category</code>, <code>reason</code>, <code>detail</code>, <code>action</code></td>
+<td>Why, and what to do</td>
+</tr>
+<tr>
+<td><code>http_status</code>, <code>attempts</code>, <code>transient</code></td>
+<td>The technical detail</td>
+</tr>
+<tr>
+<td><code>run_started_at</code></td>
+<td>Which run recorded it</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="n">failures</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_json</span><span class="p">(</span><span class="s2">&quot;prism_failures.jsonl&quot;</span><span class="p">,</span> <span class="n">lines</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="n">latest</span> <span class="o">=</span> <span class="n">failures</span><span class="p">[</span><span class="n">failures</span><span class="o">.</span><span class="n">run_started_at</span> <span class="o">==</span> <span class="n">failures</span><span class="o">.</span><span class="n">run_started_at</span><span class="o">.</span><span class="n">max</span><span class="p">()]</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">latest</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">())</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">latest</span><span class="p">[</span><span class="n">latest</span><span class="o">.</span><span class="n">category</span> <span class="o">==</span> <span class="s2">&quot;data&quot;</span><span class="p">][[</span><span class="s2">&quot;identifier&quot;</span><span class="p">,</span> <span class="s2">&quot;row&quot;</span><span class="p">,</span> <span class="s2">&quot;reason&quot;</span><span class="p">]])</span>
+</code></pre></div>
+<h3 id="what-is-retried-and-when">What is retried, and when</h3>
+<ul>
+<li><strong>Within a run.</strong> Timeouts, connection drops, 429 and 5xx responses are
+  retried in place, up to 3 attempts with backoff. Documents that still fail
+  transiently get one more deferred pass after the batch.</li>
+<li><strong>On the next run.</strong> Everything not extracted successfully: failures,
+  rejections, and documents a run never reached because it aborted.</li>
+<li><strong>Not automatically.</strong> Partial extractions (<code>prism_partial</code>), which did
+  land.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">A document that always fails is retried on every run</p>
+<p>A row that fails the same way every time, such as a note Prism keeps
+refusing, is attempted again on each run until the row is fixed or
+removed from the query. Check the failures file after each run, and
+exclude rows you have decided to skip with a <code>WHERE</code> clause in <code>query=</code>.</p>
+</div>
+<h3 id="what-raises-instead">What raises instead</h3>
+<p>The run itself stops, after logging its summary, only for problems no row
+can get past:</p>
+<ul>
+<li><strong>Mapping mistakes</strong>, before anything is read: an unknown field, a
+  required field not mapped, or a mapped column that is not in the table.
+  These raise <code>ValueError</code>.</li>
+<li><strong>Database errors</strong>: bad credentials, a missing table, a broken query.
+  Your driver's own exception is raised.</li>
+<li><strong>An invalid API key or an unreachable LLM Gateway</strong> raises
+  <code>CavellAuthError</code> or <code>CavellGatewayUnavailableError</code>.</li>
+<li><strong>An unreachable FHIR server</strong> during the bulk scans or patient creation
+  raises.</li>
+</ul>
+<p>Re-run once it is fixed: nothing is lost or duplicated.</p>
+<hr />
+<h2 id="9-return-values">9. Return values</h2>
+<p><code>extract_from_database()</code> returns a <code>DatabaseExtractionReport</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rows_scanned</code></td>
+<td>Rows read by the key scan</td>
+</tr>
+<tr>
+<td><code>already_extracted</code></td>
+<td>Rows skipped because their document is in FHIR</td>
+</tr>
+<tr>
+<td><code>pending</code></td>
+<td>Rows that needed extracting this run</td>
+</tr>
+<tr>
+<td><code>extracted</code> / <code>partial</code></td>
+<td>Extracted and persisted in this run (and how many were partial)</td>
+</tr>
+<tr>
+<td><code>duplicates_skipped</code></td>
+<td>Pending rows whose text repeats another row's for the same patient and date, whether that row is pending or was extracted in an earlier run</td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td><code>IngestionOutcome</code>s of documents that were attempted and failed: <code>category</code>, <code>error</code>, <code>detail</code>, <code>http_status</code>, <code>attempts</code></td>
+</tr>
+<tr>
+<td><code>rejected</code></td>
+<td><code>DocumentRejection</code>s: <code>index</code> (row), <code>document_id</code>, <code>patient_identifier</code>, <code>reason</code>, <code>category</code></td>
+</tr>
+<tr>
+<td><code>total_cost</code></td>
+<td>Estimated cost of this run</td>
+</tr>
+<tr>
+<td><code>success</code></td>
+<td><code>True</code> when nothing failed or was rejected</td>
+</tr>
+</tbody>
+</table>
+<p><code>ingest_from_database()</code> returns the usual
+<a href="../labs/#labingestionoutcome"><code>LabIngestionOutcome</code></a> for the whole table.
+<code>skipped_already_ingested</code> counts the rows not sent because they were already
+stored, and each rejection's <code>index</code> is its position in the query result.</p>
+<hr />
+<h2 id="10-troubleshooting">10. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ImportError: ... cavell-prism-client[database]</code></td>
+<td>Install the extra, or pass a DB-API connection instead of a URL</td>
+</tr>
+<tr>
+<td><code>ModuleNotFoundError: No module named 'psycopg'</code> (or <code>pyodbc</code>, <code>oracledb</code>, …)</td>
+<td>Install your database's driver (see <a href="#1-install">Install</a>)</td>
+</tr>
+<tr>
+<td><code>Column 'note_id' ... not found. Available columns: ['NOTE_ID', ...]</code></td>
+<td>Map the names the database reports, or alias them in <code>query=</code></td>
+</tr>
+<tr>
+<td><code>table='...' is not a plain [catalog.][schema.]name</code></td>
+<td>Use <code>query="SELECT * FROM \"My Notes\""</code> for quoted or unusual names</td>
+</tr>
+<tr>
+<td><code>duplicate column name(s)</code></td>
+<td>Two columns of a join share a name; alias one of them</td>
+</tr>
+<tr>
+<td>Every lab row with a time is rejected</td>
+<td><code>collected_datetime</code> needs an offset; use a time-zone-aware column, or format one in <code>query=</code></td>
+</tr>
+<tr>
+<td>The database closes the connection mid-run ("idle in transaction" timeout)</td>
+<td>Open the connection in autocommit mode or connect through SQLAlchemy (see <a href="#4-connecting-without-sqlalchemy">Connecting without SQLAlchemy</a>), then re-run; nothing done is repeated</td>
+</tr>
+<tr>
+<td><code>N rows share patient_id=..., note_id=... with different content</code></td>
+<td>Two rows carry the same id for one patient with different text; make the ids unique</td>
+</tr>
+<tr>
+<td>The key scan is slow on a huge view</td>
+<td>Point <code>table=</code>/<code>query=</code> at the base table, or a materialized copy, and index the key columns</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-limits">11. Limits</h2>
+<ul>
+<li><strong>Run one extraction per table at a time.</strong> What is pending is decided
+  once, at the start of a run.</li>
+<li><strong>Patients are created once.</strong> Demographics of a patient already in FHIR
+  are not updated from the table. To update them, seed patients up front with
+  <code>Patient.from_rows(source, ...)</code> (see
+  <a href="#why-patients-are-not-seeded-up-front">Why patients are not seeded up front</a>).</li>
+<li><strong>Read-only.</strong> The SDK only runs <code>SELECT</code> statements, so a read-only
+  database user is enough, and recommended. For a large historical load,
+  point it at a reporting replica rather than the production database.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.instant", "navigation.sections"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
